@@ -29,9 +29,7 @@ The suite has no third-party Python dependency.
 
 ## CI matrix
 
-GitHub Actions runs the unit suite on Python 3.10 and 3.13 on both Ubuntu and Windows. A separate job scans Git history with Gitleaks.
-
-[TODO] Record the first public CI run URL after the GitHub remote is created.
+GitHub Actions runs the unit suite on Python 3.10 and 3.13 on both Ubuntu and Windows. A separate job scans Git history with Gitleaks. The [first remote CI run](https://github.com/eyeinthesky6/codex-coordinator/actions/runs/29484825433) passed all five jobs on the initial commit.
 
 ## Local secret scan
 
