@@ -93,6 +93,18 @@ class PackageContractTests(unittest.TestCase):
         )
         self.assertIn("It is never available for an unrelated goal", recovery)
 
+    def test_public_positioning_explains_multi_agent_work_without_ultra(self) -> None:
+        readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
+        manifest = json.loads(
+            (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+
+        self.assertIn("multiple Codex agents for one large goal", readme)
+        self.assertIn("Multi-agent work without Ultra", readme)
+        self.assertIn("does not bypass Codex plan availability", readme)
+        self.assertIn("explicit delegation without Ultra", manifest["description"])
+        self.assertEqual(manifest["version"], "0.1.7")
+
 
 if __name__ == "__main__":
     unittest.main()
