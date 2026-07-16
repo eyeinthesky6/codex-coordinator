@@ -4,6 +4,7 @@ Notable changes to Codex Coordinator will be recorded here.
 
 ## Unreleased
 
+- Made explicit multi-agent delegation without Ultra a primary product value, while documenting normal Codex usage and concurrency limits.
 - Prevented paused or idle worker tasks from being reused for unrelated goals, and added receiver-side mismatch return routing to a fresh task.
 - Prepared the plugin and repository for the initial open-source release.
 - Hardened restart-state parsing, stale ownership detection, and packaged hook discovery.
