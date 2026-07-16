@@ -32,7 +32,7 @@ That instruction applies to the current coordinated goal without rewriting globa
 
 The Coordinator itself should normally use the strongest suitable model with High reasoning. Extra High is reserved for difficult decomposition, recovery, or integration decisions; Ultra remains optional and selective.
 
-**Status:** pre-release. The package is being hardened for its first public release.
+**Status:** `v0.1.7` initial public release.
 
 [![CI](https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml/badge.svg)](https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml)
 
@@ -64,12 +64,12 @@ Coordinator complements native Codex agents and Git worktrees; it does not repla
 - Git;
 - Python 3.10 or newer available as `python` on Windows and `python3` on macOS or Linux.
 
-## Install from a local checkout
+## Install from GitHub
 
-1. Add this directory as a marketplace:
+1. Add the tagged repository as a marketplace:
 
    ```powershell
-   codex plugin marketplace add <path-to-this-directory>
+   codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.1.7
    ```
 
 2. Open Codex Plugins and install **Codex Coordinator** from the `codex-coordinator` marketplace.
@@ -79,6 +79,16 @@ Coordinator complements native Codex agents and Git worktrees; it does not repla
    ```text
    Use $codex-coordinator to create the tasks needed and coordinate this goal: <goal>
    ```
+
+### Offline or development checkout
+
+Download or clone the repository, then add the local directory instead:
+
+```powershell
+codex plugin marketplace add <path-to-this-directory>
+```
+
+Continue with steps 2–4 above. Once installed, the plugin's coordination behavior and SessionStart hook run locally without a network service.
 
 The first useful coordinated task lazily enables that Git repository. Small, isolated work continues without extra coordination files. To opt a repository out, say:
 

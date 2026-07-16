@@ -1,8 +1,8 @@
 # Security Policy
 
-## Supported version
+## Supported versions
 
-Until the first stable release, only the latest code on the default branch receives security fixes.
+Until the first stable release, only the latest published `0.x` release and the default branch receive security fixes. Older `0.x` releases should be upgraded rather than patched in place.
 
 ## Reporting a vulnerability
 

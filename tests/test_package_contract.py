@@ -95,6 +95,7 @@ class PackageContractTests(unittest.TestCase):
 
     def test_public_positioning_explains_multi_agent_work_without_ultra(self) -> None:
         readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
+        changelog = (REPOSITORY / "CHANGELOG.md").read_text(encoding="utf-8")
         manifest = json.loads(
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
@@ -104,6 +105,8 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("does not bypass Codex plan availability", readme)
         self.assertIn("explicit delegation without Ultra", manifest["description"])
         self.assertEqual(manifest["version"], "0.1.7")
+        self.assertIn(f"@v{manifest['version']}", readme)
+        self.assertIn(f"## {manifest['version']} - ", changelog)
 
     def test_model_selection_respects_user_defaults_and_task_fit(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
