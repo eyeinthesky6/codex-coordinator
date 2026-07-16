@@ -1,0 +1,4 @@
+title = "Codex Coordinator gitleaks configuration"
+
+[extend]
+useDefault = true

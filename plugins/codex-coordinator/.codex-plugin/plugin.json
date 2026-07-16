@@ -1,0 +1,36 @@
+{
+  "name": "codex-coordinator",
+  "version": "0.1.6",
+  "description": "Independent repository-scoped coordination for safe parallel and cross-task Codex work.",
+  "author": {
+    "name": "Six Ideas"
+  },
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "coordination",
+    "parallel-work",
+    "multi-agent",
+    "repository"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Coordinator",
+    "shortDescription": "Coordinate safe parallel repository work",
+    "longDescription": "An independent third-party plugin that coordinates Codex tasks inside one repository with lazy enablement, explicit opt-out, local ownership, exact routing, safe shared-checkout boundaries, and restart recovery.",
+    "developerName": "Six Ideas",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "brandColor": "#0B1020",
+    "composerIcon": "./assets/logo.png",
+    "logo": "./assets/logo.png",
+    "defaultPrompt": [
+      "Create the tasks needed and coordinate this goal: <goal>",
+      "Show who is working on what and what is blocked",
+      "Turn Codex Coordinator off for this repository"
+    ]
+  }
+}

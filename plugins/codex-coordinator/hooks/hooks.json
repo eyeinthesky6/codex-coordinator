@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/scripts/codex_coordinator_session_start.py\"",
+            "commandWindows": "python \"${PLUGIN_ROOT}/scripts/codex_coordinator_session_start.py\"",
+            "timeout": 5,
+            "statusMessage": "Loading Codex Coordinator handoff"
+          }
+        ]
+      }
+    ]
+  }
+}

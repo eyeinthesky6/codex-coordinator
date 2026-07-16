@@ -1,0 +1,29 @@
+name: Usage question
+description: Ask for help installing or using Codex Coordinator
+title: "[Question]: "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Coordinator version
+      description: Use the plugin version or commit when known.
+  - type: textarea
+    id: goal
+    attributes:
+      label: What are you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: Share redacted commands or results, not private task messages or live state.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, private task content, and live coordination state.
+          required: true

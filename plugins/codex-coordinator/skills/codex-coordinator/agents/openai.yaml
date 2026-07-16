@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Coordinator"
+  short_description: "Coordinate safe parallel repository work"
+  default_prompt: "Use $codex-coordinator to create the tasks needed and coordinate this goal: <goal>."

@@ -1,0 +1,10 @@
+# Changelog
+
+Notable changes to Codex Coordinator will be recorded here.
+
+## Unreleased
+
+- Prepared the plugin and repository for the initial open-source release.
+- Hardened restart-state parsing, stale ownership detection, and packaged hook discovery.
+- Clarified enablement, first-run creation, archive recovery, routing, and shared-checkout ownership.
+- Added the project logo, public architecture guide, and clearer install, fit, and first-success documentation.
