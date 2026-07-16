@@ -4,15 +4,21 @@
 
 <h1 align="center">Codex Coordinator</h1>
 
-<p align="center"><strong>Durable ownership and handoffs for independent Codex tasks working in one repository.</strong></p>
+<p align="center"><strong>Launch and coordinate multiple Codex agents for one large goal—even without Ultra.</strong></p>
 
-Codex Coordinator is a lightweight plugin that keeps parallel Codex work understandable: who owns each change, what is waiting, and how another task can safely continue after a pause or restart.
+Codex Coordinator turns a large repository goal into bounded work for multiple Codex agents, then keeps that parallel work understandable: who owns each change, what is waiting, and how another task can safely continue after a pause or restart.
 
 Each working task keeps one core goal. Finishing a turn or pausing does not turn that task into a general-purpose worker: unrelated work gets a new Codex task, so its conversation and activity remain easy to follow. If a mismatched assignment reaches a worker, it leaves the current goal unchanged and asks the Coordinator to route the work elsewhere.
 
 > **Independent project:** Codex Coordinator is a third-party plugin for OpenAI Codex. It is not affiliated with, endorsed by, or maintained by OpenAI. Codex and related OpenAI product names belong to OpenAI.
 
 It is for builders running several independent Codex tasks in the same Git repository who are tired of manually relaying ownership and handoffs. It uses small repository records, Codex's native task tools, and one read-only restart hook—no service, database, dashboard, or lock manager.
+
+## Multi-agent work without Ultra
+
+Ultra can proactively decide when to delegate work, but it is not required to run parallel agents. At other supported intelligence levels, Codex delegates when the user asks directly or when applicable project or skill instructions request it. Codex Coordinator supplies that explicit multi-agent workflow: give it one large goal and it creates the minimum bounded tasks needed, assigns them to separate agents, and keeps their ownership and results traceable.
+
+The plugin does not bypass Codex plan availability, usage, token, or concurrency limits. Parallel agents consume more usage than a comparable single-agent run. See the official [Codex subagent guidance](https://learn.chatgpt.com/docs/agent-configuration/subagents).
 
 **Status:** pre-release. The package is being hardened for its first public release.
 
@@ -22,6 +28,7 @@ It is for builders running several independent Codex tasks in the same Git repos
 
 Use Codex Coordinator when:
 
+- you want to launch multiple agents from one large goal without relying on Ultra's proactive delegation;
 - two or more Codex tasks may touch related parts of one repository;
 - work needs an explicit owner, handoff, or blocked state;
 - tasks pause, compact, or restart and still need a shared picture;

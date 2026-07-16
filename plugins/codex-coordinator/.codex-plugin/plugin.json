@@ -1,7 +1,7 @@
 {
   "name": "codex-coordinator",
-  "version": "0.1.6",
-  "description": "Independent repository-scoped coordination for safe parallel and cross-task Codex work.",
+  "version": "0.1.7",
+  "description": "Launch and coordinate multiple Codex agents for one large repository goal, including explicit delegation without Ultra.",
   "author": {
     "name": "Six Ideas"
   },
@@ -16,8 +16,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Coordinator",
-    "shortDescription": "Coordinate safe parallel repository work",
-    "longDescription": "An independent third-party plugin that coordinates Codex tasks inside one repository with lazy enablement, explicit opt-out, local ownership, exact routing, safe shared-checkout boundaries, and restart recovery.",
+    "shortDescription": "Launch coordinated agents for large coding goals",
+    "longDescription": "Turn one large repository goal into bounded work for multiple Codex agents, including explicit delegation without Ultra. Keep ownership, routing, shared-checkout boundaries, pauses, and restart recovery traceable.",
     "developerName": "Six Ideas",
     "category": "Productivity",
     "capabilities": [
