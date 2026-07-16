@@ -31,3 +31,11 @@ python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
 Also parse changed JSON/YAML where practical and verify that relative package paths remain inside `plugins/codex-coordinator/`.
+
+## Codex Coordinator
+
+- This repository is Codex Coordinator-enabled.
+- Project identity is in `.codex/coordination/project.yaml`; current coordination state is in `.codex/coordination/CURRENT.md`.
+- Load the globally installed `codex-coordinator` skill before substantial, overlapping, parallel, or cross-thread work.
+- Respect the project ID and assigned task boundary; reject missing or mismatched cross-thread project bindings.
+- Treat Coordinator internals as protected; only an explicitly user-authorised `COORDINATOR_MAINTAINER` may modify them.

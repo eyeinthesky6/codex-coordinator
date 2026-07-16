@@ -8,6 +8,8 @@
 
 Codex Coordinator is a lightweight plugin that keeps parallel Codex work understandable: who owns each change, what is waiting, and how another task can safely continue after a pause or restart.
 
+Each working task keeps one core goal. Finishing a turn or pausing does not turn that task into a general-purpose worker: unrelated work gets a new Codex task, so its conversation and activity remain easy to follow. If a mismatched assignment reaches a worker, it leaves the current goal unchanged and asks the Coordinator to route the work elsewhere.
+
 > **Independent project:** Codex Coordinator is a third-party plugin for OpenAI Codex. It is not affiliated with, endorsed by, or maintained by OpenAI. Codex and related OpenAI product names belong to OpenAI.
 
 It is for builders running several independent Codex tasks in the same Git repository who are tired of manually relaying ownership and handoffs. It uses small repository records, Codex's native task tools, and one read-only restart hook—no service, database, dashboard, or lock manager.
@@ -100,6 +102,7 @@ For a deeper contributor map, see [architecture](docs/codebase/ARCHITECTURE.md),
 ## Limits
 
 - Coordination is repository-scoped; messages from another project are ignored.
+- A worker task is not reused for an unrelated goal, even while paused or idle; unrelated work needs a new native Codex task.
 - Mutable task state is local to a checkout and is not synchronized between machines.
 - The hook supplies restart context but never grants ownership; repository state remains authoritative.
 - A changed hook must be reviewed and trusted again.

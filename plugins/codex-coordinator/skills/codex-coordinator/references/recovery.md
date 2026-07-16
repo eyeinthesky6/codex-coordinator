@@ -18,7 +18,7 @@ On resume, the registered Coordinator reconciles tasks and pending commands befo
 
 ## Paused, idle, and blocked owners
 
-Native availability and canonical task state are different. An `idle` or `notLoaded` registered task remains usable and may be woken at a safe boundary after the Coordinator records its assignment or amendment. A task recorded as `PAUSED` remains paused even when the native UI says idle; resume it only after its recorded condition clears or the current user request authorises resumption, and record `RESUME` before delivery.
+Native availability and canonical task state are different. An `idle` or `notLoaded` registered task remains usable only for continuation of its same core goal and may be woken at a safe boundary after the Coordinator records that continuation or a narrowing amendment. It is never available for an unrelated goal; create a fresh bounded task and native thread for that work. A task recorded as `PAUSED` remains paused even when the native UI says idle; resume it only after its recorded condition clears or the current user request authorises resumption, and record `RESUME` before delivery.
 
 When a completed worker reports that another owner blocks required scope, the Coordinator pulls that report before closing its turn and follows the blocked-owner handoff in the operations lane. Inspect the exact owner, preserve its ownership until explicit release or transfer, and pause only overlapping work. The user never relays the internal prompt.
 
