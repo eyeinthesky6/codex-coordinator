@@ -72,6 +72,27 @@ class PackageContractTests(unittest.TestCase):
                 checked += 1
         self.assertGreater(checked, 0)
 
+    def test_worker_threads_keep_one_core_goal(self) -> None:
+        skill_root = PLUGIN / "skills" / "codex-coordinator"
+        skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+        operations = (skill_root / "references" / "operations.md").read_text(
+            encoding="utf-8"
+        )
+        recovery = (skill_root / "references" / "recovery.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("one core task goal per worker thread", skill)
+        self.assertIn("it never makes the thread reusable for a different goal", skill)
+        self.assertIn("record a fresh bounded task and create a new native thread", operations)
+        self.assertIn("After valid routing and before accepting the work", operations)
+        self.assertIn("Send one non-executable `SCOPE_CHANGE_REQUEST`", operations)
+        self.assertIn("messages from an invalid sender still fail", operations)
+        self.assertIn(
+            "remains usable only for continuation of its same core goal", recovery
+        )
+        self.assertIn("It is never available for an unrelated goal", recovery)
+
 
 if __name__ == "__main__":
     unittest.main()
