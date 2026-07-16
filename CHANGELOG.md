@@ -4,6 +4,8 @@ Notable changes to Codex Coordinator will be recorded here.
 
 ## Unreleased
 
+## 0.1.7 - 2026-07-16
+
 - Added task-fit model and reasoning guidance, run-wide user overrides, selective Ultra escalation, and safe future-turn retuning rules.
 - Made explicit multi-agent delegation without Ultra a primary product value, while documenting normal Codex usage and concurrency limits.
 - Prevented paused or idle worker tasks from being reused for unrelated goals, and added receiver-side mismatch return routing to a fresh task.
