@@ -105,6 +105,23 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("explicit delegation without Ultra", manifest["description"])
         self.assertEqual(manifest["version"], "0.1.7")
 
+    def test_model_selection_respects_user_defaults_and_task_fit(self) -> None:
+        skill_root = PLUGIN / "skills" / "codex-coordinator"
+        skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+        operations = (skill_root / "references" / "operations.md").read_text(
+            encoding="utf-8"
+        )
+        readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("explicit per-task or run-wide user override", skill)
+        self.assertIn("Apply this precedence", operations)
+        self.assertIn("Select by task shape without hardcoding model slugs", operations)
+        self.assertIn("Use `ultra` only when the user explicitly permits it", operations)
+        self.assertIn("For the Coordinator thread itself", operations)
+        self.assertIn("Never retune an in-flight turn", operations)
+        self.assertIn("Model and reasoning choices", readme)
+        self.assertIn("without rewriting global or project configuration", readme)
+
 
 if __name__ == "__main__":
     unittest.main()
