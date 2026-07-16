@@ -20,6 +20,18 @@ Ultra can proactively decide when to delegate work, but it is not required to ru
 
 The plugin does not bypass Codex plan availability, usage, token, or concurrency limits. Parallel agents consume more usage than a comparable single-agent run. See the official [Codex subagent guidance](https://learn.chatgpt.com/docs/agent-configuration/subagents).
 
+### Model and reasoning choices
+
+The Coordinator records a model and reasoning choice for each task. If the user supplies an exact per-task or run-wide preference, that preference wins within the models and reasoning levels supported by the account and destination host. For example:
+
+```text
+Use my preferred model at Extra High for all workers. Use Ultra only when it materially helps.
+```
+
+That instruction applies to the current coordinated goal without rewriting global or project configuration. Without an override, the Coordinator matches the task to a fast, balanced, or strongest suitable model and uses more reasoning only as complexity and risk justify it. On Codex surfaces that require the user to name a specific model, the Coordinator proposes an exact combination for approval or inherits the configured default.
+
+The Coordinator itself should normally use the strongest suitable model with High reasoning. Extra High is reserved for difficult decomposition, recovery, or integration decisions; Ultra remains optional and selective.
+
 **Status:** pre-release. The package is being hardened for its first public release.
 
 [![CI](https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml/badge.svg)](https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml)

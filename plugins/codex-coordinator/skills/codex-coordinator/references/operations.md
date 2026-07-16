@@ -165,7 +165,7 @@ Include:
 
 - project ID, shared goal, epoch, task ID, and individual goal;
 - role, scope kind, message type, sender, recipient, owner thread, and message acceptance;
-- resolved model and reasoning, or `inherit` / `unavailable`, plus selection source;
+- resolved model and reasoning, or `inherit` / `unavailable`, plus selection source and a short task-fit rationale;
 - execution mode, checkout, branch, exact write paths, and Git integration owner;
 - worktree only when user-requested or settings-provided;
 - included and excluded scope;
@@ -183,11 +183,31 @@ required_skills:
 
 ## Model and reasoning selection
 
-- Use the project defaults installed for new independent work: the latest available flagship Codex model with `medium` reasoning, unless the user or managed policy already chose otherwise.
-- For native `create_thread`, omit per-call `model` and `thinking` unless the current user explicitly requested an override; let the host apply the configured project defaults.
-- For an explicit override, resolve a supported model-and-reasoning combination from the current host catalog. Never hardcode a model slug in Coordinator files.
-- Never retune an in-flight turn or create another thread merely to force a setting. Record `inherit` or `unavailable` when the native tool does not expose the resolved value.
-- Never edit config or project guidance during ordinary coordination. Installation may set only the documented project defaults.
+Choose model and reasoning at dispatch time. Keep the choice proportional to the task; more reasoning increases latency and usage and is not a substitute for a bounded contract.
+
+Apply this precedence:
+
+1. Enforce managed policy, account entitlement, destination-host capability, and the native tool's allowed model-and-reasoning combinations.
+2. Apply an explicit user override for the individual task.
+3. Apply an explicit run-wide user override for the current shared goal. A direction such as “use my preferred model at Extra High for all workers and use Ultra selectively” authorises that default plus selective escalation; it does not edit global or project config and expires when the shared goal closes or the user changes it.
+4. Otherwise preserve explicit project defaults. When no explicit default exists and the native creation surface permits Coordinator-selected overrides, choose dynamically from the current host catalog using the task-fit guidance below.
+5. When the native surface requires the user to name a specific model, present the exact proposed combination for approval or inherit the host default. Do not treat general permission to optimise as permission to bypass that native requirement.
+
+Select by task shape without hardcoding model slugs:
+
+- Use a fast, economical coding model with `low` or `medium` reasoning for deterministic, reversible, tightly bounded work such as inventory, simple lookups, mechanical documentation, or focused test execution.
+- Use a balanced current coding model with `medium` reasoning for normal exploration, log analysis, ordinary implementation, and other work with clear acceptance criteria.
+- Use the strongest suitable current coding model with `high` reasoning for ambiguous implementation, cross-module debugging, integration, independent review, security-sensitive analysis, architecture, recovery, or work where a wrong result has a large downstream cost.
+- Use `xhigh` or the nearest supported equivalent only for unusually difficult, ambiguous, or high-impact reasoning where the added usage and delay are justified.
+- Use `ultra` only when the user explicitly permits it, the selected model and account support it, and the task materially benefits from the deepest reasoning or proactive delegation. Do not use it for routine coordination, status reconciliation, or mechanical work.
+
+For the Coordinator thread itself, prefer the strongest suitable current model with `high` reasoning when the user or native surface permits that choice. Use `xhigh` selectively for difficult initial decomposition, conflicted ownership recovery, or high-impact integration decisions. Do not make `ultra` a requirement for using the plugin.
+
+For every explicit override, resolve the exact supported combination from the destination host at creation time. If an exact user choice is unavailable, do not silently substitute another model; report the limitation and use an authorised fallback only when the user or managed policy already supplied one. Never hardcode a model slug in Coordinator files.
+
+New threads receive the resolved combination in their creation call only when native policy permits it. Existing threads keep their current settings unless the same core goal needs a future-turn change that the user authorised; record that amendment and apply it only at a safe turn boundary. Never retune an in-flight turn or create another thread merely to force a setting. Record `inherit` or `unavailable` when the native tool does not expose the resolved value.
+
+Never edit config or project guidance during ordinary coordination. Installation may set only the documented project defaults.
 
 ## Shared-checkout ownership
 
