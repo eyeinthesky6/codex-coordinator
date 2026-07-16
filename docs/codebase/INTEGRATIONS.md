@@ -12,11 +12,11 @@ The plugin uses Git only for repository and worktree context. The restart hook r
 
 ## GitHub
 
-The repository includes GitHub Actions, Dependabot configuration, issue forms, and a pull-request template. These become active only after the repository is hosted on GitHub.
+The canonical repository is `https://github.com/eyeinthesky6/codex-coordinator`. It includes GitHub Actions, Dependabot configuration, a bug form, Discussion routes, and a pull-request template.
 
-[TODO] Add the canonical repository URL after the public remote exists.
+The initial CI matrix, Dependabot alerts and fixes, Issues, Discussions, topics, merge policy, and read-only Actions permissions have been verified while the repository is private.
 
-[TODO] Verify branch protection, required CI, secret scanning, private vulnerability reporting, Discussions, and issue routes on the live repository before launch.
+[TODO] After the repository becomes public, enable and verify branch protection, required checks, secret scanning, push protection, and private vulnerability reporting.
 
 ## Network and external services
 

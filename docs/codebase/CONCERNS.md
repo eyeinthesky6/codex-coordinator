@@ -2,10 +2,10 @@
 
 ## Current launch gates
 
-- The repository has no public remote, public commit history, tags, or release artifact yet.
-- GitHub-side protections and community routes cannot be verified until the repository is hosted.
-- The first remote CI run has not happened.
-- The scheduled full Codex Security scan must finish before public launch.
+- The repository is staged on a private GitHub remote; it has no public history, tag, or release artifact yet.
+- The initial remote CI matrix passed, and the GitHub support funnel is configured.
+- Branch protection, secret scanning, push protection, and private vulnerability reporting remain deferred until public-repository features are available.
+- A full Codex Security scan is deferred while local resources are busy. It is an additional project safety gate, not a GitHub or licensing requirement.
 
 These are external or finalization gates, not evidence of a code defect.
 

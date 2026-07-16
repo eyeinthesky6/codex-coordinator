@@ -14,6 +14,8 @@ It is for builders running several independent Codex tasks in the same Git repos
 
 **Status:** pre-release. The package is being hardened for its first public release.
 
+[![CI](https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml/badge.svg)](https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml)
+
 ## When it fits
 
 Use Codex Coordinator when:
@@ -120,7 +122,7 @@ pre-commit install
 pre-commit run --all-files
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [SUPPORT.md](SUPPORT.md), and the [codebase guide](docs/codebase/STRUCTURE.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md), [GOVERNANCE.md](GOVERNANCE.md), [SECURITY.md](SECURITY.md), [SUPPORT.md](SUPPORT.md), and the [codebase guide](docs/codebase/STRUCTURE.md).
 
 ## Update
 
@@ -134,7 +136,7 @@ An update replaces only the plugin-managed package or cache. It does not rewrite
 
 ## Feedback
 
-After the public GitHub repository is live, use the issue forms for bugs, usage questions, and focused feature requests. Follow [SECURITY.md](SECURITY.md) for vulnerabilities and never paste private task messages or live coordination state into a public report.
+Use [Q&A](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a) for usage help and [Ideas](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/ideas) for early requests. Open an Issue only for a reproducible bug or accepted, scoped work. Follow [SECURITY.md](SECURITY.md) for vulnerabilities and never paste private task messages or live coordination state into a public report.
 
 ## License
 

@@ -1,1 +1,11 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Usage questions
+    url: https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a
+    about: Ask for help installing or using Codex Coordinator.
+  - name: Ideas and early requests
+    url: https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/ideas
+    about: Describe the coordination problem before opening implementation work.
+  - name: Security reports
+    url: https://github.com/eyeinthesky6/codex-coordinator/security/policy
+    about: Read the private reporting instructions before sharing vulnerability details.
