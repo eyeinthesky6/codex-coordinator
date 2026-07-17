@@ -66,6 +66,12 @@ NAME: Callable[[str], bool] = _valid_name
 SHARED_GOAL: Callable[[str], bool] = _valid_shared_goal
 RECONCILIATION: Callable[[str], bool] = _valid_reconciliation
 
+TASKLESS_ALIASES = {"", "-", "none", "n/a", "not applicable"}
+NO_ACTIVE_GOAL_ALIASES = TASKLESS_ALIASES | {
+    "no active coordinated goal",
+    "no active coordinated goal.",
+}
+
 TERMINAL_PREFIXES = (
     "ACKED",
     "CANCELLED",
@@ -166,6 +172,16 @@ def _safe(
     cleaned = value.strip().strip("`")
     valid = pattern(cleaned) if callable(pattern) else bool(pattern.fullmatch(cleaned))
     return cleaned if valid else default
+
+
+def _normalize_taskless(value: str) -> str:
+    cleaned = value.strip().strip("`")
+    return "NONE" if cleaned.lower() in TASKLESS_ALIASES else cleaned
+
+
+def _normalize_shared_goal(value: str) -> str:
+    cleaned = value.strip().strip("`")
+    return "none" if cleaned.lower() in NO_ACTIVE_GOAL_ALIASES else cleaned
 
 
 def _required_field(
@@ -291,12 +307,17 @@ def _emit_internal_error(project_id: str) -> None:
     )
 
 
-def _section(text: str, heading: str) -> str | None:
-    match = re.search(
-        rf"(?ims)^##\s+{re.escape(heading)}\s*\r?\n(.*?)(?=^##\s+|\Z)",
-        text,
+def _sections(text: str, heading: str) -> list[str]:
+    matches = list(
+        re.finditer(rf"(?im)^##\s+{re.escape(heading)}\s*$", text)
     )
-    return match.group(1) if match else None
+    sections: list[str] = []
+    for match in matches:
+        start = match.end()
+        next_heading = re.search(r"(?im)^##\s+", text[start:])
+        end = start + next_heading.start() if next_heading else len(text)
+        sections.append(text[start:end])
+    return sections
 
 
 def _normalize_header(value: str) -> str:
@@ -321,9 +342,12 @@ def _none_section(section: str) -> bool:
 
 
 def _parse_table(text: str, heading: str, slug: str) -> ParsedTable:
-    section = _section(text, heading)
-    if section is None:
+    sections = _sections(text, heading)
+    if not sections:
         return ParsedTable([], False, [f"{slug}_section_missing"])
+    if len(sections) != 1:
+        return ParsedTable([], False, [f"{slug}_section_duplicate"])
+    section = sections[0]
     table_lines = [line for line in section.splitlines() if line.lstrip().startswith("|")]
     if not table_lines:
         if _none_section(section):
@@ -508,7 +532,7 @@ def _coordinator_header_warnings(
 ) -> list[str]:
     initial_unregistered = (
         coordinator_id == "NONE"
-        and coordinator_name == "NONE"
+        and coordinator_name in {"NONE", "UNREGISTERED"}
         and coordinator_status == "UNREGISTERED"
         and coordinator_accepts == "false"
     )
@@ -582,7 +606,15 @@ def main() -> None:
 
         marker = _read_bounded(marker_path, MARKER_LIMIT)
         enabled = _marker_value(marker.text, "coordination_enabled")
-        if enabled is None or enabled.lower() != "true":
+        if enabled is None:
+            project_id = _safe(_marker_value(marker.text, "project_id") or "", PROJECT)
+            _emit_invalid_marker(project_id, ["coordination_enabled_missing_or_invalid"])
+            return
+        if enabled.lower() == "false":
+            return
+        if enabled.lower() != "true":
+            project_id = _safe(_marker_value(marker.text, "project_id") or "", PROJECT)
+            _emit_invalid_marker(project_id, ["coordination_enabled_missing_or_invalid"])
             return
 
         project_raw = _marker_value(marker.text, "project_id") or ""
@@ -653,6 +685,8 @@ def main() -> None:
             SHARED_GOAL,
             "UNKNOWN",
         )
+        if shared_goal != "UNKNOWN":
+            shared_goal = _normalize_shared_goal(shared_goal)
         last_reconciliation = _required_field(
             current.text,
             "Last reconciliation",
@@ -728,7 +762,7 @@ def main() -> None:
                     thread_name=_safe(row["thread_name"], NAME),
                     scope_kind=_safe(row["scope_kind"], TOKEN),
                     role=_safe(row["role"], TOKEN),
-                    task_id=_safe(row["task_id"], TOKEN),
+                    task_id=_safe(_normalize_taskless(row["task_id"]), TOKEN),
                     status=_safe(row["status"], TOKEN),
                     accepts=_safe(row["accepts"], BOOL),
                 )

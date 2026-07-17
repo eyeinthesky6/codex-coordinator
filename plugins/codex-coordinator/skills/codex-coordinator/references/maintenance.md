@@ -10,6 +10,8 @@ Coordinator installation or hardening does not authorise application changes, en
 
 Apply the main skill's Project enablement trigger and Coordinator creation authority without adding maintenance-specific alternatives. Maintainer authority by itself triggers neither project enablement nor project-task creation.
 
+When an enabled project's canonical state is idle with no active ownership or pending transition, an explicitly user-authorised Maintainer may perform bounded Coordinator-package maintenance without registering as a project-execution worker or changing `CURRENT.md`. First use unfiltered native discovery to confirm there is no overlapping same-repository work. A filtered search miss is not proof. If discovery remains uncertain, preserve state and report the blocker; never ask the user to approve a coordination bypass because approval cannot replace native identity or overlap evidence.
+
 ## Protected files
 
 Only a user-authorised Maintainer may change:
@@ -20,7 +22,7 @@ Only a user-authorised Maintainer may change:
 - the plugin-managed hook registration and SessionStart script, or an exact legacy global hook entry during migration or removal;
 - the exact Coordinator-state block in a project root `.gitignore`.
 
-Only the active project Coordinator changes `CURRENT.md` and project-execution task files. A Maintainer may update `CURRENT.md` and its own maintenance task only to register or reconcile maintenance, including required pause and resume transitions.
+Only the active project Coordinator changes `CURRENT.md` and project-execution task files. A registered worker writes one unique append-only `.codex/coordination/inbox/` `TURN_RECONCILIATION` record at the end of each material turn and may create the other narrowly allowed records under the operations lane. A scheduled or user-authorised Doctor may create only a deduplicated append-only `DOCTOR_FINDING` under the Doctor lane. These exceptions grant no canonical-state edit or ownership authority. A Maintainer may update `CURRENT.md` and its own maintenance task only to register or reconcile maintenance, including required pause and resume transitions.
 
 Legacy project-local Coordinator READMEs, manuals, skill or hook copies, and `system-source` files are non-authoritative. Do not read or synchronize them. Remove them only under explicit user authority for that repository.
 

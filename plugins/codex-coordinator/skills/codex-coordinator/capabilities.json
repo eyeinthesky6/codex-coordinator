@@ -1,0 +1,19 @@
+{
+  "contractVersion": 3,
+  "capabilities": {
+    "workerCreation": "full-assignment-first-turn",
+    "coordinatorRole": "control-first",
+    "monitoring": "heartbeat-with-single-wake-fallback",
+    "modelDefault": "inherit-unless-user-overrides",
+    "reasoningDefault": "low-or-medium",
+    "stateTool": "scripts/coordination_state.py",
+    "subagents": "allowed-parent-owned",
+    "taskLifecycle": [
+      "pin-coordinator",
+      "rename-worker",
+      "archive-terminal-worker",
+      "fork-same-goal-only",
+      "handoff-explicit"
+    ]
+  }
+}

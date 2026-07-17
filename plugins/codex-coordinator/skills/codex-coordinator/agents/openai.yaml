@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex Coordinator"
-  short_description: "Launch coordinated agents for large coding goals"
+  short_description: "Keep parallel Codex tasks from crossing wires"
   default_prompt: "Use $codex-coordinator to create the tasks needed and coordinate this goal: <goal>."

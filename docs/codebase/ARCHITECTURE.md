@@ -7,9 +7,12 @@ Codex Coordinator adds a small coordination layer around Codex's native tasks. I
 1. A user invokes `$codex-coordinator` for work that needs coordination.
 2. The skill checks the repository marker and current task context.
 3. For meaningful parallel or cross-task work, it lazily creates the repository-scoped marker, local current-state record, and only the task records that are needed.
-4. The coordinator assigns bounded ownership and uses Codex's native task messaging tools for live communication.
-5. Durable repository-local records preserve the handoff when a task pauses, compacts, or restarts.
-6. On SessionStart, the Python hook reads bounded state from the primary worktree and emits a short context block. It does not change repository files.
+4. The Coordinator records a bounded contract, creates each worker with the complete first-turn assignment, and immediately binds Codex's returned native task identity.
+5. The Coordinator remains control-first; bounded workers own normal product and integration execution. Subagents may help a registered task while their parent retains durable ownership and reporting.
+6. One temporary native heartbeat reconciles changed worker turns while a shared goal is live. Native messages remain a sparse fallback for exact control transitions or one unattended result/blocker wake.
+7. Durable repository-local records preserve the handoff when a task pauses, compacts, or restarts. The bundled state helper validates their shape and safely creates task or inbox records without overwriting existing files.
+8. On SessionStart, the Python hook reads bounded state from the primary worktree and emits a short context block. It does not change repository files.
+9. An optional Codex automation may run Doctor across locally discovered enabled projects. Doctor writes only deduplicated inbox findings; each project Coordinator remains the sole owner of canonical reconciliation and repair.
 
 ## State boundary
 
@@ -21,6 +24,12 @@ Codex Coordinator adds a small coordination layer around Codex's native tasks. I
 ## Hook safety boundary
 
 The hook validates and bounds marker values, text size, table rows, Git output, and emitted context. It uses a bounded Git query to find the primary worktree, treats malformed or truncated state as unknown, and never turns recovered text into authority.
+
+## Doctor safety boundary
+
+Doctor is a scheduled maintenance audit, not a daemon or second project Coordinator. It compares native task state with existing project records and may write one append-only, deduplicated finding to the affected project's private inbox. It never edits canonical ownership, creates or wakes tasks, or sends routine task messages.
+
+In a configured development or legacy manual setup, the source-sync helper validates one trusted plugin source and atomically refreshes only the manual global skill and exact legacy hook. Its installed checks include the current capability contract, required operating guidance, state-helper syntax, skill links, and hook behavior. It does not rewrite managed plugin caches or project files.
 
 ## What the plugin does not own
 
@@ -34,5 +43,7 @@ The hook validates and bounds marker values, text size, table rows, Git output, 
 - `plugins/codex-coordinator/skills/codex-coordinator/SKILL.md`
 - `plugins/codex-coordinator/skills/codex-coordinator/references/operations.md`
 - `plugins/codex-coordinator/skills/codex-coordinator/references/recovery.md`
+- `plugins/codex-coordinator/skills/codex-coordinator/references/doctor.md`
 - `plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`
+- `plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`
 - `.gitignore`
