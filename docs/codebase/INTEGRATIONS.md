@@ -6,6 +6,12 @@ The repository is packaged as a Codex plugin. The marketplace manifest points to
 
 Hook trust remains a user decision. Codex may skip an untrusted or changed hook until the user reviews it.
 
+### Deferred Codex Goals review
+
+The current product does not integrate with Codex Goals and does not depend on Goals for task completion or recovery. A later version may evaluate Goals as an optional, capability-detected continuity aid inside the Coordinator task. Project documents, ownership records, inbox reconciliation, native task status, and the existing heartbeat remain authoritative.
+
+Any trial must use only a supported host surface, default off, avoid private Codex databases and transport internals, require no project-schema migration, and fall back cleanly when the capability changes or disappears. It must not introduce an autonomous-completion claim. The private product roadmap contains the experiment gates and acceptance questions; this section records only the integration boundary.
+
 ## Mission Control
 
 The optional Mission Control companion is distributed through the tagged source repository. Its standard-library server binds to localhost and reads bounded local Codex task receipts plus Coordinator project records. Its only model-backed action is the explicit **Run Doctor** control; it is not part of the plugin hook and does not become project authority.

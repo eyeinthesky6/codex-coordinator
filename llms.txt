@@ -8,6 +8,8 @@ Use it when several Codex tasks need to work in the same repository and the user
 
 - Website: https://eyeinthesky6.github.io/codex-coordinator/
 - Repository and quick start: https://github.com/eyeinthesky6/codex-coordinator
+- Fit, non-fit, and fair comparison: https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/DISCOVERY.md
+- Telegram community: https://t.me/+ra4BQ7-_5uM2MDY1
 - Latest stable release: https://github.com/eyeinthesky6/codex-coordinator/releases/latest
 - Architecture: https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/codebase/ARCHITECTURE.md
 - Mission Control: https://github.com/eyeinthesky6/codex-coordinator/blob/main/apps/mission_control/README.md

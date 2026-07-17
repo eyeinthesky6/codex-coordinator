@@ -34,7 +34,7 @@ Typical user language includes:
 
 The supported path is the latest stable GitHub release installed through Codex Plugins. The plugin has no third-party runtime dependency. Its small restart helper reads local handoff state, makes no network calls, and writes nothing. Repository tests cover the package and restart behavior on Windows and Linux with Python 3.10 and 3.13. CI also scans full Git history for secrets.
 
-The exact current install and first-use instructions live in the [README](../README.md). Public release identity lives on the [GitHub Releases page](https://github.com/eyeinthesky6/codex-coordinator/releases). Questions and early requests use [GitHub Discussions](https://github.com/eyeinthesky6/codex-coordinator/discussions).
+The exact current install and first-use instructions live in the [README](../README.md). Public release identity lives on the [GitHub Releases page](https://github.com/eyeinthesky6/codex-coordinator/releases). Quick community conversation uses the [Telegram group](https://t.me/+ra4BQ7-_5uM2MDY1); questions and early requests that should remain discoverable use [GitHub Discussions](https://github.com/eyeinthesky6/codex-coordinator/discussions).
 
 ## Fair comparison
 

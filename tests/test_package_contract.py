@@ -245,7 +245,17 @@ class PackageContractTests(unittest.TestCase):
 
         self.assertIn("Independent Codex tasks and collaboration subagents", skill)
         self.assertIn("Subagents remain available as parent-owned helpers", skill)
+        self.assertIn(
+            "Use one to three parent-owned subagents when two or more independent, bounded",
+            skill,
+        )
+        self.assertIn("Do not spawn them for a single trivial command", skill)
         self.assertIn("Subagents remain available inside", operations)
+        self.assertIn(
+            "Use one to three parent-owned subagents when at least two independent, bounded lanes",
+            operations,
+        )
+        self.assertIn("coordination cost exceeds its value", operations)
         self.assertIn("Native task messenger", operations)
         self.assertIn("`codex_app__send_message_to_thread`", operations)
         self.assertIn("Never send a Codex thread UUID through `collaboration.send_message`", operations)
@@ -268,6 +278,10 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Workers never message one another", operations)
         self.assertIn("at most one unresolved message or transition per recipient", operations)
         self.assertIn("Never send task registration, acceptance, task-ID assignment", operations)
+        self.assertIn("plain internal message body", operations)
+        self.assertIn("Never include or synthesize `<codex_delegation>`", operations)
+        self.assertIn("`CREATE_TASK` and `COMPLETE_ACK` are not cross-task message types", operations)
+        self.assertIn("do not wrap them in XML or HTML", operations)
         self.assertIn("restating its write paths", operations)
         self.assertIn("does not answer an inbox notice with another inbox acknowledgement", operations)
         self.assertIn("The worker does not send a separate completion announcement", operations)
@@ -387,6 +401,28 @@ class PackageContractTests(unittest.TestCase):
             operations,
         )
 
+    def test_external_writes_require_advance_user_notice_and_scope_authority(self) -> None:
+        skill_root = PLUGIN / "skills" / "codex-coordinator"
+        skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+        maintenance = (skill_root / "references" / "maintenance.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Full filesystem access is capability, not user authority", skill)
+        self.assertIn(
+            "Before the first intentional write in a turn outside the current Git common repository",
+            skill,
+        )
+        self.assertIn("Otherwise wait for explicit user approval before writing", skill)
+        self.assertIn("Treat another Git repository as a separate project", skill)
+        self.assertIn("A user-approved recurring automation may reuse", skill)
+        self.assertIn("Doctor `--apply` writes outside the current repository", maintenance)
+        self.assertIn("A read-only Doctor `--check` needs no write notice", maintenance)
+        self.assertIn(
+            "Newly discovered projects or external destinations require a fresh notice and approval",
+            maintenance,
+        )
+
     def test_filtered_thread_miss_never_requests_coordination_bypass(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         operations = _operations(skill_root)
@@ -448,7 +484,7 @@ class PackageContractTests(unittest.TestCase):
             (PLUGIN / "scripts" / "codex_coordinator_doctor.py").is_file()
         )
         contract = json.loads((skill_root / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 9)
+        self.assertEqual(contract["contractVersion"], 11)
         self.assertEqual(
             contract["capabilities"]["doctorDiagnostics"],
             "json-with-optional-mermaid",
@@ -490,6 +526,14 @@ class PackageContractTests(unittest.TestCase):
         self.assertEqual(
             contract["capabilities"]["archivedRecovery"],
             "direct-request-no-repeat-confirmation",
+        )
+        self.assertEqual(
+            contract["capabilities"]["externalWriteDisclosure"],
+            "prewrite-notice-and-scope-authority",
+        )
+        self.assertEqual(
+            contract["capabilities"]["subagentDispatch"],
+            "one-to-three-for-two-independent-lanes",
         )
         self.assertTrue((skill_root / "scripts" / "coordination_state.py").is_file())
 

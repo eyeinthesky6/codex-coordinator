@@ -16,7 +16,7 @@ from typing import Any
 PLUGIN_NAME = "codex-coordinator"
 HOOK_NAME = "codex_coordinator_session_start.py"
 CAPABILITY_CONTRACT = "capabilities.json"
-CAPABILITY_CONTRACT_VERSION = 9
+CAPABILITY_CONTRACT_VERSION = 11
 REQUIRED_CAPABILITIES: dict[str, Any] = {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
@@ -35,6 +35,8 @@ REQUIRED_CAPABILITIES: dict[str, Any] = {
     "nativeTaskReads": "host-cursor-no-mirror",
     "continuationGuarantee": "verified-return-path-before-final",
     "archivedRecovery": "direct-request-no-repeat-confirmation",
+    "externalWriteDisclosure": "prewrite-notice-and-scope-authority",
+    "subagentDispatch": "one-to-three-for-two-independent-lanes",
 }
 REQUIRED_TASK_LIFECYCLE = {
     "pin-coordinator",
@@ -50,12 +52,16 @@ REQUIRED_GUIDANCE = {
         "end-of-turn continuation gate",
         "set reasoning explicitly to `low`",
         "Subagents remain available as parent-owned helpers",
+        "Use one to three parent-owned subagents when two or more independent, bounded",
+        "Do not spawn them for a single trivial command",
         "durable-thread gate",
         "Task registration, acceptance, ownership recording",
         "scripts/coordination_state.py",
         "short [operations index]",
         "two-phase inbox hash checkpoint",
         "The original direct user request supplies this creation authority",
+        "Full filesystem access is capability, not user authority",
+        "Before the first intentional write in a turn outside the current Git common repository",
     ),
     "references/operations.md": (
         "[execution.md](execution.md)",
@@ -69,6 +75,8 @@ REQUIRED_GUIDANCE = {
         "Inherit the user's configured model, but use cost-safe reasoning",
         "host's equivalent reasoning field",
         "Routine microtasks stay inside the current owner",
+        "Use one to three parent-owned subagents when at least two independent, bounded lanes",
+        "coordination cost exceeds its value",
     ),
     "references/reconciliation.md": (
         "scan-inbox",
@@ -86,6 +94,9 @@ REQUIRED_GUIDANCE = {
     "references/messaging.md": (
         "Project-bound routing",
         "Native task messenger",
+        "plain internal message body",
+        "Never include or synthesize `<codex_delegation>`",
+        "`CREATE_TASK` and `COMPLETE_ACK` are not cross-task message types",
         "Never switch to the collaboration messenger as a fallback",
     ),
     "references/doctor.md": (
@@ -96,6 +107,11 @@ REQUIRED_GUIDANCE = {
         "inspect that exact owner's native status in the same turn",
         "never ask the user to ping the old task, repeat an exact phrase",
         "The direct request that first exposes the archived owner",
+    ),
+    "references/maintenance.md": (
+        "Before an installation, repair, or Doctor `--apply` writes outside the current repository",
+        "A user-approved recurring Doctor may reuse the bounded project inbox targets",
+        "Newly discovered projects or external destinations require a fresh notice and approval",
     ),
 }
 FORBIDDEN_GUIDANCE = (

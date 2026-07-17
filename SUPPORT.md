@@ -2,6 +2,7 @@
 
 Support is best-effort and has no guaranteed response time.
 
+- **You want quick community conversation or to share early feedback:** join the [Telegram community](https://t.me/+ra4BQ7-_5uM2MDY1). Do not post links, promotions, solicitations, credentials, private code, or private task content there.
 - **You need help using the plugin:** ask in [Q&A](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a).
 - **You have an early idea or request:** start in [Ideas](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/ideas) so others can add examples before work is scoped.
 - **Something is reproducibly broken:** use the **Bug report** form and include a minimal reproduction with secrets removed.

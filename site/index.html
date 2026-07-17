@@ -3,38 +3,74 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Codex Coordinator — Stop babysitting parallel Codex tasks</title>
-  <meta name="description" content="When one coding job spreads across several Codex tasks, Codex Coordinator helps prevent duplicated work, crossed wires, lost handoffs, and endless status checking.">
+  <title>Codex Coordinator — Coordinate parallel OpenAI Codex tasks</title>
+  <meta name="description" content="Open-source Codex plugin that coordinates parallel tasks in one Git repository, prevents duplicated work, preserves handoffs, and returns one checked update.">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
   <meta name="theme-color" content="#06142f">
   <link rel="canonical" href="https://eyeinthesky6.github.io/codex-coordinator/">
+  <link rel="sitemap" type="application/xml" href="https://eyeinthesky6.github.io/codex-coordinator/sitemap.xml">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Codex Coordinator — Stop babysitting parallel Codex tasks">
-  <meta property="og:description" content="Less duplicated work. Fewer crossed wires. One clear update when the work comes back together.">
+  <meta property="og:site_name" content="Codex Coordinator">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:title" content="Codex Coordinator — Coordinate parallel OpenAI Codex tasks">
+  <meta property="og:description" content="Keep multiple Codex tasks in one repository from duplicating work, crossing ownership, or losing handoffs.">
   <meta property="og:url" content="https://eyeinthesky6.github.io/codex-coordinator/">
   <meta property="og:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
   <meta property="og:image:alt" content="Codex Coordinator nested opposing C logo">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Codex Coordinator — Stop babysitting parallel Codex tasks">
-  <meta name="twitter:description" content="Keep several Codex tasks moving without becoming their full-time project manager.">
+  <meta name="twitter:title" content="Codex Coordinator — Coordinate parallel OpenAI Codex tasks">
+  <meta name="twitter:description" content="Keep multiple Codex tasks in one repository from duplicating work or losing handoffs.">
   <meta name="twitter:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
+  <meta name="twitter:image:alt" content="Codex Coordinator nested opposing C logo">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&amp;family=DM+Mono:wght@400;500&amp;family=Syne:wght@500;600;700&amp;display=swap" rel="stylesheet">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "Codex Coordinator",
-    "applicationCategory": "DeveloperApplication",
-    "operatingSystem": "Windows, macOS, Linux",
-    "softwareVersion": "0.3.0",
-    "description": "Helps people keep several Codex tasks organized without duplicated work, crossed wires, lost handoffs, or constant status checking.",
-    "url": "https://eyeinthesky6.github.io/codex-coordinator/",
-    "codeRepository": "https://github.com/eyeinthesky6/codex-coordinator",
-    "downloadUrl": "https://github.com/eyeinthesky6/codex-coordinator/releases/latest",
-    "license": "https://opensource.org/license/mit",
-    "author": { "@type": "Organization", "name": "Six Ideas" }
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://eyeinthesky6.github.io/codex-coordinator/#website",
+        "url": "https://eyeinthesky6.github.io/codex-coordinator/",
+        "name": "Codex Coordinator",
+        "description": "Coordinate parallel OpenAI Codex tasks in one Git repository without carrying every ownership decision, handoff, or status update yourself.",
+        "inLanguage": "en",
+        "about": { "@id": "https://eyeinthesky6.github.io/codex-coordinator/#software" }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://eyeinthesky6.github.io/codex-coordinator/#software",
+        "name": "Codex Coordinator",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": ["Windows", "macOS", "Linux"],
+        "softwareVersion": "0.3.0",
+        "softwareRequirements": "OpenAI Codex with plugin and hook support; Git; Python 3.10 or newer",
+        "description": "Free, open-source Codex plugin that coordinates multiple durable tasks in one Git repository, helps prevent duplicated work, preserves handoffs, and returns one checked update.",
+        "url": "https://eyeinthesky6.github.io/codex-coordinator/",
+        "mainEntityOfPage": { "@id": "https://eyeinthesky6.github.io/codex-coordinator/#website" },
+        "codeRepository": "https://github.com/eyeinthesky6/codex-coordinator",
+        "downloadUrl": "https://github.com/eyeinthesky6/codex-coordinator/releases/latest",
+        "softwareHelp": "https://github.com/eyeinthesky6/codex-coordinator/blob/main/SUPPORT.md",
+        "releaseNotes": "https://github.com/eyeinthesky6/codex-coordinator/releases/latest",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "keywords": "OpenAI Codex, Codex plugin, multi-agent coordination, parallel coding agents, developer productivity, Git workflow",
+        "featureList": [
+          "Repository-scoped task ownership",
+          "Durable handoffs after pauses and restarts",
+          "One consolidated project update",
+          "Optional local read-only Mission Control"
+        ],
+        "sameAs": [
+          "https://github.com/eyeinthesky6/codex-coordinator",
+          "https://t.me/+ra4BQ7-_5uM2MDY1"
+        ],
+        "license": "https://opensource.org/license/mit",
+        "author": { "@type": "Organization", "name": "Six Ideas" }
+      }
+    ]
   }
   </script>
   <style>
@@ -222,6 +258,19 @@
     .boundary-col li { display: flex; gap: 12px; align-items: flex-start; color: #c3d0e1; font-size: 17px; line-height: 1.65; }
     .boundary-col li span { color: #607590; font-family: var(--mono); }
 
+    .comparison-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+    .comparison { width: 100%; min-width: 760px; border-collapse: collapse; background: rgba(10, 29, 61, .65); }
+    .comparison th, .comparison td { padding: 20px 22px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .comparison tr:last-child td { border-bottom: 0; }
+    .comparison th { color: var(--cyan); font: 500 11px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .comparison td { color: #c3d0e1; font-size: 16px; line-height: 1.62; }
+    .comparison td:first-child { color: var(--paper); font-weight: 700; }
+
+    .faq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .faq { padding: 30px; background: rgba(10, 29, 61, .65); border: 1px solid var(--line); border-radius: 10px; }
+    .faq h3 { margin-bottom: 12px; font-size: 23px; font-weight: 600; letter-spacing: -.03em; }
+    .faq p { margin: 0; color: #bdcce0; font-size: 17px; line-height: 1.72; }
+
     .activity { padding: 34px 0; background: rgba(255, 255, 255, .02); border-block: 1px solid var(--line); }
     .activity-inner { display: grid; grid-template-columns: .7fr 1.3fr; gap: 30px; align-items: center; }
     .activity h2 { margin-bottom: 6px; font-size: 25px; letter-spacing: -.03em; }
@@ -254,6 +303,7 @@
       .step-num { margin-bottom: 28px; }
       .tile.wide, .tile.narrow, .tile.half { grid-column: span 3; }
       .community { grid-template-columns: 1fr; }
+      .faq-grid { grid-template-columns: 1fr; }
       .community-mark { max-width: 280px; }
       .activity-inner { grid-template-columns: 1fr; }
       .badges { justify-content: flex-start; }
@@ -297,10 +347,12 @@
       <a class="brand" href="#top"><img src="assets/logo.png" alt="" width="37" height="37">Codex Coordinator</a>
       <div class="nav-links">
         <a href="#fit">Fit</a>
+        <a href="#compare">Compare</a>
         <a href="#install">Install</a>
-        <a href="#behavior">Behavior</a>
-        <a href="https://github.com/eyeinthesky6/codex-coordinator">GitHub</a>
-        <a class="nav-cta" href="https://github.com/eyeinthesky6/codex-coordinator/releases/latest">Get the plugin</a>
+        <a href="#questions">FAQ</a>
+        <a href="https://t.me/+ra4BQ7-_5uM2MDY1">Telegram</a>
+        <a href="https://github.com/eyeinthesky6/codex-coordinator" rel="me">GitHub</a>
+        <a class="nav-cta" href="https://github.com/eyeinthesky6/codex-coordinator#quick-start">GitHub quick start</a>
       </div>
     </nav>
   </header>
@@ -308,14 +360,14 @@
   <main id="main-content">
     <section class="hero shell">
       <div class="hero-copy">
-        <p class="kicker">For anyone juggling more than one Codex task</p>
-        <h1>Stop babysitting<br><span>every agent.</span></h1>
-        <p class="lede">When one coding job spills into several task windows, you end up checking who changed what, relaying updates, and piecing the result together yourself. Codex Coordinator keeps the work organized and brings one clear update back to you.</p>
+        <p class="kicker">Codex Coordinator · free, open-source Codex plugin</p>
+        <h1>Coordinate parallel<br><span>Codex tasks.</span></h1>
+        <p class="lede">Run multiple OpenAI Codex agents in the same Git repository without carrying every ownership decision, handoff, and status update yourself. Codex Coordinator helps prevent duplicated work and brings one checked project result back to you.</p>
         <div class="actions">
-          <a class="button primary" href="#fit">See the problems it solves <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m7 17 10-10M8 7h9v9"/></svg></a>
-          <a class="button" href="#install">Install v0.3.0</a>
+          <a class="button primary" href="https://github.com/eyeinthesky6/codex-coordinator#quick-start">View GitHub and install <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m7 17 10-10M8 7h9v9"/></svg></a>
+          <a class="button" href="#compare">Compare approaches</a>
         </div>
-        <p class="trust-note">Open source · MIT licensed · Python standard library · No coordination server</p>
+        <p class="trust-note">Free and open source · MIT licensed · Python standard library · No coordination server</p>
       </div>
 
       <div class="control-wrap" aria-label="One coding goal divided between several Codex tasks without overlap">
@@ -336,6 +388,22 @@
       </div>
     </section>
 
+    <section class="section shell" id="compare">
+      <div class="section-head"><span class="section-label">Choose the smallest useful tool</span><h2>Worktrees isolate code. <em>Coordinator carries the project handoff.</em></h2></div>
+      <div class="comparison-wrap">
+        <table class="comparison">
+          <thead><tr><th>Approach</th><th>Best fit</th><th>What it does not solve by itself</th></tr></thead>
+          <tbody>
+            <tr><td>One Codex task</td><td>One coherent goal that one agent can finish safely.</td><td>No parallel ownership is needed.</td></tr>
+            <tr><td>Parent-owned subagents</td><td>Short, bounded parallel help inside one task.</td><td>The parent still owns durable status, validation, and the final result.</td></tr>
+            <tr><td>Git branches or worktrees</td><td>Isolating file changes and Git history.</td><td>Who owns each job, what is blocked, and how handoffs survive restarts.</td></tr>
+            <tr><td>Codex Coordinator</td><td>Several durable Codex tasks working toward one repository outcome.</td><td>Git integration, product judgment, and important approvals remain yours.</td></tr>
+            <tr><td>Hosted project manager</td><td>Cross-team and cross-machine planning.</td><td>It adds a separate service and does not automatically understand Codex task ownership.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <div class="signal-strip" aria-label="Product principles">
       <div class="signals shell"><div>Less repeated work</div><div>Clear file ownership</div><div>Handoffs survive</div><div>One final update</div><div>You stay in control</div></div>
     </div>
@@ -352,7 +420,7 @@
       <div class="section shell">
         <div class="section-head"><span class="section-label">Three steps to first value</span><h2>Tell it what “done” looks like. <em>It handles the split.</em></h2></div>
         <div class="steps">
-          <article class="step"><span class="step-num">01 / ADD</span><h3>Add the stable release</h3><p>Install one fixed version so the rules do not change in the middle of your work.</p><div class="command"><code id="install-command">codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.3.0</code><button class="copy" type="button" data-copy="install-command">Copy</button></div></article>
+          <article class="step"><span class="step-num">01 / ADD</span><h3>Install v0.3.0</h3><p>Add the stable release at one fixed version so the rules do not change in the middle of your work.</p><div class="command"><code id="install-command">codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.3.0</code><button class="copy" type="button" data-copy="install-command">Copy</button></div></article>
           <article class="step"><span class="step-num">02 / REVIEW</span><h3>Review the restart helper</h3><p>Codex asks you to trust a small local hook. It remembers the useful handoff after a restart; it does not call the internet or change your files.</p></article>
           <article class="step"><span class="step-num">03 / DESCRIBE</span><h3>Ask for the finished outcome</h3><p>Describe the result you want. You should not have to design the agent org chart yourself.</p><div class="command"><code id="prompt-command">Use $codex-coordinator to coordinate this goal: &lt;goal&gt;</code><button class="copy" type="button" data-copy="prompt-command">Copy</button></div></article>
         </div>
@@ -381,6 +449,18 @@
       </div>
     </section>
 
+    <section class="section shell" id="questions">
+      <div class="section-head"><span class="section-label">Direct answers</span><h2>Questions developers ask before adding <em>another coordination layer.</em></h2></div>
+      <div class="faq-grid">
+        <article class="faq"><h3>What is Codex Coordinator?</h3><p>A free, open-source plugin that coordinates multiple durable OpenAI Codex tasks in one Git repository and returns one checked project update.</p></article>
+        <article class="faq"><h3>Can Codex run multiple agents without it?</h3><p>Yes. Coordinator is useful when separate durable tasks need explicit ownership, recoverable handoffs, consolidated status, and one project-level result.</p></article>
+        <article class="faq"><h3>Does it replace Git worktrees?</h3><p>No. Worktrees isolate branches and files. Coordinator tracks who owns each job, what is blocked, what survived a restart, and what still needs review.</p></article>
+        <article class="faq"><h3>Do I need Ultra?</h3><p>No. You can explicitly ask Coordinator to delegate work. Normal Codex plan, model, usage, token, and concurrency limits still apply.</p></article>
+        <article class="faq"><h3>Does it send code to a coordination server?</h3><p>No separate coordination service is added. It uses native Codex tasks and small local project records; its restart helper makes no network calls.</p></article>
+        <article class="faq"><h3>When should I avoid it?</h3><p>Use one Codex task for a small change and parent-owned subagents for short help. Coordinator is for several durable work areas where ownership and recovery matter.</p></article>
+      </div>
+    </section>
+
     <section class="activity" aria-labelledby="activity-title">
       <div class="activity-inner shell">
         <div><h2 id="activity-title">Open-source activity</h2><p>Live public signals from GitHub. Zero is shown honestly.</p></div>
@@ -396,14 +476,14 @@
 
     <section class="section shell">
       <div class="community">
-        <div><p class="kicker">Built in public, shaped by real work</p><h2>Where does multi-agent work break down for you?</h2><p>Tell us where agents repeat each other, cross wires, lose a handoff, or leave you chasing status. Ask for help in Q&amp;A or bring an early idea before it becomes a feature request.</p><div class="actions"><a class="button primary" href="https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a">Ask in Q&amp;A</a><a class="button" href="https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/ideas">Share an idea</a></div></div>
+        <div><p class="kicker">Built in public, shaped by real work</p><h2>Where does multi-agent work break down for you?</h2><p>Join the Telegram community for quick conversation and early feedback. Use GitHub Q&amp;A and Ideas when the answer or request should remain easy for everyone to find.</p><div class="actions"><a class="button primary" href="https://t.me/+ra4BQ7-_5uM2MDY1">Join Telegram</a><a class="button" href="https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a">Ask in Q&amp;A</a><a class="button" href="https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/ideas">Share an idea</a></div></div>
         <div class="community-mark"><img src="assets/logo.png" alt="" width="300" height="300"></div>
       </div>
     </section>
   </main>
 
   <footer class="shell">
-    <div class="footer-grid"><span>Codex Coordinator · Independent open-source project · MIT License</span><div class="footer-links"><a href="https://github.com/eyeinthesky6/codex-coordinator">Source</a><a href="https://github.com/eyeinthesky6/codex-coordinator/releases/latest">Releases</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/SECURITY.md">Security</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/SUPPORT.md">Support</a></div></div>
+    <div class="footer-grid"><span>Codex Coordinator · Independent open-source project · MIT License</span><div class="footer-links"><a href="https://t.me/+ra4BQ7-_5uM2MDY1">Telegram</a><a href="https://github.com/eyeinthesky6/codex-coordinator">Source</a><a href="https://github.com/eyeinthesky6/codex-coordinator/releases/latest">Releases</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/SECURITY.md">Security</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/SUPPORT.md">Support</a></div></div>
   </footer>
 
   <span class="sr-only" id="copy-status" aria-live="polite"></span>

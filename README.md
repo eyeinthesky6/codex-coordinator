@@ -6,11 +6,12 @@
 
 <h1 align="center">Codex Coordinator</h1>
 
-<p align="center"><strong>Run several Codex tasks without becoming their full-time project manager.</strong></p>
+<p align="center"><strong>Coordinate parallel OpenAI Codex tasks without becoming their full-time project manager.</strong></p>
 
 <p align="center">
   <a href="https://eyeinthesky6.github.io/codex-coordinator/"><strong>Website</strong></a>
   · <a href="#quick-start">Quick start</a>
+  · <a href="https://t.me/+ra4BQ7-_5uM2MDY1">Telegram community</a>
   · <a href="https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a">Q&amp;A</a>
   · <a href="https://github.com/eyeinthesky6/codex-coordinator/releases/latest">Latest release</a>
 </p>
@@ -24,9 +25,11 @@
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-8B5CF6?style=flat-square&amp;labelColor=081326"></a>
 </p>
 
-Running several agents sounds useful until two of them solve the same problem, one changes a file another still depends on, and a paused task forgets where the handoff was. Then you become the person checking every window, relaying every update, and deciding whether the project is actually finished.
+## What is Codex Coordinator?
 
-Codex Coordinator takes that project wrangling off your plate. Give it one outcome. It divides the work into a few clear jobs, keeps each job with one owner, remembers what happened when tasks pause or restart, and brings everything back into one understandable update.
+Codex Coordinator is a free, open-source plugin for coordinating multiple OpenAI Codex tasks in the same Git repository. It helps prevent duplicated work and overlapping ownership, preserves useful handoffs after pauses or restarts, and returns one checked project update.
+
+Running several agents sounds useful until two of them solve the same problem, one changes a file another still depends on, and a paused task forgets where the handoff was. Then you become the person checking every window, relaying every update, and deciding whether the project is actually finished. Give Coordinator one repository outcome; it divides the work into a few clear jobs and keeps each job with one owner.
 
 It works with the Codex tasks and Git setup you already use. There is no coordination server, separate dashboard, database, or lock manager to operate.
 
@@ -83,6 +86,20 @@ Codex Coordinator helps when:
 - useful findings are getting lost between “done,” “blocked,” and “someone else should handle this.”
 
 You probably do not need it when one agent can safely finish the job, when you only need a quick answer, or when short-lived helpers can report directly back to one parent task. It is also not a cross-machine project manager.
+
+## Codex Coordinator vs worktrees, subagents, and project managers
+
+These tools solve different parts of parallel development:
+
+| Approach | Best fit | What it does not solve by itself |
+|---|---|---|
+| One Codex task | One coherent goal that one agent can finish safely | No parallel ownership is needed |
+| Parent-owned subagents | Short, bounded parallel help inside one task | The parent still owns durable status, validation, and the final result |
+| Git branches or worktrees | Isolating file changes and Git history | Who owns each job, what is blocked, and how handoffs survive restarts |
+| Separate Codex tasks with Coordinator | Several durable tasks working toward one repository outcome | Git integration, product judgment, and important approvals remain yours |
+| Hosted project-management system | Cross-team and cross-machine planning | It adds a separate service and does not understand Codex task ownership automatically |
+
+Coordinator complements native Codex tasks and Git; it does not replace either. See the [full fit and comparison guide](docs/DISCOVERY.md) for recommended and non-recommended cases.
 
 ## Multi-agent work without Ultra
 
@@ -234,8 +251,31 @@ codex plugin add codex-coordinator@codex-coordinator
 
 An update replaces only plugin-managed files. It does not rewrite project coordination state. Review and trust the changed hook, then start a new Codex task so the updated skill is loaded. If you need to roll back, repeat the same sequence with the previous known-good tag, such as `v0.2.1`. When migrating from a manual install, verify the plugin first, then remove the legacy copy so both hooks do not run.
 
+## Frequently asked questions
+
+### How do I coordinate multiple Codex agents in one repository?
+
+Install Coordinator, give it one repository outcome, and let it assign a few durable work areas. It records ownership and handoffs while Codex tasks and Git continue to own execution and source history.
+
+### Does Codex Coordinator replace Git worktrees?
+
+No. Worktrees isolate branches and files. Coordinator tracks task ownership, status, handoffs, recovery, and the final consolidated result. Use both when the work needs both kinds of separation.
+
+### Do I need Ultra to delegate work?
+
+No. You can explicitly ask Coordinator to create and coordinate several Codex tasks. The plugin does not bypass your Codex plan, model availability, usage, token, or concurrency limits.
+
+### Does it send my repository to a coordination server?
+
+No separate coordination service is added. Coordinator uses native Codex tasks plus small local project records. Its SessionStart helper reads local handoff state, makes no network calls, and never writes project state.
+
+### When should I avoid using it?
+
+Use one Codex task for a small or tightly coupled change. Use parent-owned subagents for short, bounded help. Coordinator is for several durable tasks where ownership, recovery, and one project-level result matter.
+
 ## Community and trust
 
+- Join the [Telegram community](https://t.me/+ra4BQ7-_5uM2MDY1) for quick conversation and early feedback. Links, promotions, solicitations, and secrets are not allowed there.
 - Ask usage questions in [Q&A](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a).
 - Share early requests in [Ideas](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/ideas).
 - After the first completed coordinated goal, one optional field-report link may appear. Nothing is sent automatically, and the request does not repeat in that project.
