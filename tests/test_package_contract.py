@@ -426,7 +426,10 @@ class PackageContractTests(unittest.TestCase):
 
         self.assertIn("references/doctor.md", skill)
         self.assertIn("Installed implementation repair", doctor)
-        self.assertIn("Repository tests, release audits, and codebase review remain", doctor)
+        self.assertIn(
+            "Repository tests, release audits, Mission Control checks, and codebase review remain",
+            doctor,
+        )
         self.assertIn("capability-contract version and required behavior markers", doctor)
         self.assertIn("bounded isolated hook smoke run", doctor)
         self.assertNotIn("Require the source checkout to pass its package test suite", doctor)

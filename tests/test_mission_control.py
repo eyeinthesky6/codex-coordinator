@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import sys
 import tempfile
 import threading
 import time
@@ -648,9 +649,17 @@ class CollectorTests(unittest.TestCase):
                 )
                 return mock.Mock(returncode=0, stderr="", stdout="tokens used 1,234")
 
-            with mock.patch("apps.mission_control.collector.subprocess.run", side_effect=complete) as run:
+            with (
+                mock.patch.object(
+                    runner,
+                    "_repair_installed_runtime",
+                    return_value={"status": "current"},
+                ) as repair,
+                mock.patch("apps.mission_control.collector.subprocess.run", side_effect=complete) as run,
+            ):
                 self.assertTrue(runner.run(snapshot))
 
+            repair.assert_called_once_with()
             command = run.call_args.args[0]
             prompt = run.call_args.kwargs["input"]
             self.assertIn("--ephemeral", command)
@@ -659,14 +668,13 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(command[command.index("--ask-for-approval") + 1], "never")
             self.assertLess(command.index("--sandbox"), command.index("exec"))
             self.assertLess(command.index("--ask-for-approval"), command.index("exec"))
-            self.assertIn('model_reasoning_effort="xhigh"', command)
+            self.assertIn('model_reasoning_effort="medium"', command)
             self.assertIn("Do not create, message, wake", prompt)
-            self.assertIn("codex_coordinator_doctor.py --apply", prompt)
-            self.assertIn("repeat it with --check", prompt)
-            self.assertIn("installed global Coordinator skill", prompt)
-            self.assertIn("exact SessionStart hook", prompt)
-            self.assertIn("Do not run the source repository test suite", prompt)
-            self.assertIn("or test Mission Control itself", prompt)
+            self.assertIn("already repaired and verified deterministically", prompt)
+            self.assertIn("Do not load any skill or reference file", prompt)
+            self.assertIn("Do not inspect", prompt)
+            self.assertIn("Mission Control", prompt)
+            self.assertIn("NON-TERMINAL TASK HINTS", prompt)
             self.assertNotIn("--mission-control-root", prompt)
             self.assertNotIn("--project-health-in", prompt)
             self.assertNotIn("--mermaid-out", prompt)
@@ -674,7 +682,7 @@ class CollectorTests(unittest.TestCase):
             self.assertIn("verified absence of an enabled heartbeat", prompt)
             self.assertIn("DOCTOR_HEALTH: healthy", prompt)
             self.assertNotIn("full unittest suite", prompt)
-            self.assertIn(str(runner.source_root), prompt)
+            self.assertNotIn(str(runner.source_root), prompt)
             state = runner.read_state()
             self.assertEqual(state["lastResult"], "success")
             self.assertFalse(state["running"])
@@ -682,6 +690,52 @@ class CollectorTests(unittest.TestCase):
             self.assertIn("One enabled project checked", state["summary"])
             self.assertEqual(state["health"], "healthy")
             self.assertEqual(len(state["bullets"]), 2)
+
+    def test_manual_doctor_repairs_and_checks_only_installed_skill_and_hook(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = DoctorRunner(root / "data", root / "source", root / "codex-home")
+            runner.source_root.mkdir()
+            runner.codex_home.mkdir()
+            reports = [
+                mock.Mock(returncode=0, stdout='{"status":"updated"}', stderr=""),
+                mock.Mock(returncode=0, stdout='{"status":"current"}', stderr=""),
+            ]
+
+            with mock.patch(
+                "apps.mission_control.collector.subprocess.run", side_effect=reports
+            ) as run:
+                self.assertEqual(runner._repair_installed_runtime()["status"], "current")
+
+            self.assertEqual(run.call_count, 2)
+            apply_command = run.call_args_list[0].args[0]
+            check_command = run.call_args_list[1].args[0]
+            self.assertEqual(apply_command[0], sys.executable)
+            self.assertIn("--apply", apply_command)
+            self.assertIn("--check", check_command)
+            self.assertIn("--skill-root", apply_command)
+            self.assertIn("--hook-path", apply_command)
+            self.assertNotIn("--mission-control-root", apply_command)
+            self.assertNotIn("--project-health-in", apply_command)
+            self.assertNotIn("--mermaid-out", apply_command)
+
+    def test_manual_doctor_skips_model_when_no_enabled_projects_exist(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = DoctorRunner(root / "data", root / "source", root / "codex-home")
+            with mock.patch.object(
+                runner,
+                "_repair_installed_runtime",
+                return_value={"status": "current"},
+            ) as repair:
+                self.assertTrue(runner.run({"projects": [], "tasks": []}))
+
+            repair.assert_called_once_with()
+            state = runner.read_state()
+            self.assertEqual(state["lastResult"], "success")
+            self.assertEqual(state["tokensUsed"], 0)
+            self.assertEqual(state["health"], "healthy")
+            self.assertIn("No enabled Coordinator projects", state["summary"])
 
     def test_doctor_legacy_summary_only_shows_green_for_explicitly_clear_health(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -730,11 +784,22 @@ class CollectorTests(unittest.TestCase):
                 stdout="",
             )
 
-            with mock.patch(
-                "apps.mission_control.collector.subprocess.run",
-                return_value=incompatible,
-            ) as run:
-                self.assertFalse(runner.run({"projects": [], "tasks": []}))
+            snapshot = {
+                "projects": [{"id": "sample", "path": str(root / "sample"), "enabled": True}],
+                "tasks": [],
+            }
+            with (
+                mock.patch.object(
+                    runner,
+                    "_repair_installed_runtime",
+                    return_value={"status": "current"},
+                ),
+                mock.patch(
+                    "apps.mission_control.collector.subprocess.run",
+                    return_value=incompatible,
+                ) as run,
+            ):
+                self.assertFalse(runner.run(snapshot))
 
             run.assert_called_once()
             command = run.call_args.args[0]
@@ -756,7 +821,7 @@ class CollectorTests(unittest.TestCase):
                         "lastRunAt": "2026-07-17T08:00:00Z",
                         "lastResult": "running",
                         "model": "gpt-5.6-sol",
-                        "reasoning": "xhigh",
+                        "reasoning": "medium",
                     }
                 ),
                 encoding="utf-8",
@@ -829,7 +894,7 @@ class ServerTests(unittest.TestCase):
                     self.assertIn("active or queued tasks", html)
                     self.assertIn("Action center", html)
                     self.assertIn("Run Doctor", html)
-                    self.assertIn("Runs with GPT-5.6 Sol · Extra High reasoning", html)
+                    self.assertIn("Project review uses GPT-5.6 Sol · Medium reasoning", html)
                     self.assertIn('id="doctor-health-icon"', html)
                     self.assertIn('<ul class="doctor-summary"', html)
                     self.assertNotIn('id="doctor-diagnostic"', html)

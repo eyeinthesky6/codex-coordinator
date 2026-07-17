@@ -330,7 +330,7 @@ function renderDoctor(doctor = {}) {
   const result = doctor.lastResult || "never";
   button.disabled = Boolean(doctor.running);
   button.classList.toggle("is-running", Boolean(doctor.running));
-  button.title = "Runs with GPT-5.6 Sol · Extra High reasoning";
+  button.title = "Project review uses GPT-5.6 Sol · Medium reasoning";
   label.textContent = doctor.running ? "Doctor running" : "Run Doctor";
   if (doctor.running) {
     setDoctorHealth("running");
@@ -357,8 +357,8 @@ function renderDoctor(doctor = {}) {
   const modelLabel = doctorModels[doctor.model] || doctor.model || "";
   const historicalModel = Boolean(doctor.lastRunAt && doctor.model && doctor.model !== configuredModel);
   lastRun.textContent = doctor.lastRunAt
-    ? `${historicalModel ? "Previous result" : "Last run"} · ${relativeTime(doctor.lastRunAt)}${modelLabel ? ` · ${modelLabel} · ${doctor.reasoning || "xhigh"}` : ""}`
-    : "Next run · GPT-5.6 Sol · xhigh";
+    ? `${historicalModel ? "Previous result" : "Last run"} · ${relativeTime(doctor.lastRunAt)}${modelLabel ? ` · ${modelLabel} · ${doctor.reasoning || "medium"}` : ""}`
+    : "Next project review · GPT-5.6 Sol · medium";
 }
 
 function renderFreshness(snapshot) {

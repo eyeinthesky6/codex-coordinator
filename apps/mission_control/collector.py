@@ -7,6 +7,7 @@ import os
 import re
 import sqlite3
 import subprocess
+import sys
 import threading
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
@@ -17,8 +18,9 @@ from typing import Any, Iterable
 MAX_TEXT_BYTES = 512 * 1024
 MAX_ROLLOUT_TAIL_BYTES = 384 * 1024
 DOCTOR_MODEL = "gpt-5.6-sol"
-DOCTOR_REASONING = "xhigh"
-DOCTOR_TIMEOUT_SECONDS = 20 * 60
+DOCTOR_REASONING = "medium"
+DOCTOR_TIMEOUT_SECONDS = 10 * 60
+DOCTOR_INSTALL_TIMEOUT_SECONDS = 60
 UUID_RE = re.compile(
     r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
     re.IGNORECASE,
@@ -1000,6 +1002,54 @@ class DoctorRunner:
         temporary.write_text(json.dumps(state, indent=2), encoding="utf-8")
         temporary.replace(self.state_path)
 
+    def _run_installation_helper(self, mode: str) -> dict[str, Any]:
+        script = (
+            self.source_root
+            / "plugins"
+            / "codex-coordinator"
+            / "scripts"
+            / "codex_coordinator_doctor.py"
+        )
+        command = [
+            sys.executable,
+            str(script),
+            "--source-plugin",
+            str(self.source_root / "plugins" / "codex-coordinator"),
+            "--skill-root",
+            str(Path.home() / ".agents" / "skills" / "codex-coordinator"),
+            "--hook-path",
+            str(self.codex_home / "hooks" / "codex_coordinator_session_start.py"),
+            mode,
+        ]
+        completed = subprocess.run(
+            command,
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            timeout=DOCTOR_INSTALL_TIMEOUT_SECONDS,
+            check=False,
+            cwd=str(self.source_root),
+        )
+        try:
+            report = json.loads(completed.stdout)
+        except json.JSONDecodeError as error:
+            raise ValueError(_process_error(completed.stderr, completed.stdout)) from error
+        if not isinstance(report, dict):
+            raise ValueError("Installed Coordinator Doctor returned an invalid result.")
+        if completed.returncode != 0 or report.get("status") == "error":
+            detail = report.get("error") or _process_error(completed.stderr, completed.stdout)
+            raise ValueError(_safe_text(detail, 300))
+        return report
+
+    def _repair_installed_runtime(self) -> dict[str, Any]:
+        applied = self._run_installation_helper("--apply")
+        if applied.get("status") not in {"current", "updated"}:
+            raise ValueError("Installed Coordinator repair did not reach a verified state.")
+        checked = self._run_installation_helper("--check")
+        if checked.get("status") != "current":
+            raise ValueError("Installed Coordinator remains out of date after repair.")
+        return checked
+
     def run(self, snapshot: dict[str, Any]) -> bool:
         if not self._lock.acquire(blocking=False):
             return False
@@ -1007,52 +1057,65 @@ class DoctorRunner:
         try:
             self._record_run("running")
             temporary.unlink(missing_ok=True)
+            self._repair_installed_runtime()
             projects = [
                 {"id": project.get("id"), "path": project.get("path")}
                 for project in snapshot.get("projects", [])
                 if project.get("enabled") and project.get("id") and project.get("path")
             ]
+            if not projects:
+                bullets = [
+                    "Installed Coordinator repaired and verified current.",
+                    "No enabled Coordinator projects were discovered.",
+                ]
+                self._record_run(
+                    "success",
+                    summary=" ".join(bullets),
+                    health="healthy",
+                    bullets=bullets,
+                    model=DOCTOR_MODEL,
+                )
+                return True
+            project_ids = {str(project["id"]) for project in projects}
             tasks = [
                 {
                     "projectId": task.get("projectId"),
-                    "projectPath": task.get("projectPath"),
                     "status": task.get("status"),
                     "coordinated": bool(task.get("coordinated")),
                     "openUrl": task.get("openUrl", ""),
+                    "attention": _safe_text(task.get("attention"), 180),
                 }
                 for task in snapshot.get("tasks", [])
+                if str(task.get("projectId")) in project_ids
+                and task.get("status") in {"active", "assigned", "queued", "blocked", "paused"}
             ]
             prompt = (
-                "You are Codex Coordinator Doctor, started by the user from the local Mission Control UI. "
-                "This click is explicit authority for the bounded Doctor maintenance flow only. Do not create, message, "
-                "wake, pause, resume, stop, archive, or repurpose any Codex task. Do not edit application code, Git, "
-                "project canonical state, task files, AGENTS.md, config, env, marketplaces, or managed plugin caches.\n\n"
-                f"Trusted update package: {self.source_root}\n"
-                f"Codex home: {self.codex_home}\n\n"
-                "Read the globally installed codex-coordinator SKILL.md plus doctor.md, maintenance.md, and recovery.md "
-                "completely, then follow the Doctor lane exactly. Do not run the source repository test suite, audit its "
-                "codebase, or test Mission Control itself. First run "
-                "plugins/codex-coordinator/scripts/codex_coordinator_doctor.py --apply once, then repeat it with --check. "
-                "The helper may repair only the configured installed global Coordinator skill and state helper plus the "
-                "exact SessionStart hook. Treat a stale installed capability contract as a failed Doctor run.\n\n"
-                "Scan the supplied enabled projects using their primary-worktree Coordinator records and the local Codex "
-                "task receipts. Treat the supplied task inventory as discovery input and verify relevant facts from current "
-                "local state. Also inspect the current native or configured local automation definitions when non-terminal "
-                "project work remains. A completed Coordinator turn plus proven active, queued, blocked, paused, pending, "
-                "or unprocessed work and verified absence of an enabled heartbeat targeting that exact Coordinator is an "
-                "UNATTENDED_RETURN_PATH finding. Do not infer heartbeat presence or absence from task status or age. "
-                "Defer findings that could be normal transitions in an active turn. Time, idle, notLoaded, or "
-                "paused state alone never proves forgotten work. For each concrete unresolved mismatch, write at most one "
-                "deduplicated DOCTOR_FINDING to that project's existing private coordination inbox. Never alter canonical "
-                "ownership yourself. Finish with one to three short bullet lines covering installed Coordinator status, "
-                "projects checked, "
-                "and only the findings or review action that matters. Then add exactly one final line: DOCTOR_HEALTH: healthy only when the "
-                "installed Coordinator is current, no project scan is deferred, and no unresolved project finding needs review; "
-                "otherwise DOCTOR_HEALTH: review. "
-                "Omit internal IDs and raw protocol detail.\n\n"
+                "You are the bounded project-finding lane of Codex Coordinator Doctor. The installed global Coordinator "
+                "skill and exact SessionStart hook were already repaired and verified deterministically. Do not inspect, "
+                "repair, or test the source package, installed skill, hook, Mission Control, Git, config, env, marketplaces, "
+                "AGENTS.md, or application code. Do not load any skill or reference file. Do not create, message, wake, "
+                "pause, resume, stop, archive, or repurpose a Codex task.\n\n"
+                "For each supplied enabled project, inspect only .codex/coordination/project.yaml, CURRENT.md, relevant "
+                "non-terminal task headers/history, unresolved inbox records, and the minimum native task status/recent turn "
+                "needed to verify a coordination mismatch. Inspect local automation definitions only when non-terminal work "
+                "exists and heartbeat presence matters. Report identity/epoch/state-format mismatches, conflicting ownership, "
+                "a task under an unrelated thread goal, terminal native work still owned as active after a later reconciliation, "
+                "or unresolved work missing from the canonical queue. UNATTENDED_RETURN_PATH requires a completed Coordinator "
+                "turn, proven non-terminal work, and verified absence of an enabled heartbeat targeting that exact Coordinator. "
+                "Never infer a problem from time, idle, notLoaded, paused, or a supplied status alone. Defer anything that could "
+                "be a normal transition while the affected Coordinator or owner is in an active turn.\n\n"
+                "For each verified mismatch, create at most one deduplicated file in that project's existing private "
+                ".codex/coordination/inbox. Begin it with type: DOCTOR_FINDING, the current project_id and coordination_epoch, "
+                "a stable finding_id and fingerprint, reported_by: CODEX_COORDINATOR_DOCTOR, state: REVIEW_NEEDED, severity, "
+                "and detected_at. Include only minimal evidence and a recommended Coordinator disposition. Never edit CURRENT.md, "
+                "task files/history, ownership, queues, Git, or application files.\n\n"
+                "Finish with one to three short bullet lines: installed Coordinator current; number of enabled projects checked; "
+                "and only new/existing findings or needed review. Add exactly one final line, DOCTOR_HEALTH: healthy, only when no "
+                "check was deferred and no unresolved finding needs review; otherwise use DOCTOR_HEALTH: review. Omit internal IDs "
+                "and raw protocol detail.\n\n"
                 "ENABLED PROJECTS:\n"
                 + json.dumps(projects, ensure_ascii=False)
-                + "\n\nLOCAL TASK INVENTORY:\n"
+                + "\n\nNON-TERMINAL TASK HINTS:\n"
                 + json.dumps(tasks, ensure_ascii=False)
             )
             def execute(model: str) -> subprocess.CompletedProcess[str]:
