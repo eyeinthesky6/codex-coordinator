@@ -1,5 +1,5 @@
 {
-  "contractVersion": 9,
+  "contractVersion": 11,
   "capabilities": {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
@@ -18,6 +18,8 @@
     "nativeTaskReads": "host-cursor-no-mirror",
     "continuationGuarantee": "verified-return-path-before-final",
     "archivedRecovery": "direct-request-no-repeat-confirmation",
+    "externalWriteDisclosure": "prewrite-notice-and-scope-authority",
+    "subagentDispatch": "one-to-three-for-two-independent-lanes",
     "taskLifecycle": [
       "pin-coordinator",
       "rename-worker",

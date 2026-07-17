@@ -36,10 +36,14 @@ Apply the end-of-turn continuation gate before the final answer.
 The original direct user request supplies this creation authority.
 For every generated task, set reasoning explicitly to `low` or `medium`.
 Subagents remain available as parent-owned helpers.
+Use one to three parent-owned subagents when two or more independent, bounded lanes can shorten the turn.
+Do not spawn them for a single trivial command.
 Apply the durable-thread gate before creating a user-visible worker.
 Task registration, acceptance, ownership recording, and permission-to-continue confirmations are document-only.
 Use scripts/coordination_state.py.
 Use the two-phase inbox hash checkpoint.
+Full filesystem access is capability, not user authority.
+Before the first intentional write in a turn outside the current Git common repository, notify the user.
 """
 
 OPERATIONS_TEXT = """# Source operations
@@ -56,6 +60,8 @@ Subagents remain available inside a registered task.
 Inherit the user's configured model, but use cost-safe reasoning.
 Pass native thinking or the host's equivalent reasoning field as low or medium.
 Routine microtasks stay inside the current owner or a parent-owned subagent.
+Use one to three parent-owned subagents when at least two independent, bounded lanes can shorten the turn.
+Do not use a lane when its coordination cost exceeds its value.
 """
 
 RECONCILIATION_TEXT = """# Source reconciliation
@@ -72,6 +78,9 @@ Apply the End-of-turn continuation gate before the Coordinator final answer.
 MESSAGING_TEXT = """# Source messaging
 
 Project-bound routing uses the Native task messenger.
+Pass only the plain internal message body.
+Never include or synthesize `<codex_delegation>` tags.
+`CREATE_TASK` and `COMPLETE_ACK` are not cross-task message types.
 Never switch to the collaboration messenger as a fallback.
 """
 
@@ -85,6 +94,13 @@ RECOVERY_TEXT = """# Source recovery
 Always inspect that exact owner's native status in the same turn.
 When archived, never ask the user to ping the old task, repeat an exact phrase, or approve replacement again.
 The direct request that first exposes the archived owner is sufficient recovery authority.
+"""
+
+MAINTENANCE_TEXT = """# Source maintenance
+
+Before an installation, repair, or Doctor `--apply` writes outside the current repository, notify the user.
+A user-approved recurring Doctor may reuse the bounded project inbox targets already disclosed.
+Newly discovered projects or external destinations require a fresh notice and approval.
 """
 
 
@@ -129,6 +145,9 @@ def _source_plugin(root: Path, *, name: str = "codex-coordinator") -> Path:
     (skill / "references" / "messaging.md").write_text(MESSAGING_TEXT, encoding="utf-8")
     (skill / "references" / "doctor.md").write_text(DOCTOR_TEXT, encoding="utf-8")
     (skill / "references" / "recovery.md").write_text(RECOVERY_TEXT, encoding="utf-8")
+    (skill / "references" / "maintenance.md").write_text(
+        MAINTENANCE_TEXT, encoding="utf-8"
+    )
     (skill / "scripts" / "coordination_state.py").write_text(
         "def main():\n    return 0\n", encoding="utf-8"
     )
@@ -225,7 +244,7 @@ class DoctorTests(unittest.TestCase):
 
             check = doctor.sync_installation(source, skill_root, hook_path, apply=False)
             self.assertEqual(check["status"], "drift")
-            self.assertEqual(check["changedFiles"], 10)
+            self.assertEqual(check["changedFiles"], 11)
 
             applied = doctor.sync_installation(source, skill_root, hook_path, apply=True)
             self.assertEqual(applied["status"], "updated")
@@ -479,6 +498,71 @@ class DoctorTests(unittest.TestCase):
                 EXECUTION_TEXT.replace(
                     "Put the complete executable assignment in the native creation prompt.",
                     "Create one non-executable holding prompt.",
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(doctor.DoctorError, "guidance is stale"):
+                doctor.sync_installation(
+                    source,
+                    root / "installed" / "skill",
+                    root / "installed" / "hook.py",
+                    apply=False,
+                )
+
+    def test_nested_native_message_guidance_is_required_before_installation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            messaging = (
+                source / "skills" / "codex-coordinator" / "references" / "messaging.md"
+            )
+            messaging.write_text(
+                MESSAGING_TEXT.replace(
+                    "Never include or synthesize `<codex_delegation>` tags.",
+                    "Wrap every prompt in a codex_delegation tag.",
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(doctor.DoctorError, "guidance is stale"):
+                doctor.sync_installation(
+                    source,
+                    root / "installed" / "skill",
+                    root / "installed" / "hook.py",
+                    apply=False,
+                )
+
+    def test_external_write_disclosure_is_required_before_installation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill = source / "skills" / "codex-coordinator" / "SKILL.md"
+            skill.write_text(
+                SKILL_TEXT.replace(
+                    "Full filesystem access is capability, not user authority.\n",
+                    "Full filesystem access authorises every write.\n",
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(doctor.DoctorError, "guidance is stale"):
+                doctor.sync_installation(
+                    source,
+                    root / "installed" / "skill",
+                    root / "installed" / "hook.py",
+                    apply=False,
+                )
+
+    def test_subagent_dispatch_threshold_is_required_before_installation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill = source / "skills" / "codex-coordinator" / "SKILL.md"
+            skill.write_text(
+                SKILL_TEXT.replace(
+                    "Use one to three parent-owned subagents when two or more independent, bounded lanes can shorten the turn.\n",
+                    "Always spawn as many subagents as possible.\n",
                 ),
                 encoding="utf-8",
             )

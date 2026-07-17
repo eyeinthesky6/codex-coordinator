@@ -19,7 +19,7 @@ Read this short index completely, then load only the lane or lanes needed for th
 
 ## User-facing communication
 
-This section applies only to commentary, final replies, and other user-visible summaries. It never applies to `codex_delegation` payloads, native thread-tool payloads, cross-thread assignments or commands, acknowledgements, Coordinator state, or task contracts. Those internal artifacts retain every required identifier exactly.
+This section applies only to commentary, final replies, and other user-visible summaries. It never applies to the plain internal message body passed to a native thread tool, cross-thread assignments or commands, acknowledgements, Coordinator state, or task contracts. Those internal artifacts retain every required identifier exactly. Agents never author the host's transport envelope.
 
 Coordinator protocol is internal bookkeeping. Keep normal user chat simple:
 
@@ -28,7 +28,7 @@ Coordinator protocol is internal bookkeeping. Keep normal user chat simple:
 - Mention a lead agent, working agent, read-only adviser, or reviewer only when the distinction helps the user. Do not use `COORDINATOR`, `TASK_AGENT`, `PROJECT_EXECUTION`, `accepts=true`, or similar constants in ordinary explanations.
 - Translate an ownership-version change as “coordination ownership was refreshed” only when it matters. Do not say “epoch 3” or include the number in a normal status update.
 - Translate a stale message as “that instruction was outdated, so I ignored it and kept current ownership unchanged.” Translate a project mismatch as “that instruction belongs to another project, so I did not act on it.”
-- Machine-to-machine envelopes must retain the exact fields required by Project-bound routing. Keep them compact, do not repeat them in a separate user-facing final answer, and do not send routine internal summaries to a user-owned thread when the Coordinator can pull a completed result instead.
+- Machine-to-machine message bodies must retain the exact fields required by Project-bound routing. Keep them compact and line-based, do not wrap them in XML or HTML, do not repeat them in a separate user-facing final answer, and do not send routine internal summaries to a user-owned thread when the Coordinator can pull a completed result instead.
 - Never surface a message merely to say that a task was registered, accepted, assigned an internal ID or ownership record, or may continue. Those are document-only transitions. The receiving task already has the user's instruction or its complete creation prompt.
 - Do not send informational envelopes for routine progress, findings, review, completion, or status. The Coordinator reads those from the worker's turn and records the durable outcome. If an exceptional non-executable alert must be delivered because another task needs to act now, start it with “Internal coordination update — no user action needed.”
 - When the interface may show a valid executable envelope, start it with “Internal coordination task — action required by the receiving agent; no user action required.” Use this only after sender authority and matching canonical state are verified. Never label an executable payload as “no action needed.”
