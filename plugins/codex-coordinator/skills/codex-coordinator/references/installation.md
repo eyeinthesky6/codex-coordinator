@@ -4,7 +4,7 @@ Read this file completely only when the user asks to install, enable, initialise
 
 ## Installation authority and boundaries
 
-Apply the main skill's **Project enablement trigger** exactly; this lane does not add another trigger. When it selects enablement, that selection grants bounded `COORDINATOR_MAINTAINER` authority over Coordinator files, the exact Coordinator-state block in the root `.gitignore`, and, only for the documented model defaults, project `.codex/config.toml`. It does not grant the separate **Coordinator creation authority**. Do not touch application code, environment files, unrelated configuration, or unrelated instructions.
+Apply the main skill's **Project enablement trigger** exactly; this lane does not add another trigger. When it selects enablement, that selection grants bounded `COORDINATOR_MAINTAINER` authority over Coordinator files and the exact Coordinator-state block in the root `.gitignore`. Project `.codex/config.toml` remains read-only unless the user separately and explicitly asks to set a project model or reasoning default. Enablement does not grant the separate **Coordinator creation authority**. Do not touch application code, environment files, unrelated configuration, or unrelated instructions.
 
 Keep global behavior separate from project state:
 
@@ -27,7 +27,7 @@ Coordinator-specific project content is limited to:
 - `tasks/` when a real task exists;
 - `suggestions/` when a real Coordinator-system report exists.
 
-The installer may create or minimally merge `.codex/config.toml` for project model and reasoning defaults. This is ordinary Codex configuration, not Coordinator state or a synchronization target.
+The installer preserves `.codex/config.toml` by default. Coordinator-generated tasks inherit the user's configured model while the global operating contract explicitly uses `low` or `medium` reasoning unless managed policy or an explicit per-task or run-wide user override applies. Under a separate explicit request, the installer may minimally merge an exact project model or reasoning default; this remains ordinary Codex configuration, not Coordinator state or a synchronization target.
 
 Keep `project.yaml` trackable because it is the repository discovery marker. Treat every other `.codex/coordination/` path as local operational state. Add this exact root `.gitignore` block before creating Coordinator state:
 
@@ -64,8 +64,8 @@ Run this procedure only when the main skill's Project enablement trigger selects
 7. Check whether any mutable `.codex/coordination/` paths are already tracked. An ignore rule does not affect tracked files. Do not alter the Git index unless the user explicitly asked to stop tracking Coordinator state; when authorised, first verify the active Git integration owner, then remove only the mutable state paths from the index while keeping their working files. Keep `project.yaml` trackable.
 8. In a new unmarked repository, create fresh `project.yaml` and `CURRENT.md` only. Never copy IDs, epochs, tasks, sessions, or state from another repository.
 9. Reuse the global skill and SessionStart hook. Do not create project-local Coordinator behavior files.
-10. Resolve the current strongest or flagship Codex model from the target host catalog, using current official guidance only if ambiguous, and pair it with `medium` reasoning.
-11. For missing `.codex/config.toml`, create only `model` and `model_reasoning_effort`. For an existing file, add only missing defaults and preserve every other setting. Preserve an existing explicit model or reasoning choice unless the user asks to replace it. Never write unsupported values or edit global config.
+10. Preserve `.codex/config.toml` byte-for-byte and create no project model default unless the user separately asks for one. Native Coordinator task creation inherits the user's configured model while explicitly using the cost-safe `low` or `medium` reasoning policy.
+11. When the user explicitly requests a project default, resolve the exact supported model/reasoning combination from the target host, confirm any unavailable exact choice, then create or minimally merge only `model` and `model_reasoning_effort`. Preserve every unrelated setting and never edit global config.
 12. Initialise `CURRENT.md` with the main skill's exact compatibility contract: epoch `0`, mode `IDLE`, shared goal `none`, Coordinator `NONE / UNREGISTERED / accepts=false`, and empty required tables with no sessions, tasks, commands, paused work, resume actions, or decisions.
 13. Create `tasks/` or `suggestions/` only when writing the first real record. Do not add placeholders.
 
@@ -132,8 +132,8 @@ Demonstrate discovery without creating fake project work:
 Report:
 
 - the project name, marker path, state path, and whether Coordinator is ready or currently coordinating work;
-- resolved model and reasoning defaults;
-- whether `.gitignore` and `.codex/config.toml` were created, amended, or preserved;
+- whether the model will inherit the user's configured default, whether generated tasks will use cost-safe `low` or `medium` reasoning, and whether the user requested an exact override;
+- whether `.gitignore` changed and whether `.codex/config.toml` was preserved or explicitly amended;
 - whether any pre-existing Coordinator paths were already tracked or explicitly removed from the index;
 - exact files changed and validation results;
 - the harmless first-run demonstration.
@@ -172,7 +172,7 @@ Verify all of the following:
 - `.codex/coordination/project.yaml` is not ignored;
 - `CURRENT.md`, task records, suggestions, and other mutable `.codex/coordination/` contents are ignored;
 - no mutable `.codex/coordination/` path remains tracked after an explicitly authorised stop-tracking repair;
-- `.codex/config.toml` parses and unrelated settings are preserved;
+- `.codex/config.toml` is unchanged unless the user explicitly requested a project model/reasoning override; when changed, it parses and unrelated settings are preserved;
 - no application, environment, global config, or unrelated project file changed.
 
 Show the exact Coordinator block after any `AGENTS.md` edit. Report whether any non-Coordinator line changed and revert incidental changes before completion.

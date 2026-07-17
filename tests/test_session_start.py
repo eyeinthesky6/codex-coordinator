@@ -284,6 +284,20 @@ class SessionStartHookTests(unittest.TestCase):
         self.assertIn("pending_commands=SAMPLE-002:MSG-001:PENDING", context)
         self.assertIn("pending_resume_actions=NONE", context)
 
+    def test_duplicate_enablement_marker_is_reported_as_incompatible(self) -> None:
+        root = self._repository("duplicate-enablement")
+        marker = _marker().replace(
+            "coordination_enabled: true",
+            "coordination_enabled: true\ncoordination_enabled: true",
+        )
+        self._write_state(root, marker=marker)
+
+        context = self._invoke(root)
+
+        self.assertIn("marker is incompatible", context)
+        self.assertIn("coordination_enabled_missing_or_invalid", context)
+        self.assertIn("do not read project coordination state", context.lower())
+
     def test_unicode_shared_goal_and_timezone_aware_reconciliation_are_valid(self) -> None:
         root = self._repository()
         shared_goal = "समन्वय सुरक्षित रखें — बिना बदलाव खोए 🚀"
@@ -344,6 +358,23 @@ class SessionStartHookTests(unittest.TestCase):
                 self.assertIn(output, context)
                 self.assertIn(warning, context)
                 self.assertNotIn("state_warnings=NONE", context)
+
+    def test_duplicate_required_section_is_invalid_instead_of_using_first_copy(self) -> None:
+        root = self._repository("duplicate-active-section")
+        current = _current() + f"""
+
+## Active tasks
+
+| Task ID | Owner | Role | Status |
+|---|---|---|---|
+| SAMPLE-999 | {WORKER_ID} | TASK_AGENT | ACTIVE |
+"""
+        self._write_state(root, current=current)
+
+        context = self._invoke(root)
+
+        self.assertIn("active_tasks_section_duplicate", context)
+        self.assertNotIn("state_warnings=NONE", context)
 
     def test_duplicate_coordinator_addresses_do_not_collapse_to_none(self) -> None:
         cases = {
@@ -603,6 +634,52 @@ class SessionStartHookTests(unittest.TestCase):
 
         self.assertIn("coordination_mode=IDLE", context)
         self.assertIn("assigned_task_id=NONE", context)
+        self.assertIn("state_warnings=NONE", context)
+
+    def test_harmless_idle_aliases_normalize_without_weakening_ownership_checks(self) -> None:
+        root = self._repository()
+        current = _current(
+            coordinator_task="-",
+            coordinator_status="IDLE",
+            include_worker=False,
+            include_active_coordinator=False,
+            include_active_worker=False,
+            shared_goal="No active coordinated goal.",
+        ).replace("**Coordination mode:** `ACTIVE`", "**Coordination mode:** `IDLE`")
+        self._write_state(
+            root,
+            current=current,
+        )
+
+        context = self._invoke(root, COORDINATOR_ID)
+
+        self.assertIn("shared_goal=none", context)
+        self.assertIn("assigned_task_id=NONE", context)
+        self.assertIn("state_warnings=NONE", context)
+
+    def test_initial_unregistered_state_accepts_installation_name(self) -> None:
+        root = self._repository()
+        current = _current(
+            coordinator_task="NONE",
+            coordinator_status="UNREGISTERED",
+            coordinator_accepts="false",
+            include_worker=False,
+            include_active_coordinator=False,
+            include_active_worker=False,
+        )
+        current = current.replace(
+            f"**Coordinator thread ID:** `{COORDINATOR_ID}`",
+            "**Coordinator thread ID:** `NONE`",
+        ).replace(
+            "**Coordinator thread name:** `Project Coordinator`",
+            "**Coordinator thread name:** `UNREGISTERED`",
+        )
+        self._write_state(root, current=current)
+
+        context = self._invoke(root)
+
+        self.assertIn("coordinator_thread_id=NONE", context)
+        self.assertIn("coordinator_thread_name=UNREGISTERED", context)
         self.assertIn("state_warnings=NONE", context)
 
     def test_terminal_nonaccepting_coordinator_header_is_stale_without_active_task(self) -> None:

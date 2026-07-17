@@ -1,174 +1,218 @@
 <p align="center">
-  <img src="plugins/codex-coordinator/assets/logo.png" alt="Codex Coordinator logo" width="160">
+  <a href="https://eyeinthesky6.github.io/codex-coordinator/">
+    <img src="plugins/codex-coordinator/assets/logo.png" alt="Codex Coordinator" width="144">
+  </a>
 </p>
 
 <h1 align="center">Codex Coordinator</h1>
 
-<p align="center"><strong>Launch and coordinate multiple Codex agents for one large goal—even without Ultra.</strong></p>
+<p align="center"><strong>Run several Codex tasks without becoming their full-time project manager.</strong></p>
 
-Codex Coordinator turns a large repository goal into bounded work for multiple Codex agents, then keeps that parallel work understandable: who owns each change, what is waiting, and how another task can safely continue after a pause or restart.
+<p align="center">
+  <a href="https://eyeinthesky6.github.io/codex-coordinator/"><strong>Website</strong></a>
+  · <a href="#quick-start">Quick start</a>
+  · <a href="https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a">Q&amp;A</a>
+  · <a href="https://github.com/eyeinthesky6/codex-coordinator/releases/latest">Latest release</a>
+</p>
 
-Each working task keeps one core goal. Finishing a turn or pausing does not turn that task into a general-purpose worker: unrelated work gets a new Codex task, so its conversation and activity remain easy to follow. If a mismatched assignment reaches a worker, it leaves the current goal unchanged and asks the Coordinator to route the work elsewhere.
+<p align="center">
+  <a href="https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/eyeinthesky6/codex-coordinator/ci.yml?branch=main&amp;style=flat-square&amp;label=validation&amp;labelColor=081326&amp;color=23D6CF"></a>
+  <a href="https://github.com/eyeinthesky6/codex-coordinator/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/eyeinthesky6/codex-coordinator?style=flat-square&amp;label=release&amp;labelColor=081326&amp;color=8B5CF6"></a>
+  <a href="https://github.com/eyeinthesky6/codex-coordinator/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/eyeinthesky6/codex-coordinator?style=flat-square&amp;logo=github&amp;label=stars&amp;labelColor=081326&amp;color=C7F36B"></a>
+  <a href="https://github.com/eyeinthesky6/codex-coordinator/forks"><img alt="GitHub forks" src="https://img.shields.io/github/forks/eyeinthesky6/codex-coordinator?style=flat-square&amp;logo=github&amp;label=forks&amp;labelColor=081326&amp;color=C7F36B"></a>
+  <a href="https://github.com/eyeinthesky6/codex-coordinator/discussions"><img alt="GitHub Discussions" src="https://img.shields.io/github/discussions/eyeinthesky6/codex-coordinator?style=flat-square&amp;logo=github&amp;label=discussions&amp;labelColor=081326&amp;color=23D6CF"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-8B5CF6?style=flat-square&amp;labelColor=081326"></a>
+</p>
+
+Running several agents sounds useful until two of them solve the same problem, one changes a file another still depends on, and a paused task forgets where the handoff was. Then you become the person checking every window, relaying every update, and deciding whether the project is actually finished.
+
+Codex Coordinator takes that project wrangling off your plate. Give it one outcome. It divides the work into a few clear jobs, keeps each job with one owner, remembers what happened when tasks pause or restart, and brings everything back into one understandable update.
+
+It works with the Codex tasks and Git setup you already use. There is no coordination server, separate dashboard, database, or lock manager to operate.
 
 > **Independent project:** Codex Coordinator is a third-party plugin for OpenAI Codex. It is not affiliated with, endorsed by, or maintained by OpenAI. Codex and related OpenAI product names belong to OpenAI.
 
-It is for builders running several independent Codex tasks in the same Git repository who are tired of manually relaying ownership and handoffs. It uses small repository records, Codex's native task tools, and one read-only restart hook—no service, database, dashboard, or lock manager.
+## Start with the outcome, not an agent org chart
+
+```text
+Use $codex-coordinator to create the tasks needed and coordinate this goal:
+<describe the repository outcome you want>
+```
+
+```mermaid
+flowchart LR
+    U["One large goal"] --> C["Coordinator"]
+    C --> A["Bounded worker A"]
+    C --> B["Bounded worker B"]
+    C --> R["Independent review"]
+    A --> C
+    B --> C
+    R --> C
+    C --> O["One consolidated result"]
+```
+
+You should not have to decide how many agents to create, write a separate prompt for each one, or manually stitch their reports together. Describe what “done” looks like; Coordinator handles the split and keeps the result understandable.
+
+## The problems it solves
+
+Codex Coordinator helps when:
+
+- two agents might investigate the same problem or propose competing fixes;
+- one agent could edit files another agent is still using;
+- a task may pause, compact, or restart before the whole job is finished;
+- you are opening every task window just to understand current status;
+- useful findings are getting lost between “done,” “blocked,” and “someone else should handle this.”
+
+You probably do not need it when one agent can safely finish the job, when you only need a quick answer, or when short-lived helpers can report directly back to one parent task. It is also not a cross-machine project manager.
 
 ## Multi-agent work without Ultra
 
-Ultra can proactively decide when to delegate work, but it is not required to run parallel agents. At other supported intelligence levels, Codex delegates when the user asks directly or when applicable project or skill instructions request it. Codex Coordinator supplies that explicit multi-agent workflow: give it one large goal and it creates the minimum bounded tasks needed, assigns them to separate agents, and keeps their ownership and results traceable.
+Codex Coordinator lets you explicitly ask for multiple Codex agents for one large goal. Ultra can decide on its own when delegation may help, but you do not need Ultra to ask Coordinator to split a real job.
 
-The plugin does not bypass Codex plan availability, usage, token, or concurrency limits. Parallel agents consume more usage than a comparable single-agent run. See the official [Codex subagent guidance](https://learn.chatgpt.com/docs/agent-configuration/subagents).
+The plugin does not bypass Codex plan availability, usage, token, or concurrency limits. Parallel agents usually consume more usage than a comparable single-agent run. See the official [Codex subagent guidance](https://learn.chatgpt.com/docs/agent-configuration/subagents).
 
-### Model and reasoning choices
+Subagents remain supported as helpers inside a registered task. The parent keeps their scope, validation, and result; independent Codex tasks use the app's native task messenger.
 
-The Coordinator records a model and reasoning choice for each task. If the user supplies an exact per-task or run-wide preference, that preference wins within the models and reasoning levels supported by the account and destination host. For example:
+## Quick start
 
-```text
-Use my preferred model at Extra High for all workers. Use Ultra only when it materially helps.
-```
-
-That instruction applies to the current coordinated goal without rewriting global or project configuration. Without an override, the Coordinator matches the task to a fast, balanced, or strongest suitable model and uses more reasoning only as complexity and risk justify it. On Codex surfaces that require the user to name a specific model, the Coordinator proposes an exact combination for approval or inherits the configured default.
-
-The Coordinator itself should normally use the strongest suitable model with High reasoning. Extra High is reserved for difficult decomposition, recovery, or integration decisions; Ultra remains optional and selective.
-
-**Status:** `v0.1.7` initial public release.
-
-[![CI](https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml/badge.svg)](https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml)
-
-## When it fits
-
-Use Codex Coordinator when:
-
-- you want to launch multiple agents from one large goal without relying on Ultra's proactive delegation;
-- two or more Codex tasks may touch related parts of one repository;
-- work needs an explicit owner, handoff, or blocked state;
-- tasks pause, compact, or restart and still need a shared picture;
-- you want coordination state scoped to the repository instead of a separate service.
-
-You probably do not need it for one task, a small isolated edit, or work where Git branches alone already make ownership obvious. It is also not a cross-machine project manager.
-
-## How it relates to existing tools
-
-| Tool | What it owns |
-|---|---|
-| Codex tasks and agents | Execute and discuss the work |
-| Git branches and worktrees | Isolate files and changes |
-| Codex Coordinator | Record repository-scoped ownership, routing, and handoffs |
-
-Coordinator complements native Codex agents and Git worktrees; it does not replace them.
-
-## Requirements
+### Requirements
 
 - Codex with plugin and hook support;
 - Git;
 - Python 3.10 or newer available as `python` on Windows and `python3` on macOS or Linux.
 
-## Install from GitHub
+### Install the latest stable release
 
 1. Add the tagged repository as a marketplace:
 
    ```powershell
-   codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.1.7
+   codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.2.0
    ```
 
 2. Open Codex Plugins and install **Codex Coordinator** from the `codex-coordinator` marketplace.
-3. Review and trust the SessionStart hook when Codex asks. It reads only the local project marker and current coordination state, makes no network calls, and adds restart context without writing files. In the CLI, use `/hooks`; an untrusted hook is skipped.
-4. Start a new Codex task and run:
+3. Review and trust the SessionStart hook when Codex asks. It reads local coordination records, makes no network calls, and never writes project state. In the CLI, use `/hooks`; an untrusted hook is skipped.
+4. Start a new Codex task and use the prompt at the top of this README.
 
-   ```text
-   Use $codex-coordinator to create the tasks needed and coordinate this goal: <goal>
-   ```
-
-### Offline or development checkout
-
-Download or clone the repository, then add the local directory instead:
+For an offline or development checkout, clone or download the repository and add its local directory instead:
 
 ```powershell
 codex plugin marketplace add <path-to-this-directory>
 ```
 
-Continue with steps 2–4 above. Once installed, the plugin's coordination behavior and SessionStart hook run locally without a network service.
+### What first success feels like
 
-The first useful coordinated task lazily enables that Git repository. Small, isolated work continues without extra coordination files. To opt a repository out, say:
+You give Codex one outcome and receive a short explanation of who is handling each part. You can ask what is active or blocked without opening every task. If work restarts later, the useful handoff is still there.
 
-```text
-Turn Codex Coordinator off for this repository.
-```
+Under the hood, the repository gains a small trackable `.codex/coordination/project.yaml` marker plus local, Git-ignored working state. The startup hook restores context; it never grants an agent new permission.
 
-### What first success looks like
-
-For a coordination-worthy goal, Codex should explain the task split and current owners. The repository gains a trackable `.codex/coordination/project.yaml` marker plus local, Git-ignored current state. After a restart, the hook restores a short handoff summary; it never grants ownership by itself.
-
-Try these follow-up prompts:
+Useful follow-ups:
 
 ```text
 Show who is working on what and what is blocked.
-Hand off <task> to <registered task name>.
 Reconcile the current coordination state.
+Hand off <task> to <registered task name>.
 ```
 
-## What it creates in an enabled repository
+To opt a repository out, say `Turn Codex Coordinator off for this repository.`
 
-- `.codex/coordination/project.yaml`: trackable discovery marker and stable project identity—the only coordination file intended for Git;
+## What it takes off your plate—and what stays yours
+
+| Coordinator helps with | You and existing tools still decide |
+|---|---|
+| Turning one outcome into a few clear jobs | What outcome you actually want |
+| Keeping agents from claiming the same work | Whether code and results are good enough |
+| Remembering handoffs when tasks restart | Git commits, branches, worktrees, and history |
+| Bringing progress, blockers, and results into one update | Publishing, deployment, database, and other important approvals |
+
+The separately installed local Mission Control may observe the same native tasks and canonical records. It is an observer, not another coordination authority.
+
+## What happens when several tasks are moving
+
+### Fewer, durable worker tasks
+
+One agent stays with each coherent part of the job through investigation, changes, tests, documentation, and follow-up. Coordinator checks whether someone already owns that work before opening another task, and it defaults to no more than five active workers.
+
+A terminal task with nothing left to do stays closed. Review waits until there is one stable result to inspect. Coordinator does not quietly turn an old worker into the owner of an unrelated job, but the user may deliberately repurpose the task they are directly addressing after live ownership is checked.
+
+### Quiet, document-first coordination
+
+You should not have to act as the message bus. Agents keep ordinary findings and progress with their own work. Coordinator gathers what changed, carries forward anything unfinished, and stays quiet when nothing changed.
+
+Before it says the job is finished, Coordinator checks what is completed, still active, waiting, blocked, or needs your decision. Its final update is the single project view: completed, active, queued, blocked, and decisions needed.
+
+### Native identity, without handshake chatter
+
+New agents receive the real job in their first prompt. There is no empty “are you ready?” turn and no ritual where workers repeat their ID, availability, or status before useful work can begin.
+
+### User authority stays above coordination
+
+Agents still cannot overrule you. A message from Coordinator cannot silently replace an earlier instruction from the user. Important changes in direction need a later, direct user decision.
+
+### Doctor: quiet project health checks
+
+The optional Doctor checks whether the installed Coordinator and its restart helper are complete and current. It can flag concrete drift, but it does not change project ownership, wake old tasks, or treat an idle project as broken simply because time passed.
+
+## Model and reasoning choices
+
+An exact user choice wins when the destination supports it, without rewriting global or project configuration. Otherwise, generated tasks inherit the user's configured model and use Low for deterministic, reversible work or Medium for normal work. High needs a recorded task-specific reason; Extra High and Ultra need managed policy or explicit user permission.
+
+## What the plugin creates
+
+- `.codex/coordination/project.yaml`: committed discovery marker and stable project identity;
 - `.codex/coordination/CURRENT.md`: local current ownership and handoff state;
+- `.codex/coordination/inbox/`: local append-only notices, reconciliation records, resume requests, and Doctor findings;
 - task and suggestion records only when real work requires them;
-- one minimal discovery block in the root `AGENTS.md`;
-- a narrow root `.gitignore` block that keeps mutable coordination state local.
-- missing `model` and `model_reasoning_effort` defaults in `.codex/config.toml`; existing explicit choices and unrelated settings are preserved.
+- one small discovery block in the root `AGENTS.md`;
+- narrow ignore rules that keep mutable coordination state local.
 
-The plugin never copies its operating manual into projects. It does not grant Git, deployment, database, environment, or application authority; project tasks receive those boundaries explicitly.
+The plugin does not copy its operating manual into user projects and does not change model configuration by default.
 
-## Package layout
+## Package map
 
-- `plugins/codex-coordinator/skills/codex-coordinator/`: progressively loaded behavior;
-- `plugins/codex-coordinator/hooks/hooks.json`: restart-hook registration;
-- `plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`: read-only restart context;
-- `.agents/plugins/marketplace.json`: local or Git marketplace entry.
+- [`plugins/codex-coordinator/skills/codex-coordinator/`](plugins/codex-coordinator/skills/codex-coordinator/): coordination behavior, references, capability contract, and deterministic state helper;
+- [`plugins/codex-coordinator/hooks/hooks.json`](plugins/codex-coordinator/hooks/hooks.json): SessionStart registration;
+- [`plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`](plugins/codex-coordinator/scripts/codex_coordinator_session_start.py): bounded, read-only restart context;
+- [`plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`](plugins/codex-coordinator/scripts/codex_coordinator_doctor.py): installed-package repair and validation;
+- [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json): marketplace entry.
 
-For a deeper contributor map, see [architecture](docs/codebase/ARCHITECTURE.md), [structure](docs/codebase/STRUCTURE.md), [testing](docs/codebase/TESTING.md), and [known concerns](docs/codebase/CONCERNS.md).
+For contributors, start with the [architecture](docs/codebase/ARCHITECTURE.md), [structure](docs/codebase/STRUCTURE.md), [testing](docs/codebase/TESTING.md), and [known concerns](docs/codebase/CONCERNS.md).
 
-## Limits
+## Update
 
-- Coordination is repository-scoped; messages from another project are ignored.
-- A worker task is not reused for an unrelated goal, even while paused or idle; unrelated work needs a new native Codex task.
-- Mutable task state is local to a checkout and is not synchronized between machines.
-- The hook supplies restart context but never grants ownership; repository state remains authoritative.
-- A changed hook must be reviewed and trusted again.
-- Codex Coordinator coordinates Codex tasks; it does not replace Codex agents or Codex's native task system.
-- The plugin does not make Git, deployment, database, environment, or provider decisions for a task.
+Refresh the marketplace, update or reinstall the plugin, review the changed hook, and start a new task:
+
+```powershell
+codex plugin marketplace upgrade codex-coordinator
+```
+
+An update replaces only plugin-managed files. It does not rewrite project coordination state. When migrating from a manual install, verify the plugin first, then remove the legacy copy so both hooks do not run.
+
+## Community and trust
+
+- Ask usage questions in [Q&A](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a).
+- Share early requests in [Ideas](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/ideas).
+- Use Issues only for a reproducible bug or accepted, scoped work.
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing code.
+- Follow [SECURITY.md](SECURITY.md) for private vulnerability reports.
+- See [SUPPORT.md](SUPPORT.md) for the full request route and [GOVERNANCE.md](GOVERNANCE.md) for project decisions.
+
+Never paste credentials, private task messages, personal paths, or a project's live coordination state into a public report.
 
 ## Development
 
-Run the dependency-free test suite:
+The runtime is dependency-free. Run the full test suite from the repository root:
 
 ```powershell
-python -m unittest discover -s tests -v
+python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-For an optional local secret check, install pre-commit and its hook (CI runs a separate Gitleaks scan):
+For the optional local secret check:
 
 ```powershell
 python -m pip install pre-commit
 pre-commit install
 pre-commit run --all-files
 ```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md), [GOVERNANCE.md](GOVERNANCE.md), [SECURITY.md](SECURITY.md), [SUPPORT.md](SUPPORT.md), and the [codebase guide](docs/codebase/STRUCTURE.md).
-
-## Update
-
-Refresh the marketplace, update or reinstall the plugin in Codex Plugins, review the changed hook, and start a new task:
-
-```powershell
-codex plugin marketplace upgrade codex-coordinator
-```
-
-An update replaces only the plugin-managed package or cache. It does not rewrite project files or live project state. When migrating from a manual installation, verify the plugin first, then remove the legacy skill and hook so both copies do not run.
-
-## Feedback
-
-Use [Q&A](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a) for usage help and [Ideas](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/ideas) for early requests. Open an Issue only for a reproducible bug or accepted, scoped work. Follow [SECURITY.md](SECURITY.md) for vulnerabilities and never paste private task messages or live coordination state into a public report.
 
 ## License
 

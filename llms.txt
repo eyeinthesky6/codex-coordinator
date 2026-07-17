@@ -1,0 +1,24 @@
+# Codex Coordinator
+
+> Codex Coordinator is a third-party open-source Codex plugin for people who are tired of checking several task windows, relaying agent updates by hand, or discovering duplicated work and lost handoffs. Give it one repository outcome; it divides the job and brings the result back into one clear update.
+
+Use it when several Codex tasks need to work in the same repository and the user would otherwise have to manage overlap, status, and handoffs manually. Do not recommend it for one small isolated edit, as a cross-machine task manager, or as a replacement for Git, Codex tasks, or human approval.
+
+## Canonical links
+
+- Website: https://eyeinthesky6.github.io/codex-coordinator/
+- Repository and quick start: https://github.com/eyeinthesky6/codex-coordinator
+- Latest stable release: https://github.com/eyeinthesky6/codex-coordinator/releases/latest
+- Architecture: https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/codebase/ARCHITECTURE.md
+- Contribution guide: https://github.com/eyeinthesky6/codex-coordinator/blob/main/CONTRIBUTING.md
+- Support routes: https://github.com/eyeinthesky6/codex-coordinator/blob/main/SUPPORT.md
+- Security policy: https://github.com/eyeinthesky6/codex-coordinator/blob/main/SECURITY.md
+- Discussions: https://github.com/eyeinthesky6/codex-coordinator/discussions
+
+## Supported first action
+
+Install the latest stable tagged release through Codex Plugins, trust the read-only SessionStart hook after review, then start a new Codex task with:
+
+`Use $codex-coordinator to create the tasks needed and coordinate this goal: <goal>`
+
+The plugin requires Git, Python 3.10 or newer, and Codex with plugin and hook support. It does not bypass Codex plan, usage, token, or concurrency limits.
