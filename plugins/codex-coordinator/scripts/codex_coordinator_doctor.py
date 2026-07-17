@@ -16,7 +16,7 @@ from typing import Any
 PLUGIN_NAME = "codex-coordinator"
 HOOK_NAME = "codex_coordinator_session_start.py"
 CAPABILITY_CONTRACT = "capabilities.json"
-CAPABILITY_CONTRACT_VERSION = 7
+CAPABILITY_CONTRACT_VERSION = 9
 REQUIRED_CAPABILITIES: dict[str, Any] = {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
@@ -33,6 +33,8 @@ REQUIRED_CAPABILITIES: dict[str, Any] = {
     "operationsGuidance": "split-by-action-lane",
     "coordinationReadCache": "two-phase-inbox-hash-checkpoint",
     "nativeTaskReads": "host-cursor-no-mirror",
+    "continuationGuarantee": "verified-return-path-before-final",
+    "archivedRecovery": "direct-request-no-repeat-confirmation",
 }
 REQUIRED_TASK_LIFECYCLE = {
     "pin-coordinator",
@@ -45,6 +47,7 @@ REQUIRED_GUIDANCE = {
     "SKILL.md": (
         "Coordinator is control-first by default",
         "one temporary native heartbeat",
+        "end-of-turn continuation gate",
         "set reasoning explicitly to `low`",
         "Subagents remain available as parent-owned helpers",
         "durable-thread gate",
@@ -52,6 +55,7 @@ REQUIRED_GUIDANCE = {
         "scripts/coordination_state.py",
         "short [operations index]",
         "two-phase inbox hash checkpoint",
+        "The original direct user request supplies this creation authority",
     ),
     "references/operations.md": (
         "[execution.md](execution.md)",
@@ -77,11 +81,21 @@ REQUIRED_GUIDANCE = {
         "codex_app__fork_thread",
         "codex_app__handoff_thread",
         "Never send task registration, acceptance, task-ID assignment",
+        "End-of-turn continuation gate",
     ),
     "references/messaging.md": (
         "Project-bound routing",
         "Native task messenger",
         "Never switch to the collaboration messenger as a fallback",
+    ),
+    "references/doctor.md": (
+        "UNATTENDED_RETURN_PATH",
+        "verified absence of the required heartbeat",
+    ),
+    "references/recovery.md": (
+        "inspect that exact owner's native status in the same turn",
+        "never ask the user to ping the old task, repeat an exact phrase",
+        "The direct request that first exposes the archived owner",
     ),
 }
 FORBIDDEN_GUIDANCE = (

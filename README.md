@@ -105,7 +105,7 @@ Subagents remain supported as helpers inside a registered task. The parent keeps
 1. Add the tagged repository as a marketplace:
 
    ```powershell
-   codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.2.0
+   codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.2.1
    ```
 
 2. Open Codex Plugins and install **Codex Coordinator** from the `codex-coordinator` marketplace.
@@ -163,11 +163,13 @@ The operating guide is split by action, so an agent loads only the execution, re
 
 Task registration, acceptance, ownership, and “you may continue” confirmations stay in the private project records instead of appearing as new chat messages. A visible task message is reserved for a real pause, stop, resume, or urgent scope correction that requires the receiving agent to act.
 
-Before it says the job is finished, Coordinator checks what is completed, still active, waiting, blocked, or needs your decision. Its final update is the single project view: completed, active, queued, blocked, and decisions needed.
+Before it ends any coordinating turn, Coordinator checks what is completed, still active, waiting, blocked, or needs your decision. If anything remains, it verifies that its one quiet heartbeat really exists; merely intending to monitor is not enough. If the host cannot provide that return path, Coordinator keeps the work non-terminal and tells you plainly instead of leaving it unattended. Its final update is the single project view: completed, active, queued, blocked, and decisions needed.
 
 ### Native identity, without handshake chatter
 
 New agents receive the real job in their first prompt. There is no empty “are you ready?” turn and no ritual where workers repeat their ID, availability, or status before useful work can begin.
+
+If a recorded owner or Coordinator was archived, Coordinator verifies that native state immediately when your request first encounters it and restores the unfinished boundary to a replacement. You do not have to ping the archived task, repeat a prescribed sentence, or confirm the same action twice.
 
 ### User authority stays above coordination
 
@@ -175,7 +177,7 @@ Agents still cannot overrule you. A message from Coordinator cannot silently rep
 
 ### Doctor: quiet project health checks
 
-The optional Doctor checks whether the installed Coordinator and its restart helper are complete and current. It can flag concrete drift, but it does not change project ownership, wake old tasks, or treat an idle project as broken simply because time passed. For a visual investigation, `--mermaid-out <path>.mmd` writes a private diagram of the exact verified result; the JSON report and exit status remain the real gate.
+The optional Doctor checks whether the installed Coordinator and its restart helper are complete and current. It can flag concrete drift, including a completed Coordinator turn that still has proven non-terminal work but no verified heartbeat return path. It does not change project ownership, wake old tasks, or treat an idle project as broken simply because time passed. For a visual investigation, `--mermaid-out <path>.mmd` writes a private diagram of the exact verified result; the JSON report and exit status remain the real gate.
 
 ## Model and reasoning choices
 

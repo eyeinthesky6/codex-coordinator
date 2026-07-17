@@ -1,5 +1,5 @@
 {
-  "contractVersion": 7,
+  "contractVersion": 9,
   "capabilities": {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
@@ -16,6 +16,8 @@
     "operationsGuidance": "split-by-action-lane",
     "coordinationReadCache": "two-phase-inbox-hash-checkpoint",
     "nativeTaskReads": "host-cursor-no-mirror",
+    "continuationGuarantee": "verified-return-path-before-final",
+    "archivedRecovery": "direct-request-no-repeat-confirmation",
     "taskLifecycle": [
       "pin-coordinator",
       "rename-worker",

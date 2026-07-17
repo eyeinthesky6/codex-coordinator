@@ -302,7 +302,7 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Multi-agent work without Ultra", readme)
         self.assertIn("does not bypass Codex plan availability", readme)
         self.assertIn("explicit delegation without Ultra", manifest["description"])
-        self.assertEqual(manifest["version"], "0.2.0")
+        self.assertEqual(manifest["version"], "0.2.1")
         self.assertIn(f"@v{manifest['version']}", readme)
         self.assertIn(f"## {manifest['version']} - ", changelog)
 
@@ -338,7 +338,11 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Coordinator is control-first by default", skill)
         self.assertIn("The Coordinator is control-first by default", operations)
         self.assertIn("one temporary native heartbeat", skill)
+        self.assertIn("end-of-turn continuation gate", skill)
         self.assertIn("codex_app__automation_update", operations)
+        self.assertIn("End-of-turn continuation gate", operations)
+        self.assertIn("A plan, earlier instruction, automation prompt", operations)
+        self.assertIn("automatic continuation is not active", operations)
         self.assertIn("INTER-AGENT MESSAGE — NO USER ACTION NEEDED", operations)
         self.assertIn("when reconciliation finds a real user decision", operations)
         self.assertIn("stays quiet when nothing changed", readme)
@@ -379,6 +383,21 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Retry once with an unfiltered inventory", recovery)
         self.assertIn("never ask the user to approve a coordination bypass", maintenance)
 
+    def test_archived_owner_recovery_uses_original_user_request(self) -> None:
+        skill_root = PLUGIN / "skills" / "codex-coordinator"
+        skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+        operations = _operations(skill_root)
+        recovery = (skill_root / "references" / "recovery.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("The original direct user request supplies this creation authority", skill)
+        self.assertIn("Stale canonical ownership is not evidence of a live conflict", skill)
+        self.assertIn("original request is the replacement authority", operations)
+        self.assertIn("inspect that exact owner's native status in the same turn", recovery)
+        self.assertIn("never ask the user to ping the old task, repeat an exact phrase", recovery)
+        self.assertIn("The direct request that first exposes the archived owner", recovery)
+
     def test_doctor_is_bounded_deduplicated_and_evidence_backed(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
@@ -395,6 +414,8 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("four or five non-terminal project-execution workers", doctor)
         self.assertIn("a newly recorded durable worker", doctor)
         self.assertIn("Time, `idle`, or `notLoaded` alone never proves", doctor)
+        self.assertIn("UNATTENDED_RETURN_PATH", doctor)
+        self.assertIn("verified absence of the required heartbeat", doctor)
         self.assertIn("defer any check whose evidence could be a normal in-turn transition", doctor)
         self.assertIn("It never edits `CURRENT.md`", doctor)
         self.assertIn("fingerprint", doctor)
@@ -405,7 +426,7 @@ class PackageContractTests(unittest.TestCase):
             (PLUGIN / "scripts" / "codex_coordinator_doctor.py").is_file()
         )
         contract = json.loads((skill_root / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 7)
+        self.assertEqual(contract["contractVersion"], 9)
         self.assertEqual(
             contract["capabilities"]["doctorDiagnostics"],
             "json-with-optional-mermaid",
@@ -439,6 +460,14 @@ class PackageContractTests(unittest.TestCase):
         self.assertEqual(
             contract["capabilities"]["nativeTaskReads"],
             "host-cursor-no-mirror",
+        )
+        self.assertEqual(
+            contract["capabilities"]["continuationGuarantee"],
+            "verified-return-path-before-final",
+        )
+        self.assertEqual(
+            contract["capabilities"]["archivedRecovery"],
+            "direct-request-no-repeat-confirmation",
         )
         self.assertTrue((skill_root / "scripts" / "coordination_state.py").is_file())
 

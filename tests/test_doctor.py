@@ -32,6 +32,8 @@ Read the short [operations index](references/operations.md).
 
 Coordinator is control-first by default.
 Use one temporary native heartbeat.
+Apply the end-of-turn continuation gate before the final answer.
+The original direct user request supplies this creation authority.
 For every generated task, set reasoning explicitly to `low` or `medium`.
 Subagents remain available as parent-owned helpers.
 Apply the durable-thread gate before creating a user-visible worker.
@@ -64,12 +66,25 @@ Use codex_app__automation_update, codex_app__set_thread_pinned,
 codex_app__set_thread_archived, codex_app__fork_thread, and
 codex_app__handoff_thread.
 Never send task registration, acceptance, task-ID assignment, ownership confirmation, or permission-to-continue messages.
+Apply the End-of-turn continuation gate before the Coordinator final answer.
 """
 
 MESSAGING_TEXT = """# Source messaging
 
 Project-bound routing uses the Native task messenger.
 Never switch to the collaboration messenger as a fallback.
+"""
+
+DOCTOR_TEXT = """# Source doctor
+
+Report UNATTENDED_RETURN_PATH only after verified absence of the required heartbeat.
+"""
+
+RECOVERY_TEXT = """# Source recovery
+
+Always inspect that exact owner's native status in the same turn.
+When archived, never ask the user to ping the old task, repeat an exact phrase, or approve replacement again.
+The direct request that first exposes the archived owner is sufficient recovery authority.
 """
 
 
@@ -112,6 +127,8 @@ def _source_plugin(root: Path, *, name: str = "codex-coordinator") -> Path:
         RECONCILIATION_TEXT, encoding="utf-8"
     )
     (skill / "references" / "messaging.md").write_text(MESSAGING_TEXT, encoding="utf-8")
+    (skill / "references" / "doctor.md").write_text(DOCTOR_TEXT, encoding="utf-8")
+    (skill / "references" / "recovery.md").write_text(RECOVERY_TEXT, encoding="utf-8")
     (skill / "scripts" / "coordination_state.py").write_text(
         "def main():\n    return 0\n", encoding="utf-8"
     )
@@ -208,7 +225,7 @@ class DoctorTests(unittest.TestCase):
 
             check = doctor.sync_installation(source, skill_root, hook_path, apply=False)
             self.assertEqual(check["status"], "drift")
-            self.assertEqual(check["changedFiles"], 8)
+            self.assertEqual(check["changedFiles"], 10)
 
             applied = doctor.sync_installation(source, skill_root, hook_path, apply=True)
             self.assertEqual(applied["status"], "updated")
