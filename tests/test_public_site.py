@@ -97,6 +97,9 @@ class PublicSiteTests(unittest.TestCase):
         self.assertIn("Mission Control", self.html)
         self.assertIn("separates queued work from work actually running", self.html)
         self.assertIn('id="compare"', self.html)
+        self.assertIn("Choose by coordination burden, not agent count", self.html)
+        self.assertIn("Separate Codex tasks may be enough", self.html)
+        self.assertIn("less human coordination overhead when several durable tasks are moving", self.html)
         self.assertIn('id="questions"', self.html)
         self.assertIn("Does it replace Git worktrees?", self.html)
 
