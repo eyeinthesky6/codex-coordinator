@@ -82,6 +82,8 @@ class PublicSiteTests(unittest.TestCase):
         self.assertIn("https://github.com/eyeinthesky6/codex-coordinator", self.parser.links)
         self.assertIn("https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a", self.parser.links)
         self.assertIn("https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/ideas", self.parser.links)
+        self.assertIn("Mission Control", self.html)
+        self.assertIn("separates queued work from work actually running", self.html)
 
     def test_pages_workflow_assembles_every_local_asset(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")

@@ -6,6 +6,10 @@ The repository is packaged as a Codex plugin. The marketplace manifest points to
 
 Hook trust remains a user decision. Codex may skip an untrusted or changed hook until the user reviews it.
 
+## Mission Control
+
+The optional Mission Control companion is distributed through the tagged source repository. Its standard-library server binds to localhost and reads bounded local Codex task receipts plus Coordinator project records. Its only model-backed action is the explicit **Run Doctor** control; it is not part of the plugin hook and does not become project authority.
+
 ## Git
 
 The plugin uses Git only for repository and worktree context. The restart hook runs a bounded `git worktree list --porcelain -z` query to locate the primary worktree. It does not create branches, commits, or worktrees.
@@ -22,7 +26,7 @@ Provider controls can change independently of the repository. Read them back bef
 
 ## Network and external services
 
-The distributed plugin has no service, database, telemetry client, or network call. GitHub is repository hosting and automation, not a runtime dependency.
+The distributed plugin has no service, database, telemetry client, or network call. Mission Control is a separate opt-in localhost process with no product login, cloud service, or telemetry. GitHub is repository hosting and automation, not a plugin runtime dependency.
 
 ## Evidence
 
@@ -30,6 +34,7 @@ The distributed plugin has no service, database, telemetry client, or network ca
 - `plugins/codex-coordinator/.codex-plugin/plugin.json`
 - `plugins/codex-coordinator/hooks/hooks.json`
 - `plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`
+- `apps/mission_control/`
 - `.github/`
 - `.github/workflows/pages.yml`
 - `site/`

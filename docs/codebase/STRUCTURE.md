@@ -11,6 +11,12 @@
 - `docs/DISCOVERY.md`: problem-led recommendation, non-fit, proof, and comparison guidance.
 - `docs/codebase/`: contributor-facing technical map.
 
+## Optional source companion
+
+- `apps/mission_control/`: dependency-free localhost dashboard, local task and project collector, settings, Doctor launcher, and static UI. It ships in the tagged source repository, not inside the plugin cache.
+- `tests/test_mission_control.py`: deterministic collector, status, overlap, security-boundary, settings, Doctor, and HTTP behavior checks.
+- `tests/verify_mission_control_ui.py`: optional Playwright browser smoke script for a running dashboard.
+
 ## Distributable plugin
 
 - `plugins/codex-coordinator/.codex-plugin/plugin.json`: package identity and Codex interface metadata.
@@ -33,6 +39,7 @@
 - `tests/test_doctor.py`: update-package identity, unambiguous JSON, non-overlapping destinations, atomic installed-runtime repair, rollback, preservation, runtime validation, idempotency, and Mermaid-projection checks.
 - `tests/test_coordination_state.py`: state metadata and row validation, safe taskless normalization, reconciliation routing and ledger validation, non-overwriting file creation, and fail-safe inbox checkpoint behavior.
 - `tests/test_public_site.py`: public metadata, route, asset-assembly, and discovery-file checks.
+- `tests/test_mission_control.py`: public companion behavior and server-boundary checks.
 - `.github/`: issue forms, pull-request template, CI, Pages deployment, and dependency automation.
 
 ## Evidence
@@ -44,4 +51,5 @@
 - `tests/test_doctor.py`
 - `tests/test_public_site.py`
 - `site/`
+- `apps/mission_control/`
 - `.github/`

@@ -10,6 +10,7 @@ Keep global behavior separate from project state:
 
 - The global skill contains Coordinator behavior.
 - The global read-only SessionStart hook provides restart context.
+- The optional source-installed Mission Control companion observes local native and Coordinator records and exposes the bounded Doctor action; it is not project state or a second authority.
 - Project files contain identity and current state only.
 
 The installed plugin exposes the global skill to agents. An enabled repository's minimal root `AGENTS.md` block provides project-local discovery; no global `AGENTS.md` edit is required for a clean plugin install.

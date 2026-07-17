@@ -190,6 +190,28 @@ The worker does not send a separate completion announcement. It writes the requi
 
 Completion never leaves task ownership attached merely because the Coordinator session remains available.
 
+### Optional first field report
+
+After the first real shared goal in a project reaches verified terminal completion, invite one optional field report without adding telemetry or blocking closure.
+
+1. Do not trigger this during installation, the first-run demonstration, a stopped or failed goal, or an individual task completion while the shared goal remains open.
+2. Check the ignored local file `.codex/coordination/feedback.json`. If any file already exists there, do not overwrite it and do not repeat the request.
+3. If the file is absent, create it atomically before the final answer with this exact bounded shape:
+
+   ```json
+   {
+     "schemaVersion": 1,
+     "projectId": "<current project ID>",
+     "status": "requested",
+     "requestedAt": "<UTC ISO-8601 timestamp>",
+     "feedbackUrl": "https://github.com/eyeinthesky6/codex-coordinator/discussions/new?category=ideas"
+   }
+   ```
+
+4. Add one short optional sentence after the completed result: “Did Coordinator save you time—or get in your way? Share a two-minute field report.” Link only `field report` to the `feedbackUrl`. Say that nothing is sent automatically when that is not already clear from the surrounding product surface.
+5. The prompt is never an acceptance gate, approval request, or reason to keep the goal non-terminal. If the local receipt cannot be created safely, omit the prompt so it does not recur unpredictably.
+6. Mission Control may change only this non-authoritative preference from `requested` to `opened` or `dismissed`, add `respondedAt`, and preserve the remaining fields. `opened` means only that the public feedback form was opened; it never claims the user submitted it. That action never changes project state, ownership, task history, or permission.
+
 ## Stop and report
 
 Stop when the goal is achieved with evidence, a user decision is required, the task is blocked, scope expansion is needed, ownership overlaps, project identity fails, or `PAUSE` / `STOP` arrives. Do not expand into related improvements. Before reporting an ownership blocker to the user, complete the blocked-owner handoff or report the exact Coordinator routing failure; never provide manual relay instructions.

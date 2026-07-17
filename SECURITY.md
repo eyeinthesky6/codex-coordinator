@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Until the first stable release, only the latest published `0.x` release and the default branch receive security fixes. Older `0.x` releases should be upgraded rather than patched in place.
+While the project remains on the `0.x` line, only the latest published release and the default branch receive security fixes. Older releases should be upgraded rather than patched in place.
 
 ## Reporting a vulnerability
 

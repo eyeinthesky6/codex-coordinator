@@ -4,6 +4,14 @@ Notable changes to Codex Coordinator will be recorded here.
 
 ## Unreleased
 
+## 0.3.0 - 2026-07-17
+
+- Published Mission Control as an optional, source-installed localhost companion with a dependency-free dashboard, project filters, settings, a bounded Doctor control, and a permanent community feedback link.
+- Distinguished queued user messages from work that has actually started, so a newly submitted task no longer appears as `Working now` before the agent responds.
+- Made workboard headlines use native Codex task names and reduced each card to one reviewer-facing next-action line.
+- Kept Doctor focused on the installed Coordinator skill, helper, and hook plus deduplicated project-coordination findings; Mission Control validates itself through release tests and browser UAT.
+- Added one optional, local-only field-report request after the first completed coordinated project plus a permanent Telegram community card in Mission Control; no feedback or usage data is sent automatically.
+
 ## 0.2.1 - 2026-07-17
 
 - Fixed stale ownership blocking direct user requests: Coordinator now verifies the alleged owner's native state in the same turn and, when it is archived or unusable, uses the original request to recover or replace it without asking for a ping, magic phrase, or duplicate approval.

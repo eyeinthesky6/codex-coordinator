@@ -36,6 +36,7 @@ The suite has no third-party Python dependency.
 - a source directory with the wrong plugin identity or duplicate JSON keys is rejected before any write;
 - overlapping skill and hook destinations are rejected in either direction before any write;
 - the installed skill package and SessionStart hook are validated after repair;
+- Mission Control's Python, static assets, launchers, Doctor button, localhost security boundary, and browser behavior are checked by its own release tests rather than Doctor;
 - an installed-runtime smoke failure rolls the complete update back.
 - stale capability declarations or operating guidance fail before installation.
 - optional Mermaid output reflects Doctor's verified states without exposing machine-specific paths or replacing JSON and exit-code authority.
@@ -53,6 +54,15 @@ The suite has no third-party Python dependency.
 - internal anchors and public community routes stay valid;
 - the Pages workflow assembles every local asset with pinned actions and least-privilege jobs;
 - `robots.txt`, `sitemap.xml`, and `llms.txt` point to the canonical site and honest non-fit guidance.
+
+`tests/test_mission_control.py` checks that:
+
+- bounded local task receipts distinguish queued messages, active work, idle turns, and completed turns;
+- native Codex task names remain separate from internal Coordinator goals;
+- overlap warnings require path evidence and project filters do not leak unrelated chats;
+- localhost, JSON, settings, feedback, Doctor, and server write boundaries fail safely.
+
+For an optional browser smoke check, install Playwright separately, start Mission Control, and run `python tests/verify_mission_control_ui.py`. Playwright is development tooling only; the dashboard runtime and collected unit suite remain standard-library-only.
 
 ## CI matrix
 
@@ -75,6 +85,8 @@ pre-commit run --all-files
 - `tests/test_doctor.py`
 - `tests/test_coordination_state.py`
 - `tests/test_public_site.py`
+- `tests/test_mission_control.py`
+- `tests/verify_mission_control_ui.py`
 - `.github/workflows/ci.yml`
 - `.github/workflows/pages.yml`
 - `.pre-commit-config.yaml`
