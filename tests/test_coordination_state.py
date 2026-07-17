@@ -123,6 +123,53 @@ class CoordinationStateTests(unittest.TestCase):
                 with self.assertRaisesRegex(state.StateError, error):
                     state.validate_current(path)
 
+    def test_validate_current_rejects_malformed_and_duplicate_rows(self) -> None:
+        active_header = "| Task ID | Owner | Role | Status |\n| --- | --- | --- | --- |"
+        cases = {
+            "blank row": active_header + "\n| | | | |",
+            "duplicate task": active_header
+            + "\n| SAMPLE-1 | 11111111-1111-4111-8111-111111111111 | COORDINATOR | ACTIVE |"
+            + "\n| SAMPLE-1 | Worker | TASK_AGENT | ACTIVE |",
+            "invalid task": active_header
+            + "\n| task with spaces | 11111111-1111-4111-8111-111111111111 | COORDINATOR | ACTIVE |",
+        }
+        for name, replacement in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "CURRENT.md"
+                path.write_text(_current().replace(active_header, replacement), encoding="utf-8")
+                with self.assertRaises(state.StateError):
+                    state.validate_current(path)
+
+    def test_validate_current_matches_hook_text_safety(self) -> None:
+        replacements = {
+            "control in goal": ("**Shared goal:** none", "**Shared goal:** unsafe\tgoal"),
+            "control in name": (
+                "**Coordinator thread name:** Sample Coordinator",
+                "**Coordinator thread name:** Unsafe\tCoordinator",
+            ),
+        }
+        for name, (before, after) in replacements.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "CURRENT.md"
+                path.write_text(_current().replace(before, after), encoding="utf-8")
+                with self.assertRaises(state.StateError):
+                    state.validate_current(path)
+
+    def test_normalization_preserves_windows_line_endings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "CURRENT.md"
+            original = _current(
+                shared_goal="No active coordinated goal.", task_id="-"
+            ).replace("\n", "\r\n")
+            path.write_bytes(original.encode("utf-8"))
+
+            state.normalize_current(path)
+
+            updated = path.read_bytes()
+            self.assertNotIn(b"\n", updated.replace(b"\r\n", b""))
+            self.assertIn(b"**Shared goal:** none\r\n", updated)
+            self.assertIn(b"| COORDINATOR | NONE | IDLE |", updated)
+
     def test_reconciliation_requires_known_status_and_nonempty_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "report.md"
@@ -175,6 +222,39 @@ state: {record_state}
                 with self.assertRaisesRegex(state.StateError, error):
                     state.validate_reconciliation(path)
 
+    def test_reconciliation_rejects_invalid_ids_and_ledger_rows(self) -> None:
+        template = """type: TURN_RECONCILIATION
+project_id: sample
+coordination_epoch: 1
+message_id: {message_id}
+reported_by_thread: worker
+related_task_id: {task_id}
+state: REPORTING
+
+| Task or promise | Relationship to shared goal | Status | Evidence or remaining work | Recommended disposition |
+| --- | --- | --- | --- | --- |
+{rows}
+"""
+        cases = {
+            "invalid message id": ("bad id", "SAMPLE-1", "| Repair | Direct | DONE | Tests | Close |"),
+            "invalid task id": ("REPORT-1", "bad task", "| Repair | Direct | DONE | Tests | Close |"),
+            "blank cells": ("REPORT-1", "SAMPLE-1", "| | Direct | DONE | | Close |"),
+            "duplicate row": (
+                "REPORT-1",
+                "SAMPLE-1",
+                "| Repair | Direct | DONE | Tests | Close |\n| Repair | Direct | DONE | Tests | Close |",
+            ),
+        }
+        for name, (message_id, task_id, rows) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "report.md"
+                path.write_text(
+                    template.format(message_id=message_id, task_id=task_id, rows=rows),
+                    encoding="utf-8",
+                )
+                with self.assertRaises(state.StateError):
+                    state.validate_reconciliation(path)
+
     def test_create_file_is_scoped_and_never_overwrites(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / ".codex" / "coordination"
@@ -188,6 +268,158 @@ state: {record_state}
                 state.create_file(root, Path("CURRENT.md"), b"unsafe\n")
             with self.assertRaisesRegex(state.StateError, "tasks/ or inbox"):
                 state.create_file(root, Path("tasks/../CURRENT.md"), b"unsafe\n")
+
+    def test_inbox_checkpoint_requires_explicit_acknowledgement(self) -> None:
+        coordinator_id = "11111111-1111-4111-8111-111111111111"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / ".codex" / "coordination"
+            state.create_file(root, Path("inbox/one.md"), b"first\n")
+
+            first = state.scan_inbox(
+                root,
+                project_id="sample",
+                coordination_epoch=1,
+                coordinator_id=coordinator_id,
+            )
+            self.assertEqual(first["status"], "pending")
+            self.assertEqual(first["cacheStatus"], "missing")
+            self.assertEqual(first["pendingRecords"][0]["reason"], "new")
+            self.assertFalse((root / "cache" / "inbox-index.json").exists())
+
+            repeated = state.scan_inbox(
+                root,
+                project_id="sample",
+                coordination_epoch=1,
+                coordinator_id=coordinator_id,
+            )
+            self.assertEqual(len(repeated["pendingRecords"]), 1)
+
+            record = first["pendingRecords"][0]
+            acknowledged = state.acknowledge_inbox(
+                root,
+                project_id="sample",
+                coordination_epoch=1,
+                coordinator_id=coordinator_id,
+                records={"one.md": record["sha256"]},
+            )
+            self.assertEqual(acknowledged["status"], "acknowledged")
+            self.assertTrue((root / "cache" / "inbox-index.json").is_file())
+
+            current = state.scan_inbox(
+                root,
+                project_id="sample",
+                coordination_epoch=1,
+                coordinator_id=coordinator_id,
+            )
+            self.assertEqual(current["status"], "current")
+            self.assertEqual(current["pendingRecords"], [])
+            self.assertEqual(current["acknowledgedCount"], 1)
+
+            (root / "inbox" / "one.md").unlink()
+            missing = state.scan_inbox(
+                root,
+                project_id="sample",
+                coordination_epoch=1,
+                coordinator_id=coordinator_id,
+            )
+            self.assertEqual(missing["status"], "pending")
+            self.assertEqual(missing["staleAcknowledgements"], ["inbox/one.md"])
+            self.assertIn("acknowledged_record_missing:one.md", missing["warnings"])
+
+    def test_inbox_checkpoint_detects_changes_and_never_acks_stale_hashes(self) -> None:
+        coordinator_id = "11111111-1111-4111-8111-111111111111"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / ".codex" / "coordination"
+            path = root / "inbox" / "one.md"
+            state.create_file(root, Path("inbox/one.md"), b"first\n")
+            initial = state.scan_inbox(
+                root,
+                project_id="sample",
+                coordination_epoch=1,
+                coordinator_id=coordinator_id,
+            )["pendingRecords"][0]
+            state.acknowledge_inbox(
+                root,
+                project_id="sample",
+                coordination_epoch=1,
+                coordinator_id=coordinator_id,
+                records={"one.md": initial["sha256"]},
+            )
+
+            path.write_bytes(b"changed\n")
+            changed = state.scan_inbox(
+                root,
+                project_id="sample",
+                coordination_epoch=1,
+                coordinator_id=coordinator_id,
+            )
+            self.assertEqual(changed["pendingRecords"][0]["reason"], "changed")
+            self.assertIn("acknowledged_record_changed:one.md", changed["warnings"])
+            with self.assertRaisesRegex(state.StateError, "changed before acknowledgement"):
+                state.acknowledge_inbox(
+                    root,
+                    project_id="sample",
+                    coordination_epoch=1,
+                    coordinator_id=coordinator_id,
+                    records={"one.md": initial["sha256"]},
+                )
+
+    def test_inbox_checkpoint_rebuilds_on_scope_change_or_corrupt_cache(self) -> None:
+        coordinator_id = "11111111-1111-4111-8111-111111111111"
+        replacement_id = "22222222-2222-4222-8222-222222222222"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / ".codex" / "coordination"
+            state.create_file(root, Path("inbox/one.md"), b"first\n")
+            record = state.scan_inbox(
+                root,
+                project_id="sample",
+                coordination_epoch=1,
+                coordinator_id=coordinator_id,
+            )["pendingRecords"][0]
+            state.acknowledge_inbox(
+                root,
+                project_id="sample",
+                coordination_epoch=1,
+                coordinator_id=coordinator_id,
+                records={"one.md": record["sha256"]},
+            )
+
+            replaced = state.scan_inbox(
+                root,
+                project_id="sample",
+                coordination_epoch=1,
+                coordinator_id=replacement_id,
+            )
+            self.assertEqual(replaced["cacheStatus"], "scope_changed")
+            self.assertEqual(len(replaced["pendingRecords"]), 1)
+
+            (root / "cache" / "inbox-index.json").write_text("{broken", encoding="utf-8")
+            corrupt = state.scan_inbox(
+                root,
+                project_id="sample",
+                coordination_epoch=1,
+                coordinator_id=coordinator_id,
+            )
+            self.assertEqual(corrupt["cacheStatus"], "corrupt")
+            self.assertEqual(len(corrupt["pendingRecords"]), 1)
+
+    def test_inbox_ack_parser_rejects_paths_and_duplicate_records(self) -> None:
+        digest = "a" * 64
+        self.assertEqual(
+            state._parse_acknowledgements([f"inbox/one.md={digest}"]),
+            {"one.md": digest},
+        )
+        for value in (
+            f"tasks/one.md={digest}",
+            f"inbox/../one.md={digest}",
+            "inbox/one.md=bad",
+        ):
+            with self.subTest(value=value), self.assertRaises(state.StateError):
+                state._parse_acknowledgements([value])
+        with self.assertRaisesRegex(state.StateError, "Duplicate"):
+            state._parse_acknowledgements(
+                [f"inbox/one.md={digest}", f"inbox/one.md={digest}"]
+            )
 
 
 if __name__ == "__main__":

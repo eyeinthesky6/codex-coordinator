@@ -25,24 +25,27 @@ The suite has no third-party Python dependency.
 - valid current state produces a bounded restart handoff;
 - malformed or duplicate marker fields and malformed, duplicate, truncated, stale, or mismatched state do not grant authority;
 - primary-worktree discovery works for linked worktrees and Unicode paths;
-- task ownership, registration, status, and pending-command fields agree;
+- task ownership, registration, status, table headers, row identifiers, and pending-command fields agree;
+- invalid pending or resume transitions remain unknown rather than collapsing to an empty queue;
 - hook packaging uses the expected `${PLUGIN_ROOT}` commands.
 
 `tests/test_doctor.py` checks that:
 
 - a configured manual installation moves from drift to current atomically;
 - a second run is idempotent and unexpected local files are preserved;
-- a source directory with the wrong plugin identity is rejected before any write;
-- overlapping skill and hook destinations are rejected before any write;
+- a source directory with the wrong plugin identity or duplicate JSON keys is rejected before any write;
+- overlapping skill and hook destinations are rejected in either direction before any write;
 - the installed skill package and SessionStart hook are validated after repair;
 - an installed-runtime smoke failure rolls the complete update back.
 - stale capability declarations or operating guidance fail before installation.
+- optional Mermaid output reflects Doctor's verified states without exposing machine-specific paths or replacing JSON and exit-code authority.
 
 `tests/test_coordination_state.py` checks that:
 
 - harmless idle sentinels are recognized and normalized without weakening ownership validation;
-- required current-state metadata, tables, reconciliation identity, and ledgers reject malformed shapes;
-- task and inbox records are created only inside their local coordination directories and never overwritten.
+- required current-state metadata, table rows, unique identities, reconciliation routing fields, and ledgers reject malformed or duplicate values;
+- task and inbox records are created only inside their local coordination directories and never overwritten;
+- inbox scans do not advance the checkpoint, acknowledgements require the exact current hash, and corrupt, changed, or wrong-scope checkpoints safely make records pending again.
 
 `tests/test_public_site.py` checks that:
 

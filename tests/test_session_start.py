@@ -502,6 +502,18 @@ class SessionStartHookTests(unittest.TestCase):
                 self.assertIn("marker is incompatible", context)
                 self.assertNotIn("coordination_epoch=", context)
 
+    def test_missing_current_state_keeps_the_exact_recovery_warning(self) -> None:
+        root = self._repository("missing-current")
+        coordination = root / ".codex" / "coordination"
+        coordination.mkdir(parents=True)
+        (coordination / "project.yaml").write_text(_marker(), encoding="utf-8")
+
+        context = self._invoke(root)
+
+        self.assertIn("state is invalid", context)
+        self.assertIn("current_state_missing", context)
+        self.assertIn("current_project_id_missing_or_invalid", context)
+
     def test_enabled_marker_internal_error_is_visible_without_details_or_authority(self) -> None:
         root = self._repository()
         coordination = root / ".codex" / "coordination"
@@ -585,6 +597,77 @@ class SessionStartHookTests(unittest.TestCase):
 
         self.assertIn("pending_commands_required_headers_missing", context)
         self.assertIn("pending_commands=UNKNOWN_INVALID_STATE", context)
+
+    def test_unknown_table_column_is_invalid(self) -> None:
+        root = self._repository("unknown-column")
+        current = _current().replace(
+            "| Task ID | Owner | Role | Status |\n| --- | --- | --- | --- |",
+            "| Task ID | Owner | Role | Status | Notes |\n| --- | --- | --- | --- | --- |",
+        ).replace(
+            "| SAMPLE-001 | 11111111-1111-4111-8111-111111111111 | COORDINATOR | ACTIVE |",
+            "| SAMPLE-001 | 11111111-1111-4111-8111-111111111111 | COORDINATOR | ACTIVE | note |",
+        ).replace(
+            "| SAMPLE-002 | 22222222-2222-4222-8222-222222222222 | TASK_AGENT | ACTIVE |",
+            "| SAMPLE-002 | 22222222-2222-4222-8222-222222222222 | TASK_AGENT | ACTIVE | note |",
+        )
+        self._write_state(root, current=current)
+
+        context = self._invoke(root)
+
+        self.assertIn("active_tasks_unknown_headers", context)
+        self.assertIn("stale_active_task_binding", context)
+
+    def test_renamed_table_column_is_invalid(self) -> None:
+        root = self._repository("renamed-column")
+        current = _current().replace("| Thread ID | Thread name |", "| Thread ID | Canonical name |")
+        self._write_state(root, current=current)
+
+        context = self._invoke(root)
+
+        self.assertIn("registered_sessions_unknown_headers", context)
+        self.assertIn("registered_sessions_required_headers_missing", context)
+
+    def test_invalid_pending_identifier_is_unknown_not_none(self) -> None:
+        root = self._repository("invalid-pending-id")
+        current = _current().replace(
+            "| SAMPLE-002 | MSG-001 | 22222222-2222-4222-8222-222222222222 | AMEND_TASK | PENDING |",
+            "| SAMPLE-002 | bad id | 22222222-2222-4222-8222-222222222222 | AMEND_TASK | PENDING |",
+        )
+        self._write_state(root, current=current)
+
+        context = self._invoke(root)
+
+        self.assertIn("pending_commands_row_invalid", context)
+        self.assertIn("pending_commands=UNKNOWN_INVALID_STATE", context)
+        self.assertNotIn("pending_commands=NONE", context)
+
+    def test_duplicate_active_task_id_is_warned(self) -> None:
+        root = self._repository("duplicate-active-task-id")
+        current = _current().replace(
+            "| 22222222-2222-4222-8222-222222222222 | Hook Worker | PROJECT_EXECUTION | TASK_AGENT | SAMPLE-002 | ACTIVE | true |",
+            "| 22222222-2222-4222-8222-222222222222 | Hook Worker | PROJECT_EXECUTION | TASK_AGENT | SAMPLE-001 | ACTIVE | true |",
+        ).replace(
+            "| SAMPLE-002 | 22222222-2222-4222-8222-222222222222 | TASK_AGENT | ACTIVE |",
+            "| SAMPLE-001 | 22222222-2222-4222-8222-222222222222 | TASK_AGENT | ACTIVE |",
+        ).replace(
+            "| SAMPLE-002 | MSG-001 | 22222222-2222-4222-8222-222222222222 | AMEND_TASK | PENDING |",
+            "| SAMPLE-001 | MSG-001 | 22222222-2222-4222-8222-222222222222 | AMEND_TASK | PENDING |",
+        )
+        self._write_state(root, current=current)
+
+        context = self._invoke(root)
+
+        self.assertIn("active_tasks_duplicate_task_id", context)
+        self.assertIn("stale_active_task_binding", context)
+
+    def test_invalid_native_session_id_is_visible(self) -> None:
+        root = self._repository("invalid-session-id")
+        self._write_state(root)
+
+        context = self._invoke(root, session_id="not a uuid")
+
+        self.assertIn("this_session_id=UNKNOWN", context)
+        self.assertIn("this_session_id_missing_or_invalid", context)
 
     def test_terminal_owner_is_not_accepted_for_an_active_task(self) -> None:
         root = self._repository()

@@ -25,6 +25,7 @@ Coordinator-specific project content is limited to:
 - `.codex/coordination/project.yaml` for stable identity and canonical paths;
 - `.codex/coordination/CURRENT.md` for changing state;
 - `tasks/` when a real task exists;
+- `inbox/` when a real durable handoff record exists;
 - `suggestions/` when a real Coordinator-system report exists.
 
 The installer preserves `.codex/config.toml` by default. Coordinator-generated tasks inherit the user's configured model while the global operating contract explicitly uses `low` or `medium` reasoning unless managed policy or an explicit per-task or run-wide user override applies. Under a separate explicit request, the installer may minimally merge an exact project model or reasoning default; this remains ordinary Codex configuration, not Coordinator state or a synchronization target.
@@ -67,7 +68,7 @@ Run this procedure only when the main skill's Project enablement trigger selects
 10. Preserve `.codex/config.toml` byte-for-byte and create no project model default unless the user separately asks for one. Native Coordinator task creation inherits the user's configured model while explicitly using the cost-safe `low` or `medium` reasoning policy.
 11. When the user explicitly requests a project default, resolve the exact supported model/reasoning combination from the target host, confirm any unavailable exact choice, then create or minimally merge only `model` and `model_reasoning_effort`. Preserve every unrelated setting and never edit global config.
 12. Initialise `CURRENT.md` with the main skill's exact compatibility contract: epoch `0`, mode `IDLE`, shared goal `none`, Coordinator `NONE / UNREGISTERED / accepts=false`, and empty required tables with no sessions, tasks, commands, paused work, resume actions, or decisions.
-13. Create `tasks/` or `suggestions/` only when writing the first real record. Do not add placeholders.
+13. Create `tasks/`, `inbox/`, or `suggestions/` only when writing the first real record of that kind. Do not add placeholders.
 
 ## Enabled marker with missing local state
 

@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import sys
 import tempfile
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -82,6 +84,9 @@ THREAD = re.compile(
 )
 EPOCH = re.compile(r"\d{1,9}")
 BOOL = re.compile(r"(?:true|false)")
+SHA256 = re.compile(r"[0-9a-f]{64}")
+CACHE_SCHEMA_VERSION = 1
+MAX_INBOX_RECORD_BYTES = 4 * 1024 * 1024
 
 
 class StateError(RuntimeError):
@@ -119,6 +124,24 @@ def _valid_reconciliation(value: str) -> bool:
         return False
 
 
+def _valid_text(value: str, *, maximum: int) -> bool:
+    return (
+        1 <= len(value) <= maximum
+        and "|" not in value
+        and not any(
+            character in {"\r", "\n", "\u2028", "\u2029"}
+            or unicodedata.category(character) in {"Cc", "Cs"}
+            for character in value
+        )
+    )
+
+
+def _valid_address(value: str) -> bool:
+    if THREAD.fullmatch(value):
+        return value not in {"NONE", "UNAVAILABLE"}
+    return _valid_text(value, maximum=120)
+
+
 def _validate_required_field(label: str, value: str) -> None:
     patterns = {
         "Project ID": PROJECT,
@@ -131,13 +154,11 @@ def _validate_required_field(label: str, value: str) -> None:
     pattern = patterns.get(label)
     if pattern is not None and not pattern.fullmatch(value):
         raise StateError(f"Invalid required {label!r} field")
-    if label == "Shared goal" and not 1 <= len(value) <= 512:
+    if label == "Shared goal" and not _valid_text(value, maximum=512):
         raise StateError("Invalid required 'Shared goal' field")
     if label == "Last reconciliation" and not _valid_reconciliation(value):
         raise StateError("Invalid required 'Last reconciliation' field")
-    if label == "Coordinator thread name" and not (
-        1 <= len(value) <= 120 and "|" not in value
-    ):
+    if label == "Coordinator thread name" and not _valid_text(value, maximum=120):
         raise StateError("Invalid required 'Coordinator thread name' field")
 
 
@@ -172,6 +193,91 @@ def _table(text: str, heading: str) -> tuple[list[str], list[list[str]]]:
     return headers, rows
 
 
+def _validate_table_rows(heading: str, headers: list[str], rows: list[list[str]]) -> None:
+    indexes = {_normalize_header(value): index for index, value in enumerate(headers)}
+
+    def cell(row: list[str], column: str) -> str:
+        return row[indexes[_normalize_header(column)]]
+
+    def token(value: str) -> bool:
+        return bool(TOKEN.fullmatch(value))
+
+    validators: dict[str, dict[str, Any]] = {
+        "Registered sessions": {
+            "Thread ID": lambda value: bool(THREAD.fullmatch(value)),
+            "Thread name": lambda value: _valid_text(value, maximum=120),
+            "Scope kind": token,
+            "Role": token,
+            "Task ID": lambda value: value.strip().lower() in TASKLESS or token(value),
+            "Status": token,
+            "Accepts project messages": lambda value: bool(BOOL.fullmatch(value)),
+        },
+        "Active tasks": {
+            "Task ID": token,
+            "Owner": _valid_address,
+            "Role": token,
+            "Status": token,
+        },
+        "Pending commands": {
+            "Task ID": token,
+            "Message ID": token,
+            "Recipient thread ID": _valid_address,
+            "Message type": token,
+            "Status": token,
+        },
+        "Paused work": {
+            "Task ID": token,
+            "Owner": _valid_address,
+            "Reason": lambda value: _valid_text(value, maximum=512),
+            "Resume condition": lambda value: _valid_text(value, maximum=512),
+            "Status": token,
+        },
+        "Resume queue": {
+            "Task ID": token,
+            "Message ID": token,
+            "Resume condition": lambda value: _valid_text(value, maximum=512),
+            "Status": token,
+        },
+        "Blocked decisions": {
+            "Decision ID": token,
+            "Task ID": token,
+            "Decision needed": lambda value: _valid_text(value, maximum=512),
+            "Status": token,
+        },
+    }
+    unique_columns = {
+        "Active tasks": "Task ID",
+        "Pending commands": "Message ID",
+        "Paused work": "Task ID",
+        "Resume queue": "Message ID",
+        "Blocked decisions": "Decision ID",
+    }
+    seen_rows: set[tuple[str, ...]] = set()
+    seen_keys: set[str] = set()
+    for row in rows:
+        row_key = tuple(row)
+        if row_key in seen_rows:
+            raise StateError(f"{heading!r} contains a duplicate row")
+        seen_rows.add(row_key)
+        for column, validator in validators[heading].items():
+            value = cell(row, column)
+            if not validator(value):
+                raise StateError(f"{heading!r} contains an invalid {column!r} value")
+
+        if heading == "Registered sessions":
+            thread_id = cell(row, "Thread ID")
+            unique_key = thread_id if thread_id not in {"NONE", "UNAVAILABLE"} else cell(
+                row, "Thread name"
+            )
+        elif heading in unique_columns:
+            unique_key = cell(row, unique_columns[heading])
+        else:
+            continue
+        if unique_key in seen_keys:
+            raise StateError(f"{heading!r} contains a duplicate identity: {unique_key}")
+        seen_keys.add(unique_key)
+
+
 def validate_current(path: Path) -> dict[str, Any]:
     try:
         text = path.read_text(encoding="utf-8")
@@ -197,6 +303,7 @@ def validate_current(path: Path) -> dict[str, Any]:
     tables: dict[str, int] = {}
     for heading in TABLES:
         headers, rows = _table(text, heading)
+        _validate_table_rows(heading, headers, rows)
         tables[heading] = len(rows)
         if heading != "Registered sessions":
             continue
@@ -228,14 +335,15 @@ def normalize_current(path: Path) -> dict[str, Any]:
         report["status"] = "current"
         return report
 
-    text = path.read_text(encoding="utf-8")
+    with path.open("r", encoding="utf-8", newline="") as stream:
+        text = stream.read()
     shared_matches = _field_matches(text, "Shared goal")
     shared_value = shared_matches[0].group(1).strip()
     if shared_value.lower() in NO_ACTIVE_GOAL and shared_value != "none":
         text = (
-            text[: shared_matches[0].start()]
-            + "**Shared goal:** none"
-            + text[shared_matches[0].end() :]
+            text[: shared_matches[0].start(1)]
+            + "none"
+            + text[shared_matches[0].end(1) :]
         )
 
     section, start, end = _section(text, "Registered sessions")
@@ -250,7 +358,11 @@ def normalize_current(path: Path) -> dict[str, Any]:
                 continue
             if cells[task_index].strip().lower() in TASKLESS:
                 cells[task_index] = "NONE"
-                ending = "\n" if lines[line_index].endswith("\n") else ""
+                ending = (
+                    "\r\n"
+                    if lines[line_index].endswith("\r\n")
+                    else ("\n" if lines[line_index].endswith("\n") else "")
+                )
                 lines[line_index] = "| " + " | ".join(cells) + " |" + ending
     text = text[:start] + "".join(lines) + text[end:]
     _atomic_replace(path, text.encode("utf-8"))
@@ -279,6 +391,12 @@ def validate_reconciliation(path: Path) -> dict[str, Any]:
         raise StateError("Invalid reconciliation coordination_epoch")
     if values["state"] != "REPORTING":
         raise StateError("Invalid reconciliation state; expected REPORTING")
+    if not TOKEN.fullmatch(values["message_id"]):
+        raise StateError("Invalid reconciliation message_id")
+    if not _valid_address(values["reported_by_thread"]):
+        raise StateError("Invalid reconciliation reported_by_thread")
+    if not TOKEN.fullmatch(values["related_task_id"]):
+        raise StateError("Invalid reconciliation related_task_id")
 
     table_lines = [line for line in text.splitlines() if line.lstrip().startswith("|")]
     if len(table_lines) < 3:
@@ -287,14 +405,21 @@ def validate_reconciliation(path: Path) -> dict[str, Any]:
     if tuple(headers) != LEDGER_HEADER:
         raise StateError("Reconciliation ledger header is invalid")
     rows = []
+    seen_rows: set[tuple[str, ...]] = set()
     for line in table_lines[1:]:
         cells = _split_row(line)
         if _separator(cells):
             continue
         if len(cells) != len(headers):
             raise StateError("Reconciliation ledger contains an incomplete row")
+        if any(not _valid_text(cell, maximum=4096) for cell in cells):
+            raise StateError("Reconciliation ledger contains an empty or invalid cell")
         if cells[2] not in LEDGER_STATUSES:
             raise StateError(f"Unknown reconciliation status: {cells[2]}")
+        row_key = tuple(cells)
+        if row_key in seen_rows:
+            raise StateError("Reconciliation ledger contains a duplicate row")
+        seen_rows.add(row_key)
         rows.append(dict(zip(headers, cells, strict=True)))
     if not rows:
         raise StateError("Reconciliation ledger has no rows")
@@ -320,6 +445,204 @@ def _atomic_replace(path: Path, data: bytes) -> None:
     finally:
         if temporary_name:
             Path(temporary_name).unlink(missing_ok=True)
+
+
+def _inbox_scope(project_id: str, coordination_epoch: int, coordinator_id: str) -> dict[str, Any]:
+    if not PROJECT.fullmatch(project_id):
+        raise StateError("Invalid inbox-cache project ID")
+    if coordination_epoch < 0 or coordination_epoch > 999_999_999:
+        raise StateError("Invalid inbox-cache coordination epoch")
+    if not THREAD.fullmatch(coordinator_id) or coordinator_id in {"NONE", "UNAVAILABLE"}:
+        raise StateError("Invalid inbox-cache Coordinator thread ID")
+    return {
+        "projectId": project_id,
+        "coordinationEpoch": coordination_epoch,
+        "coordinatorThreadId": coordinator_id,
+    }
+
+
+def _hash_inbox_file(path: Path) -> dict[str, Any]:
+    size = path.stat().st_size
+    if size > MAX_INBOX_RECORD_BYTES:
+        raise StateError(
+            f"Inbox record exceeds the {MAX_INBOX_RECORD_BYTES}-byte checkpoint limit: {path.name}"
+        )
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(64 * 1024), b""):
+            digest.update(chunk)
+    return {"sha256": digest.hexdigest(), "bytes": size}
+
+
+def _inbox_files(root: Path) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    inbox = root / "inbox"
+    if not inbox.exists():
+        return {}, []
+    if not inbox.is_dir() or inbox.is_symlink():
+        raise StateError("Coordination inbox must be a real directory")
+
+    files: dict[str, dict[str, Any]] = {}
+    warnings: list[str] = []
+    for path in sorted(inbox.iterdir(), key=lambda value: value.name.lower()):
+        if path.suffix.lower() != ".md":
+            continue
+        if path.is_symlink():
+            warnings.append(f"unsafe_symlink:{path.name}")
+            continue
+        if not path.is_file():
+            warnings.append(f"unsafe_non_file:{path.name}")
+            continue
+        try:
+            files[path.name] = _hash_inbox_file(path)
+        except (OSError, StateError) as error:
+            warnings.append(f"unreadable:{path.name}:{error}")
+    return files, warnings
+
+
+def _load_inbox_index(
+    path: Path, scope: dict[str, Any]
+) -> tuple[dict[str, dict[str, Any]], str]:
+    if not path.exists():
+        return {}, "missing"
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict) or value.get("schemaVersion") != CACHE_SCHEMA_VERSION:
+            return {}, "outdated"
+        if value.get("scope") != scope:
+            return {}, "scope_changed"
+        acknowledged = value.get("acknowledged")
+        if not isinstance(acknowledged, dict):
+            return {}, "corrupt"
+        validated: dict[str, dict[str, Any]] = {}
+        for name, record in acknowledged.items():
+            if (
+                not isinstance(name, str)
+                or Path(name).name != name
+                or not name.lower().endswith(".md")
+                or not isinstance(record, dict)
+                or not SHA256.fullmatch(str(record.get("sha256", "")))
+                or not isinstance(record.get("bytes"), int)
+                or record["bytes"] < 0
+                or record["bytes"] > MAX_INBOX_RECORD_BYTES
+            ):
+                return {}, "corrupt"
+            validated[name] = {
+                "sha256": record["sha256"],
+                "bytes": record["bytes"],
+            }
+        return validated, "current"
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return {}, "corrupt"
+
+
+def scan_inbox(
+    root: Path,
+    *,
+    project_id: str,
+    coordination_epoch: int,
+    coordinator_id: str,
+) -> dict[str, Any]:
+    """Return unacknowledged inbox records without advancing the checkpoint."""
+    root = root.resolve(strict=False)
+    scope = _inbox_scope(project_id, coordination_epoch, coordinator_id)
+    cache_path = root / "cache" / "inbox-index.json"
+    acknowledged, cache_status = _load_inbox_index(cache_path, scope)
+    current, warnings = _inbox_files(root)
+
+    pending: list[dict[str, Any]] = []
+    acknowledged_count = 0
+    for name, record in current.items():
+        previous = acknowledged.get(name)
+        if previous == record:
+            acknowledged_count += 1
+            continue
+        reason = "changed" if previous is not None else "new"
+        pending.append({"path": f"inbox/{name}", **record, "reason": reason})
+        if reason == "changed":
+            warnings.append(f"acknowledged_record_changed:{name}")
+
+    stale = sorted(name for name in acknowledged if name not in current)
+    warnings.extend(f"acknowledged_record_missing:{name}" for name in stale)
+    return {
+        "status": "pending" if pending or warnings else "current",
+        "cacheStatus": cache_status,
+        "cachePath": str(cache_path),
+        "pendingRecords": pending,
+        "acknowledgedCount": acknowledged_count,
+        "staleAcknowledgements": [f"inbox/{name}" for name in stale],
+        "warnings": warnings,
+    }
+
+
+def _parse_acknowledgements(values: list[str]) -> dict[str, str]:
+    records: dict[str, str] = {}
+    for value in values:
+        relative, separator, digest = value.rpartition("=")
+        path = Path(relative)
+        if (
+            not separator
+            or path.is_absolute()
+            or path.parts[:1] != ("inbox",)
+            or len(path.parts) != 2
+            or path.suffix.lower() != ".md"
+            or ".." in path.parts
+            or not SHA256.fullmatch(digest)
+        ):
+            raise StateError("Acknowledgement must be inbox/<record>.md=<sha256>")
+        if path.name in records:
+            raise StateError(f"Duplicate inbox acknowledgement: {path.name}")
+        records[path.name] = digest
+    return records
+
+
+def acknowledge_inbox(
+    root: Path,
+    *,
+    project_id: str,
+    coordination_epoch: int,
+    coordinator_id: str,
+    records: dict[str, str],
+) -> dict[str, Any]:
+    """Advance checkpoints only for exact record hashes already reconciled by the caller."""
+    if not records:
+        raise StateError("At least one inbox record acknowledgement is required")
+    root = root.resolve(strict=False)
+    scope = _inbox_scope(project_id, coordination_epoch, coordinator_id)
+    cache_path = root / "cache" / "inbox-index.json"
+    acknowledged, cache_status = _load_inbox_index(cache_path, scope)
+    current, warnings = _inbox_files(root)
+    if warnings:
+        raise StateError("Cannot advance inbox checkpoint while inbox scan warnings exist")
+
+    for name, expected_digest in records.items():
+        current_record = current.get(name)
+        if current_record is None:
+            raise StateError(f"Inbox record is missing or unsafe: {name}")
+        if current_record["sha256"] != expected_digest:
+            raise StateError(f"Inbox record changed before acknowledgement: {name}")
+
+    acknowledged = {
+        name: record for name, record in acknowledged.items() if name in current
+    }
+    for name in records:
+        acknowledged[name] = current[name]
+    payload = {
+        "schemaVersion": CACHE_SCHEMA_VERSION,
+        "scope": scope,
+        "acknowledged": dict(sorted(acknowledged.items())),
+    }
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_replace(
+        cache_path,
+        (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+    )
+    return {
+        "status": "acknowledged",
+        "cacheStatus": cache_status,
+        "cachePath": str(cache_path),
+        "acknowledgedRecords": [f"inbox/{name}" for name in sorted(records)],
+        "acknowledgedCount": len(acknowledged),
+    }
 
 
 def create_file(root: Path, relative: Path, content: bytes) -> dict[str, Any]:
@@ -366,15 +689,43 @@ def main(argv: list[str] | None = None) -> int:
     create.add_argument("--relative-path", required=True, type=Path)
     create.add_argument("--content-file", type=Path)
 
+    scan = commands.add_parser("scan-inbox")
+    scan.add_argument("--coordination-root", required=True, type=Path)
+    scan.add_argument("--project-id", required=True)
+    scan.add_argument("--coordination-epoch", required=True, type=int)
+    scan.add_argument("--coordinator-id", required=True)
+
+    acknowledge = commands.add_parser("ack-inbox")
+    acknowledge.add_argument("--coordination-root", required=True, type=Path)
+    acknowledge.add_argument("--project-id", required=True)
+    acknowledge.add_argument("--coordination-epoch", required=True, type=int)
+    acknowledge.add_argument("--coordinator-id", required=True)
+    acknowledge.add_argument("--record", action="append", required=True)
+
     args = parser.parse_args(argv)
     try:
         if args.command == "validate-current":
             report = normalize_current(args.path) if args.write_normalized else validate_current(args.path)
         elif args.command == "validate-reconciliation":
             report = validate_reconciliation(args.path)
-        else:
+        elif args.command == "create-file":
             content = args.content_file.read_bytes() if args.content_file else sys.stdin.buffer.read()
             report = create_file(args.coordination_root, args.relative_path, content)
+        elif args.command == "scan-inbox":
+            report = scan_inbox(
+                args.coordination_root,
+                project_id=args.project_id,
+                coordination_epoch=args.coordination_epoch,
+                coordinator_id=args.coordinator_id,
+            )
+        else:
+            report = acknowledge_inbox(
+                args.coordination_root,
+                project_id=args.project_id,
+                coordination_epoch=args.coordination_epoch,
+                coordinator_id=args.coordinator_id,
+                records=_parse_acknowledgements(args.record),
+            )
     except (OSError, UnicodeError, StateError) as error:
         print(json.dumps({"status": "error", "error": str(error)}, indent=2))
         return 1

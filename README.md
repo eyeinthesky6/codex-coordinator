@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://eyeinthesky6.github.io/codex-coordinator/">
-    <img src="plugins/codex-coordinator/assets/logo.png" alt="Codex Coordinator" width="144">
+    <img src="plugins/codex-coordinator/assets/logo.png" alt="Codex Coordinator nested opposing C logo" width="144">
   </a>
 </p>
 
@@ -32,7 +32,7 @@ It works with the Codex tasks and Git setup you already use. There is no coordin
 
 > **Independent project:** Codex Coordinator is a third-party plugin for OpenAI Codex. It is not affiliated with, endorsed by, or maintained by OpenAI. Codex and related OpenAI product names belong to OpenAI.
 
-## Start with the outcome, not an agent org chart
+## How the communication flow works
 
 ```text
 Use $codex-coordinator to create the tasks needed and coordinate this goal:
@@ -40,18 +40,37 @@ Use $codex-coordinator to create the tasks needed and coordinate this goal:
 ```
 
 ```mermaid
-flowchart LR
-    U["One large goal"] --> C["Coordinator"]
-    C --> A["Bounded worker A"]
-    C --> B["Bounded worker B"]
-    C --> R["Independent review"]
-    A --> C
-    B --> C
-    R --> C
-    C --> O["One consolidated result"]
+sequenceDiagram
+    autonumber
+    actor U as You
+    participant C as Coordinator agent
+    participant A as Agent thread A
+    participant B as Agent thread B
+    participant T as Agent thread C
+
+    U->>C: One goal and a clear definition of done
+    C->>C: Split the goal into bounded work
+
+    par Workstream A
+        C->>A: Assign task A and its boundaries
+        A-->>C: Completed work and evidence
+    and Workstream B
+        C->>B: Assign task B and its boundaries
+        B-->>C: Completed work and evidence
+    and Workstream C
+        C->>T: Assign task C or independent review
+        T-->>C: Completed work and evidence
+    end
+
+    C->>C: Check results, blockers, and overlaps
+    opt A result needs a focused follow-up
+        C->>A: Send the correction or next step
+        A-->>C: Updated completion and evidence
+    end
+    C-->>U: One checked, consolidated result
 ```
 
-You should not have to decide how many agents to create, write a separate prompt for each one, or manually stitch their reports together. Describe what “done” looks like; Coordinator handles the split and keeps the result understandable.
+You speak to the Coordinator agent. It creates the agent threads, gives each one a bounded part of the goal, and receives their completed work. The Coordinator checks the pieces together, sends focused follow-up work when needed, and returns one understandable result to you. Agent threads do not need to command each other—or use you as the message bus.
 
 ## The problems it solves
 
@@ -130,13 +149,19 @@ The separately installed local Mission Control may observe the same native tasks
 
 ### Fewer, durable worker tasks
 
-One agent stays with each coherent part of the job through investigation, changes, tests, documentation, and follow-up. Coordinator checks whether someone already owns that work before opening another task, and it defaults to no more than five active workers.
+One agent stays with each substantial, coherent part of the job through investigation, changes, tests, documentation, and follow-up. A new visible task is for work that benefits from durable independent context: a multi-step quality lane, one feature or path group, a broad audit, or review of a stable result. Coordinator normally targets one to three active workers and treats five as the default ceiling.
+
+Short standard work stays inside its owning task. That task may use parent-owned subagents for one lint or test run, a narrow inspection, or a low-risk one-or-two-file fix, then validate and report the result itself. Those helpers do not become new project tasks or sidebar windows.
 
 A terminal task with nothing left to do stays closed. Review waits until there is one stable result to inspect. Coordinator does not quietly turn an old worker into the owner of an unrelated job, but the user may deliberately repurpose the task they are directly addressing after live ownership is checked.
 
 ### Quiet, document-first coordination
 
 You should not have to act as the message bus. Agents keep ordinary findings and progress with their own work. Coordinator gathers what changed, carries forward anything unfinished, and stays quiet when nothing changed.
+
+The operating guide is split by action, so an agent loads only the execution, reconciliation, or messaging rules it needs. A small local hash checkpoint lets the active Coordinator skip inbox records it has already reconciled. It stores no task content and never caches codebase reads or Codex task history; Codex remains responsible for those native reads and cursors.
+
+Task registration, acceptance, ownership, and “you may continue” confirmations stay in the private project records instead of appearing as new chat messages. A visible task message is reserved for a real pause, stop, resume, or urgent scope correction that requires the receiving agent to act.
 
 Before it says the job is finished, Coordinator checks what is completed, still active, waiting, blocked, or needs your decision. Its final update is the single project view: completed, active, queued, blocked, and decisions needed.
 
@@ -150,7 +175,7 @@ Agents still cannot overrule you. A message from Coordinator cannot silently rep
 
 ### Doctor: quiet project health checks
 
-The optional Doctor checks whether the installed Coordinator and its restart helper are complete and current. It can flag concrete drift, but it does not change project ownership, wake old tasks, or treat an idle project as broken simply because time passed.
+The optional Doctor checks whether the installed Coordinator and its restart helper are complete and current. It can flag concrete drift, but it does not change project ownership, wake old tasks, or treat an idle project as broken simply because time passed. For a visual investigation, `--mermaid-out <path>.mmd` writes a private diagram of the exact verified result; the JSON report and exit status remain the real gate.
 
 ## Model and reasoning choices
 
@@ -161,6 +186,7 @@ An exact user choice wins when the destination supports it, without rewriting gl
 - `.codex/coordination/project.yaml`: committed discovery marker and stable project identity;
 - `.codex/coordination/CURRENT.md`: local current ownership and handoff state;
 - `.codex/coordination/inbox/`: local append-only notices, reconciliation records, resume requests, and Doctor findings;
+- `.codex/coordination/cache/`: optional disposable hashes for inbox records already reconciled by the exact current Coordinator;
 - task and suggestion records only when real work requires them;
 - one small discovery block in the root `AGENTS.md`;
 - narrow ignore rules that keep mutable coordination state local.
@@ -169,7 +195,7 @@ The plugin does not copy its operating manual into user projects and does not ch
 
 ## Package map
 
-- [`plugins/codex-coordinator/skills/codex-coordinator/`](plugins/codex-coordinator/skills/codex-coordinator/): coordination behavior, references, capability contract, and deterministic state helper;
+- [`plugins/codex-coordinator/skills/codex-coordinator/`](plugins/codex-coordinator/skills/codex-coordinator/): coordination behavior, action-specific operating lanes, capability contract, and deterministic state helper;
 - [`plugins/codex-coordinator/hooks/hooks.json`](plugins/codex-coordinator/hooks/hooks.json): SessionStart registration;
 - [`plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`](plugins/codex-coordinator/scripts/codex_coordinator_session_start.py): bounded, read-only restart context;
 - [`plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`](plugins/codex-coordinator/scripts/codex_coordinator_doctor.py): installed-package repair and validation;

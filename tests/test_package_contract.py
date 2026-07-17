@@ -10,6 +10,13 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 PLUGIN = REPOSITORY / "plugins" / "codex-coordinator"
 
 
+def _operations(skill_root: Path) -> str:
+    return "\n".join(
+        (skill_root / "references" / name).read_text(encoding="utf-8")
+        for name in ("operations.md", "execution.md", "reconciliation.md", "messaging.md")
+    )
+
+
 class PackageContractTests(unittest.TestCase):
     def test_marketplace_resolves_to_matching_plugin(self) -> None:
         manifest = json.loads(
@@ -72,12 +79,29 @@ class PackageContractTests(unittest.TestCase):
                 checked += 1
         self.assertGreater(checked, 0)
 
-    def test_worker_threads_keep_one_core_goal(self) -> None:
+    def test_operations_are_split_and_cache_stays_coordination_only(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
-        skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
         operations = (skill_root / "references" / "operations.md").read_text(
             encoding="utf-8"
         )
+        reconciliation = (
+            skill_root / "references" / "reconciliation.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertLess(len(operations.encode("utf-8")), 8_000)
+        for lane in ("execution.md", "reconciliation.md", "messaging.md"):
+            self.assertIn(f"[{lane}]({lane})", operations)
+            self.assertTrue((skill_root / "references" / lane).is_file())
+        self.assertIn("Never cache codebase reads", operations)
+        self.assertIn("scan-inbox", reconciliation)
+        self.assertIn("ack-inbox", reconciliation)
+        self.assertIn("Do not persist or mirror native turns", reconciliation)
+        self.assertIn("afterCursor", reconciliation)
+
+    def test_worker_threads_keep_one_core_goal(self) -> None:
+        skill_root = PLUGIN / "skills" / "codex-coordinator"
+        skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+        operations = _operations(skill_root)
         recovery = (skill_root / "references" / "recovery.md").read_text(
             encoding="utf-8"
         )
@@ -101,26 +125,32 @@ class PackageContractTests(unittest.TestCase):
     def test_coordinator_reuses_work_areas_and_limits_parallel_workers(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
-        operations = (skill_root / "references" / "operations.md").read_text(
-            encoding="utf-8"
-        )
+        operations = _operations(skill_root)
         readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
 
         self.assertIn("one durable worker thread per coherent work area", skill)
+        self.assertIn("Apply the durable-thread gate", skill)
+        self.assertIn("Routine microtasks stay inside the current owner", skill)
         self.assertIn("Thread allocation and parallelism", operations)
-        self.assertIn("no more than five non-terminal", operations)
+        self.assertIn("Apply the durable-thread gate", operations)
+        self.assertIn("Routine microtasks stay inside the current owner", operations)
+        self.assertIn("one to three non-terminal", operations)
+        self.assertIn("Five is the default hard ceiling", operations)
+        self.assertIn("one lint, test, build, typecheck", operations)
+        self.assertIn("low-risk local fix limited to one or two files", operations)
+        self.assertIn("Do not create a project task", operations)
         self.assertIn("Assigned, working, blocked, and paused workers count", operations)
         self.assertIn("search for an existing same-area owner", operations)
         self.assertIn("keep the distinct work undispatched", operations)
-        self.assertIn("Never evade the ceiling", operations)
+        self.assertIn("Never evade the gate or ceiling", operations)
         self.assertIn("Fewer, durable worker tasks", readme)
+        self.assertIn("normally targets one to three active workers", readme)
+        self.assertIn("Those helpers do not become new project tasks", readme)
 
     def test_worker_identity_and_status_come_from_native_tools(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
-        operations = (skill_root / "references" / "operations.md").read_text(
-            encoding="utf-8"
-        )
+        operations = _operations(skill_root)
         readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
 
         self.assertIn("Native task tools own worker identity and runtime status", skill)
@@ -137,9 +167,7 @@ class PackageContractTests(unittest.TestCase):
     def test_terminal_tasks_stay_closed_and_review_waits_for_stable_target(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
-        operations = (skill_root / "references" / "operations.md").read_text(
-            encoding="utf-8"
-        )
+        operations = _operations(skill_root)
         readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
 
         self.assertIn("reconcile relevant terminal tasks", skill)
@@ -153,13 +181,14 @@ class PackageContractTests(unittest.TestCase):
     def test_direct_user_override_and_durable_inbox(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
-        operations = (skill_root / "references" / "operations.md").read_text(
-            encoding="utf-8"
-        )
+        operations = _operations(skill_root)
         recovery = (skill_root / "references" / "recovery.md").read_text(
             encoding="utf-8"
         )
         maintenance = (skill_root / "references" / "maintenance.md").read_text(
+            encoding="utf-8"
+        )
+        installation = (skill_root / "references" / "installation.md").read_text(
             encoding="utf-8"
         )
         readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
@@ -170,15 +199,26 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Project-local inbox", operations)
         self.assertIn("durable notification channel, not a permission store", operations)
         self.assertIn("other narrowly allowed records under the operations lane", maintenance)
+        self.assertIn("`inbox/` when a real durable handoff record exists", installation)
+        self.assertIn("inbox records", maintenance)
         self.assertIn("other `.codex/coordination/inbox/` record", recovery)
         self.assertIn("the user may deliberately repurpose", readme)
+
+    def test_architecture_maps_instruction_and_executable_routes(self) -> None:
+        architecture = (REPOSITORY / "docs" / "codebase" / "ARCHITECTURE.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("```mermaid", architecture)
+        self.assertIn("Instruction-driven route", architecture)
+        self.assertIn("Executable check", architecture)
+        self.assertIn("SessionStart", architecture)
+        self.assertIn("TURN_RECONCILIATION", architecture)
+        self.assertIn("Recovery or Maintainer repair", architecture)
 
     def test_cross_task_messages_use_native_thread_tools(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
-        operations = (skill_root / "references" / "operations.md").read_text(
-            encoding="utf-8"
-        )
+        operations = _operations(skill_root)
         recovery = (skill_root / "references" / "recovery.md").read_text(
             encoding="utf-8"
         )
@@ -197,9 +237,7 @@ class PackageContractTests(unittest.TestCase):
     def test_coordination_is_document_first_and_messages_are_sparse(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
-        operations = (skill_root / "references" / "operations.md").read_text(
-            encoding="utf-8"
-        )
+        operations = _operations(skill_root)
         recovery = (skill_root / "references" / "recovery.md").read_text(
             encoding="utf-8"
         )
@@ -210,16 +248,18 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Document-first status and sparse messages", operations)
         self.assertIn("Workers never message one another", operations)
         self.assertIn("at most one unresolved message or transition per recipient", operations)
+        self.assertIn("Never send task registration, acceptance, task-ID assignment", operations)
+        self.assertIn("restating its write paths", operations)
+        self.assertIn("does not answer an inbox notice with another inbox acknowledgement", operations)
         self.assertIn("The worker does not send a separate completion announcement", operations)
         self.assertIn("Do not wake workers merely to ask for status", recovery)
         self.assertIn("Quiet, document-first coordination", readme)
+        self.assertIn("stay in the private project records instead of appearing as new chat messages", readme)
 
     def test_end_of_turn_reconciliation_cannot_lose_pending_work(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
-        operations = (skill_root / "references" / "operations.md").read_text(
-            encoding="utf-8"
-        )
+        operations = _operations(skill_root)
         recovery = (skill_root / "references" / "recovery.md").read_text(
             encoding="utf-8"
         )
@@ -269,9 +309,7 @@ class PackageContractTests(unittest.TestCase):
     def test_generated_tasks_inherit_model_but_default_to_low_or_medium_reasoning(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
-        operations = (skill_root / "references" / "operations.md").read_text(
-            encoding="utf-8"
-        )
+        operations = _operations(skill_root)
         readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
 
         self.assertIn("set reasoning explicitly to `low`", skill)
@@ -294,15 +332,15 @@ class PackageContractTests(unittest.TestCase):
     def test_coordinator_is_control_first_and_uses_native_lifecycle(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
-        operations = (skill_root / "references" / "operations.md").read_text(
-            encoding="utf-8"
-        )
+        operations = _operations(skill_root)
         readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
 
         self.assertIn("Coordinator is control-first by default", skill)
         self.assertIn("The Coordinator is control-first by default", operations)
         self.assertIn("one temporary native heartbeat", skill)
         self.assertIn("codex_app__automation_update", operations)
+        self.assertIn("INTER-AGENT MESSAGE — NO USER ACTION NEEDED", operations)
+        self.assertIn("when reconciliation finds a real user decision", operations)
         self.assertIn("stays quiet when nothing changed", readme)
         for tool in (
             "codex_app__set_thread_pinned",
@@ -316,9 +354,7 @@ class PackageContractTests(unittest.TestCase):
     def test_coordinator_cannot_claim_user_authority(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
-        operations = (skill_root / "references" / "operations.md").read_text(
-            encoding="utf-8"
-        )
+        operations = _operations(skill_root)
 
         self.assertIn("never overrides retained direct user constraints", skill)
         self.assertIn("require evidence of a later direct user decision", operations)
@@ -330,9 +366,7 @@ class PackageContractTests(unittest.TestCase):
 
     def test_filtered_thread_miss_never_requests_coordination_bypass(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
-        operations = (skill_root / "references" / "operations.md").read_text(
-            encoding="utf-8"
-        )
+        operations = _operations(skill_root)
         recovery = (skill_root / "references" / "recovery.md").read_text(
             encoding="utf-8"
         )
@@ -349,9 +383,7 @@ class PackageContractTests(unittest.TestCase):
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
         doctor = (skill_root / "references" / "doctor.md").read_text(encoding="utf-8")
-        operations = (skill_root / "references" / "operations.md").read_text(
-            encoding="utf-8"
-        )
+        operations = _operations(skill_root)
         readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
 
         self.assertIn("references/doctor.md", skill)
@@ -360,7 +392,8 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("capability-contract version and required behavior markers", doctor)
         self.assertIn("bounded isolated hook smoke run", doctor)
         self.assertNotIn("Require the source checkout to pass its package test suite", doctor)
-        self.assertIn("more than five non-terminal project-execution workers", doctor)
+        self.assertIn("four or five non-terminal project-execution workers", doctor)
+        self.assertIn("a newly recorded durable worker", doctor)
         self.assertIn("Time, `idle`, or `notLoaded` alone never proves", doctor)
         self.assertIn("defer any check whose evidence could be a normal in-turn transition", doctor)
         self.assertIn("It never edits `CURRENT.md`", doctor)
@@ -372,9 +405,41 @@ class PackageContractTests(unittest.TestCase):
             (PLUGIN / "scripts" / "codex_coordinator_doctor.py").is_file()
         )
         contract = json.loads((skill_root / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 3)
+        self.assertEqual(contract["contractVersion"], 7)
+        self.assertEqual(
+            contract["capabilities"]["doctorDiagnostics"],
+            "json-with-optional-mermaid",
+        )
         self.assertEqual(contract["capabilities"]["reasoningDefault"], "low-or-medium")
+        self.assertEqual(
+            contract["capabilities"]["registrationDelivery"],
+            "document-only-no-ack",
+        )
         self.assertEqual(contract["capabilities"]["subagents"], "allowed-parent-owned")
+        self.assertEqual(
+            contract["capabilities"]["workerGranularity"],
+            "durable-complex-only",
+        )
+        self.assertEqual(
+            contract["capabilities"]["microtaskExecution"],
+            "current-owner-or-parent-subagent",
+        )
+        self.assertEqual(
+            contract["capabilities"]["parallelWorkerTarget"],
+            "one-to-three-default-five-max",
+        )
+        self.assertEqual(
+            contract["capabilities"]["operationsGuidance"],
+            "split-by-action-lane",
+        )
+        self.assertEqual(
+            contract["capabilities"]["coordinationReadCache"],
+            "two-phase-inbox-hash-checkpoint",
+        )
+        self.assertEqual(
+            contract["capabilities"]["nativeTaskReads"],
+            "host-cursor-no-mirror",
+        )
         self.assertTrue((skill_root / "scripts" / "coordination_state.py").is_file())
 
 

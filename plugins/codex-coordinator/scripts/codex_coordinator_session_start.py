@@ -51,6 +51,18 @@ def _valid_shared_goal(value: str) -> bool:
     )
 
 
+def _valid_table_text(value: str, *, maximum: int = 512) -> bool:
+    return (
+        1 <= len(value) <= maximum
+        and "|" not in value
+        and not any(
+            character in {"\r", "\n", "\u2028", "\u2029"}
+            or unicodedata.category(character) in {"Cc", "Cs"}
+            for character in value
+        )
+    )
+
+
 def _valid_reconciliation(value: str) -> bool:
     if not 1 <= len(value) <= 64:
         return False
@@ -122,7 +134,7 @@ class Session:
 TABLE_SCHEMAS: dict[str, dict[str, tuple[str, ...]]] = {
     "registered_sessions": {
         "thread_id": ("Thread ID",),
-        "thread_name": ("Thread name", "Canonical name"),
+        "thread_name": ("Thread name",),
         "scope_kind": ("Scope kind",),
         "role": ("Role",),
         "task_id": ("Task ID",),
@@ -182,6 +194,83 @@ def _normalize_taskless(value: str) -> str:
 def _normalize_shared_goal(value: str) -> str:
     cleaned = value.strip().strip("`")
     return "none" if cleaned.lower() in NO_ACTIVE_GOAL_ALIASES else cleaned
+
+
+def _valid_address(value: str) -> bool:
+    cleaned = value.strip().strip("`")
+    if THREAD.fullmatch(cleaned):
+        return cleaned not in {"NONE", "UNAVAILABLE"}
+    return _valid_name(cleaned)
+
+
+def _valid_table_row(slug: str, row: dict[str, str]) -> bool:
+    def token(value: str) -> bool:
+        return bool(TOKEN.fullmatch(value.strip().strip("`")))
+
+    checks: dict[str, dict[str, Callable[[str], bool]]] = {
+        "registered_sessions": {
+            "thread_id": lambda value: bool(THREAD.fullmatch(value.strip().strip("`"))),
+            "thread_name": _valid_name,
+            "scope_kind": token,
+            "role": token,
+            "task_id": lambda value: token(_normalize_taskless(value)),
+            "status": token,
+            "accepts": lambda value: bool(BOOL.fullmatch(value.strip().strip("`"))),
+        },
+        "active_tasks": {
+            "task_id": token,
+            "owner": _valid_address,
+            "role": token,
+            "status": token,
+        },
+        "pending_commands": {
+            "task_id": token,
+            "message_id": token,
+            "recipient": _valid_address,
+            "message_type": token,
+            "status": token,
+        },
+        "paused_work": {
+            "task_id": token,
+            "owner": _valid_address,
+            "reason": _valid_table_text,
+            "resume_condition": _valid_table_text,
+            "status": token,
+        },
+        "resume_queue": {
+            "task_id": token,
+            "message_id": token,
+            "resume_condition": _valid_table_text,
+            "status": token,
+        },
+        "blocked_decisions": {
+            "decision_id": token,
+            "task_id": token,
+            "decision_needed": _valid_table_text,
+            "status": token,
+        },
+    }
+    return all(check(row[field]) for field, check in checks[slug].items())
+
+
+def _unique_row_identity(slug: str, row: dict[str, str]) -> tuple[str, str] | None:
+    if slug == "registered_sessions":
+        thread_id = row["thread_id"].strip().strip("`")
+        identity = thread_id if thread_id not in {"NONE", "UNAVAILABLE"} else row[
+            "thread_name"
+        ].strip().strip("`")
+        return "thread_id", identity
+    fields = {
+        "active_tasks": ("task_id", "task_id"),
+        "pending_commands": ("message_id", "message_id"),
+        "paused_work": ("task_id", "task_id"),
+        "resume_queue": ("message_id", "message_id"),
+        "blocked_decisions": ("decision_id", "decision_id"),
+    }
+    field = fields.get(slug)
+    if field is None:
+        return None
+    return field[0], row[field[1]].strip().strip("`")
 
 
 def _required_field(
@@ -332,15 +421,6 @@ def _separator_row(cells: list[str]) -> bool:
     return bool(cells) and all(cell and set(cell) <= {"-", ":", " "} for cell in cells)
 
 
-def _none_section(section: str) -> bool:
-    return bool(
-        re.fullmatch(
-            r"\s*(?:[-*]\s*)?`?(?:NONE|None|none)`?\s*\.?(?:\s*)",
-            section,
-        )
-    )
-
-
 def _parse_table(text: str, heading: str, slug: str) -> ParsedTable:
     sections = _sections(text, heading)
     if not sections:
@@ -350,8 +430,6 @@ def _parse_table(text: str, heading: str, slug: str) -> ParsedTable:
     section = sections[0]
     table_lines = [line for line in section.splitlines() if line.lstrip().startswith("|")]
     if not table_lines:
-        if _none_section(section):
-            return ParsedTable([], True, [])
         return ParsedTable([], False, [f"{slug}_table_missing"])
 
     raw_headers = _split_table_row(table_lines[0])
@@ -368,6 +446,13 @@ def _parse_table(text: str, heading: str, slug: str) -> ParsedTable:
             duplicate = True
 
     warnings: list[str] = []
+    accepted_headers = {
+        _normalize_header(alias) for aliases in schema.values() for alias in aliases
+    }
+    if any(value not in accepted_headers for value in normalized_headers):
+        warnings.append(f"{slug}_unknown_headers")
+    if len(set(normalized_headers)) != len(normalized_headers):
+        duplicate = True
     if duplicate:
         warnings.append(f"{slug}_duplicate_headers")
     if set(indexes) != set(schema):
@@ -376,6 +461,8 @@ def _parse_table(text: str, heading: str, slug: str) -> ParsedTable:
         return ParsedTable([], False, warnings)
 
     rows: list[dict[str, str]] = []
+    seen_rows: set[tuple[tuple[str, str], ...]] = set()
+    seen_identities: set[str] = set()
     for line in table_lines[1:]:
         cells = _split_table_row(line)
         if _separator_row(cells):
@@ -385,7 +472,20 @@ def _parse_table(text: str, heading: str, slug: str) -> ParsedTable:
             continue
         values = {key: cells[index] for key, index in indexes.items()}
         if all(not value or value.upper() == "NONE" for value in values.values()):
+            warnings.append(f"{slug}_row_empty")
             continue
+        if not _valid_table_row(slug, values):
+            warnings.append(f"{slug}_row_invalid")
+        row_key = tuple(sorted(values.items()))
+        if row_key in seen_rows:
+            warnings.append(f"{slug}_duplicate_row")
+        seen_rows.add(row_key)
+        unique = _unique_row_identity(slug, values)
+        if unique is not None:
+            field, identity = unique
+            if identity in seen_identities:
+                warnings.append(f"{slug}_duplicate_{field}")
+            seen_identities.add(identity)
         rows.append(values)
     return ParsedTable(rows, not warnings, warnings)
 
@@ -665,12 +765,13 @@ def main() -> None:
                 if current_project_id != "UNKNOWN"
                 else "current_project_id_missing_or_invalid"
             )
+            warnings.append(warning)
             _emit(
                 "\n".join(
                     [
                         "Codex Coordinator restart context (read-only; state is invalid):",
                         f"project_id={project_id}",
-                        f"state_warnings={warning}",
+                        "state_warnings=" + ",".join(dict.fromkeys(warnings)),
                         "Action: do not accept coordination authority or write Coordinator state until a user-authorised Maintainer repairs it.",
                     ]
                 )
@@ -752,6 +853,8 @@ def main() -> None:
             blocked_table,
         ):
             warnings.extend(table.warnings)
+        if not active_table.valid:
+            warnings.append("stale_active_task_binding")
 
         sessions: list[Session] = []
         fallback_names: set[str] = set()
@@ -806,6 +909,8 @@ def main() -> None:
         )
 
         session_id = _safe(str(payload.get("session_id", "")), THREAD)
+        if session_id == "UNKNOWN":
+            warnings.append("this_session_id_missing_or_invalid")
         scope_kind = "UNREGISTERED"
         role = "UNREGISTERED"
         task_id = "NONE"

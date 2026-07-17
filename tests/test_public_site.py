@@ -36,6 +36,12 @@ class PublicSiteTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.html = (SITE / "index.html").read_text(encoding="utf-8")
+        cls.manifest = json.loads(
+            (ROOT / "plugins" / "codex-coordinator" / ".codex-plugin" / "plugin.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        cls.version = cls.manifest["version"]
         cls.parser = SiteParser()
         cls.parser.feed(cls.html)
 
@@ -55,7 +61,16 @@ class PublicSiteTests(unittest.TestCase):
         self.assertIsNotNone(match)
         structured = json.loads(match.group(1))
         self.assertEqual(structured["name"], "Codex Coordinator")
-        self.assertEqual(structured["softwareVersion"], "0.2.0")
+        self.assertEqual(structured["softwareVersion"], self.version)
+
+    def test_public_install_versions_match_the_plugin_manifest(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+        self.assertIn(f"Install v{self.version}", self.html)
+        self.assertIn(f"@v{self.version}", self.html)
+        self.assertIn(f"@v{self.version}", readme)
+        self.assertIn(f"## {self.version} - ", changelog)
 
     def test_internal_anchors_and_public_routes_are_valid(self) -> None:
         for link in self.parser.links:
