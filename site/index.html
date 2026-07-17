@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Codex Coordinator — Stop babysitting parallel Codex tasks</title>
   <meta name="description" content="When one coding job spreads across several Codex tasks, Codex Coordinator helps prevent duplicated work, crossed wires, lost handoffs, and endless status checking.">
-  <meta name="theme-color" content="#071224">
+  <meta name="theme-color" content="#06142f">
   <link rel="canonical" href="https://eyeinthesky6.github.io/codex-coordinator/">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta property="og:type" content="website">
@@ -13,14 +13,14 @@
   <meta property="og:description" content="Less duplicated work. Fewer crossed wires. One clear update when the work comes back together.">
   <meta property="og:url" content="https://eyeinthesky6.github.io/codex-coordinator/">
   <meta property="og:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
-  <meta property="og:image:alt" content="Codex Coordinator circuit-shaped C logo">
+  <meta property="og:image:alt" content="Codex Coordinator nested opposing C logo">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Codex Coordinator — Stop babysitting parallel Codex tasks">
   <meta name="twitter:description" content="Keep several Codex tasks moving without becoming their full-time project manager.">
   <meta name="twitter:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&amp;family=Syne:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&amp;family=DM+Mono:wght@400;500&amp;family=Syne:wght@500;600;700&amp;display=swap" rel="stylesheet">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -28,7 +28,7 @@
     "name": "Codex Coordinator",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Windows, macOS, Linux",
-    "softwareVersion": "0.2.0",
+    "softwareVersion": "0.2.1",
     "description": "Helps people keep several Codex tasks organized without duplicated work, crossed wires, lost handoffs, or constant status checking.",
     "url": "https://eyeinthesky6.github.io/codex-coordinator/",
     "codeRepository": "https://github.com/eyeinthesky6/codex-coordinator",
@@ -39,17 +39,19 @@
   </script>
   <style>
     :root {
-      --navy: #071224;
-      --navy-2: #0b1930;
-      --panel: rgba(12, 28, 53, .76);
-      --paper: #f4f5ed;
-      --muted: #9aabc1;
-      --line: rgba(162, 188, 219, .17);
-      --cyan: #23d6cf;
-      --violet: #8b5cf6;
-      --signal: #c7f36b;
-      --orange: #ff9b5b;
+      --navy: #06142f;
+      --navy-2: #0a1d3d;
+      --panel: rgba(10, 29, 61, .82);
+      --paper: #f8fbff;
+      --muted: #b9c9dd;
+      --line: rgba(42, 219, 214, .2);
+      --cyan: #2adbd6;
+      --violet: #8c63ff;
+      --violet-soft: #b6a4ff;
+      --signal: var(--cyan);
+      --orange: var(--violet);
       --display: "Syne", sans-serif;
+      --body: "Atkinson Hyperlegible", sans-serif;
       --mono: "DM Mono", monospace;
     }
 
@@ -63,7 +65,9 @@
         radial-gradient(circle at 85% 8%, rgba(35, 214, 207, .12), transparent 28rem),
         radial-gradient(circle at 5% 45%, rgba(139, 92, 246, .11), transparent 34rem),
         var(--navy);
-      font-family: var(--display);
+      font-family: var(--body);
+      font-size: 18px;
+      line-height: 1.7;
       -webkit-font-smoothing: antialiased;
     }
 
@@ -91,9 +95,15 @@
     }
 
     a { color: inherit; }
-    button, a { -webkit-tap-highlight-color: transparent; }
+    button, a { touch-action: manipulation; -webkit-tap-highlight-color: rgba(42, 219, 214, .18); }
     button { font: inherit; }
-    :focus-visible { outline: 2px solid var(--signal); outline-offset: 4px; }
+    :focus-visible { outline: 3px solid var(--violet-soft); outline-offset: 4px; }
+    [id] { scroll-margin-top: 96px; }
+    h1, h2, h3 { font-family: var(--display); text-wrap: balance; }
+    p, li { text-wrap: pretty; }
+    .skip-link { position: fixed; top: 12px; left: 12px; z-index: 20; padding: 10px 14px; color: var(--navy); background: var(--cyan); border-radius: 5px; font-weight: 700; transform: translateY(-160%); transition: transform .18s ease; }
+    .skip-link:focus-visible { transform: translateY(0); }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
     .shell { width: min(1180px, calc(100% - 42px)); margin-inline: auto; }
     .mono { font-family: var(--mono); }
 
@@ -104,10 +114,10 @@
       justify-content: space-between;
       border-bottom: 1px solid var(--line);
     }
-    .brand { display: inline-flex; gap: 13px; align-items: center; font-size: 14px; font-weight: 700; text-decoration: none; letter-spacing: -.02em; }
+    .brand { display: inline-flex; gap: 13px; align-items: center; font-family: var(--display); font-size: 16px; font-weight: 700; text-decoration: none; letter-spacing: -.02em; }
     .brand img { width: 37px; height: 37px; border-radius: 11px; box-shadow: 0 0 30px rgba(35, 214, 207, .16); }
     .nav-links { display: flex; gap: 25px; align-items: center; }
-    .nav-links a { color: var(--muted); font: 500 11px/1 var(--mono); text-decoration: none; text-transform: uppercase; letter-spacing: .1em; }
+    .nav-links a { color: var(--muted); font: 500 13px/1 var(--mono); text-decoration: none; text-transform: uppercase; letter-spacing: .08em; }
     .nav-links a:hover { color: var(--paper); }
     .nav-links .nav-cta { padding: 12px 16px; color: var(--navy); background: var(--signal); border-radius: 4px; }
 
@@ -120,86 +130,86 @@
       padding: 84px 0 104px;
     }
     .hero-copy { animation: rise .8s both; }
-    .kicker { display: flex; gap: 13px; align-items: center; margin: 0 0 26px; color: var(--cyan); font: 500 11px/1.4 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+    .kicker { display: flex; gap: 13px; align-items: center; margin: 0 0 26px; color: var(--cyan); font: 500 13px/1.5 var(--mono); letter-spacing: .11em; text-transform: uppercase; }
     .kicker::before { width: 34px; height: 1px; content: ""; background: var(--cyan); box-shadow: 0 0 14px var(--cyan); }
     h1, h2, h3, p { margin-top: 0; }
-    h1 { max-width: 780px; margin-bottom: 28px; font-size: clamp(58px, 7.25vw, 104px); font-weight: 500; line-height: .88; letter-spacing: -.065em; }
-    h1 span { color: var(--signal); }
-    .lede { max-width: 660px; margin-bottom: 34px; color: #b7c4d5; font-size: clamp(18px, 1.8vw, 22px); font-weight: 400; line-height: 1.62; letter-spacing: -.02em; }
+    h1 { max-width: 780px; margin-bottom: 30px; font-size: clamp(58px, 7.25vw, 104px); font-weight: 600; line-height: .9; letter-spacing: -.06em; }
+    h1 span { color: transparent; background: linear-gradient(90deg, var(--cyan), var(--violet)); background-clip: text; -webkit-background-clip: text; }
+    .lede { max-width: 680px; margin-bottom: 36px; color: #cad7e8; font-size: clamp(20px, 1.9vw, 24px); font-weight: 400; line-height: 1.68; letter-spacing: -.012em; }
     .actions { display: flex; flex-wrap: wrap; gap: 12px; }
-    .button { display: inline-flex; min-height: 52px; align-items: center; justify-content: center; gap: 11px; padding: 0 20px; border: 1px solid var(--line); border-radius: 5px; font: 500 12px/1 var(--mono); text-decoration: none; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
+    .button { display: inline-flex; min-height: 54px; align-items: center; justify-content: center; gap: 11px; padding: 0 22px; border: 1px solid rgba(182, 164, 255, .46); border-radius: 5px; font: 500 14px/1.2 var(--mono); text-decoration: none; transition: transform .2s ease, border-color .2s ease, background-color .2s ease, color .2s ease; }
     .button:hover { transform: translateY(-2px); border-color: rgba(244, 245, 237, .42); }
-    .button.primary { color: var(--navy); background: var(--signal); border-color: var(--signal); box-shadow: 0 10px 36px rgba(199, 243, 107, .12); }
+    .button.primary { color: var(--navy); background: var(--cyan); border-color: var(--cyan); box-shadow: 0 10px 36px rgba(42, 219, 214, .18); }
     .button.primary:hover { background: var(--paper); border-color: var(--paper); }
     .button svg { width: 16px; height: 16px; }
-    .trust-note { margin: 23px 0 0; color: #7589a4; font: 400 11px/1.55 var(--mono); }
+    .trust-note { margin: 24px 0 0; color: #9db0c8; font: 400 13px/1.7 var(--mono); }
 
     .control-wrap { position: relative; animation: rise .8s .16s both; }
     .control-wrap::before { position: absolute; inset: -20% 0; content: ""; background: radial-gradient(circle, rgba(35, 214, 207, .15), transparent 58%); filter: blur(20px); }
     .control { position: relative; overflow: hidden; padding: 16px; background: rgba(4, 14, 30, .78); border: 1px solid rgba(35, 214, 207, .24); border-radius: 13px; box-shadow: 0 35px 100px rgba(0, 0, 0, .43), inset 0 0 0 1px rgba(255, 255, 255, .02); transform: rotate(1deg); }
-    .control-bar { display: flex; align-items: center; justify-content: space-between; padding: 3px 3px 15px; color: #6f829c; font: 400 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; }
+    .control-bar { display: flex; align-items: center; justify-content: space-between; padding: 3px 3px 15px; color: #9aadc6; font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; }
     .lights { display: flex; gap: 6px; }
     .lights i { display: block; width: 7px; height: 7px; border-radius: 50%; background: #30425a; }
     .lights i:first-child { background: var(--orange); }
     .lights i:nth-child(2) { background: var(--signal); }
     .board { position: relative; min-height: 470px; padding: 35px 24px; background: linear-gradient(155deg, rgba(20, 42, 74, .72), rgba(7, 18, 36, .92)); border: 1px solid var(--line); border-radius: 8px; }
     .board::after { position: absolute; inset: 0; content: ""; pointer-events: none; background-image: radial-gradient(rgba(154, 171, 193, .14) 1px, transparent 1px); background-size: 18px 18px; mask-image: linear-gradient(black, transparent); }
-    .goal { position: relative; z-index: 2; width: min(86%, 330px); margin: 0 auto 50px; padding: 17px 18px; color: var(--navy); background: var(--cyan); border-radius: 5px; font: 500 12px/1.35 var(--mono); box-shadow: 0 12px 35px rgba(35, 214, 207, .18); }
-    .goal small { display: block; margin-bottom: 5px; opacity: .65; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+    .goal { position: relative; z-index: 2; width: min(86%, 330px); margin: 0 auto 50px; padding: 18px 19px; color: var(--navy); background: var(--cyan); border-radius: 5px; font: 500 13px/1.5 var(--mono); box-shadow: 0 12px 35px rgba(42, 219, 214, .2); }
+    .goal small { display: block; margin-bottom: 5px; opacity: .72; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
     .agent-grid { position: relative; z-index: 2; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .agent { min-height: 122px; padding: 15px; background: rgba(7, 18, 36, .88); border: 1px solid var(--line); border-radius: 6px; }
-    .agent-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px; color: #7f93ad; font: 400 9px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
-    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 12px rgba(199, 243, 107, .75); }
-    .agent strong { display: block; margin-bottom: 7px; font-size: 14px; font-weight: 600; }
-    .agent p { margin: 0; color: #7f93ad; font: 400 10px/1.45 var(--mono); }
+    .agent-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px; color: #9eb1c9; font: 500 10px/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 12px rgba(42, 219, 214, .75); }
+    .agent strong { display: block; margin-bottom: 7px; font-family: var(--display); font-size: 16px; font-weight: 600; }
+    .agent p { margin: 0; color: #a9bad0; font: 400 12px/1.6 var(--mono); }
     .agent.review .dot { background: var(--violet); box-shadow: 0 0 12px rgba(139, 92, 246, .75); }
     .rail { position: absolute; top: 106px; left: 50%; z-index: 1; width: 1px; height: 71px; background: linear-gradient(var(--cyan), rgba(35, 214, 207, .1)); }
     .rail::after { position: absolute; bottom: 0; left: -150px; width: 300px; height: 1px; content: ""; background: linear-gradient(90deg, transparent, var(--cyan), transparent); }
-    .status { position: relative; z-index: 2; display: flex; gap: 9px; align-items: center; margin-top: 18px; color: #7f93ad; font: 400 9px/1 var(--mono); }
+    .status { position: relative; z-index: 2; display: flex; gap: 9px; align-items: center; margin-top: 20px; color: #a9bad0; font: 400 11px/1.45 var(--mono); }
     .status span { color: var(--signal); }
 
     .signal-strip { border-block: 1px solid var(--line); background: rgba(255, 255, 255, .018); }
     .signals { display: grid; grid-template-columns: repeat(5, 1fr); }
-    .signals div { padding: 22px 13px; color: #8598b1; border-right: 1px solid var(--line); font: 500 10px/1.3 var(--mono); text-align: center; text-transform: uppercase; letter-spacing: .08em; }
+    .signals div { padding: 24px 14px; color: #b4c4d9; border-right: 1px solid var(--line); font: 500 12px/1.5 var(--mono); text-align: center; text-transform: uppercase; letter-spacing: .07em; }
     .signals div:last-child { border-right: 0; }
 
     .section { padding: clamp(94px, 12vw, 160px) 0; }
     .section-head { display: grid; grid-template-columns: .56fr 1.44fr; gap: 40px; align-items: end; margin-bottom: 58px; }
-    .section-label { color: var(--cyan); font: 500 10px/1.4 var(--mono); letter-spacing: .13em; text-transform: uppercase; }
+    .section-label { color: var(--cyan); font: 500 12px/1.5 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
     h2 { max-width: 820px; margin-bottom: 0; font-size: clamp(44px, 5.5vw, 76px); font-weight: 500; line-height: .96; letter-spacing: -.055em; }
-    h2 em { color: var(--signal); font-style: normal; }
+    h2 em { color: var(--violet-soft); font-style: normal; }
     .fit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
     .fit-card { min-height: 380px; padding: clamp(30px, 4vw, 48px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
-    .fit-card.good { border-color: rgba(199, 243, 107, .22); }
+    .fit-card.good { border-color: rgba(42, 219, 214, .3); }
     .fit-card.bad { background: rgba(10, 23, 44, .45); }
     .fit-icon { display: grid; width: 42px; height: 42px; place-items: center; margin-bottom: 55px; border: 1px solid var(--line); border-radius: 50%; color: var(--signal); font: 500 16px/1 var(--mono); }
     .bad .fit-icon { color: var(--orange); }
     .fit-card h3 { margin-bottom: 20px; font-size: clamp(28px, 3vw, 40px); font-weight: 500; letter-spacing: -.04em; }
     .fit-card ul { display: grid; gap: 13px; margin: 0; padding: 0; list-style: none; }
-    .fit-card li { position: relative; padding-left: 20px; color: #a9b7c9; font-size: 15px; line-height: 1.55; }
+    .fit-card li { position: relative; padding-left: 22px; color: #c3d0e1; font-size: 18px; line-height: 1.68; }
     .fit-card li::before { position: absolute; top: .65em; left: 0; width: 7px; height: 1px; content: ""; background: currentColor; }
 
-    .quickstart { overflow: hidden; background: #edf0e7; color: #071224; }
-    .quickstart .section-label { color: #46633f; }
-    .quickstart h2 em { color: #4656b8; }
+    .quickstart { overflow: hidden; background: #eefaf9; color: var(--navy); }
+    .quickstart .section-label { color: #235f66; }
+    .quickstart h2 em { color: #6847d8; }
     .steps { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid rgba(7, 18, 36, .16); border-radius: 11px; }
     .step { min-height: 290px; padding: 30px; border-right: 1px solid rgba(7, 18, 36, .16); }
     .step:last-child { border-right: 0; }
     .step-num { display: block; margin-bottom: 58px; color: #52665b; font: 500 10px/1 var(--mono); letter-spacing: .12em; }
     .step h3 { margin-bottom: 14px; font-size: 24px; font-weight: 600; letter-spacing: -.035em; }
-    .step p { color: #4c5a63; font-size: 14px; line-height: 1.6; }
-    .command { display: flex; gap: 14px; align-items: center; justify-content: space-between; margin-top: 17px; padding: 12px 13px; color: #dff7ea; background: #071224; border-radius: 5px; font: 400 10px/1.45 var(--mono); overflow-wrap: anywhere; }
-    .copy { flex: 0 0 auto; padding: 7px 9px; color: #071224; background: var(--signal); border: 0; border-radius: 3px; cursor: pointer; font: 500 9px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em; }
-    .install-note { margin: 24px 0 0; color: #5a686e; font: 400 11px/1.55 var(--mono); }
+    .step p { color: #354c5a; font-size: 17px; line-height: 1.72; }
+    .command { display: flex; gap: 14px; align-items: center; justify-content: space-between; margin-top: 18px; padding: 14px 15px; color: #e9fffd; background: var(--navy); border-radius: 5px; font: 400 12px/1.6 var(--mono); overflow-wrap: anywhere; }
+    .copy { flex: 0 0 auto; min-height: 38px; padding: 8px 11px; color: var(--navy); background: var(--cyan); border: 0; border-radius: 3px; cursor: pointer; font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .05em; }
+    .install-note { margin: 26px 0 0; color: #425e68; font: 400 14px/1.7 var(--mono); }
 
     .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
     .tile { min-height: 280px; padding: 30px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; }
     .tile.wide { grid-column: span 4; }
     .tile.narrow { grid-column: span 2; }
     .tile.half { grid-column: span 3; }
-    .tile-code { margin-bottom: 64px; color: var(--cyan); font: 400 10px/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; }
+    .tile-code { margin-bottom: 64px; color: var(--cyan); font: 500 12px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
     .tile h3 { margin-bottom: 13px; font-size: 25px; font-weight: 500; letter-spacing: -.035em; }
-    .tile p { max-width: 580px; margin-bottom: 0; color: #96a7bc; font-size: 14px; line-height: 1.65; }
+    .tile p { max-width: 580px; margin-bottom: 0; color: #bdcce0; font-size: 17px; line-height: 1.72; }
     .tile.signal { color: var(--navy); background: var(--signal); border-color: var(--signal); }
     .tile.signal .tile-code, .tile.signal p { color: rgba(7, 18, 36, .68); }
     .tile.violet { background: linear-gradient(145deg, rgba(139, 92, 246, .2), var(--panel)); }
@@ -209,25 +219,25 @@
     .boundary-col:first-child h3 { color: var(--signal); }
     .boundary-col:last-child h3 { color: var(--orange); }
     .boundary-col ul { display: grid; gap: 17px; margin: 0; padding: 0; list-style: none; }
-    .boundary-col li { display: flex; gap: 12px; align-items: flex-start; color: #a9b7c9; font-size: 15px; line-height: 1.5; }
+    .boundary-col li { display: flex; gap: 12px; align-items: flex-start; color: #c3d0e1; font-size: 17px; line-height: 1.65; }
     .boundary-col li span { color: #607590; font-family: var(--mono); }
 
     .activity { padding: 34px 0; background: rgba(255, 255, 255, .02); border-block: 1px solid var(--line); }
     .activity-inner { display: grid; grid-template-columns: .7fr 1.3fr; gap: 30px; align-items: center; }
     .activity h2 { margin-bottom: 6px; font-size: 25px; letter-spacing: -.03em; }
-    .activity p { margin-bottom: 0; color: #7387a2; font: 400 10px/1.5 var(--mono); }
+    .activity p { margin-bottom: 0; color: #a7b9d0; font: 400 13px/1.65 var(--mono); }
     .badges { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
     .badges a { display: inline-flex; }
     .badges img { width: auto; height: 24px; }
 
-    .community { display: grid; grid-template-columns: 1.2fr .8fr; gap: 50px; align-items: center; padding: clamp(48px, 8vw, 86px); background: linear-gradient(135deg, #162c4d, #0d1c35); border: 1px solid rgba(35, 214, 207, .22); border-radius: 13px; box-shadow: 0 30px 90px rgba(0, 0, 0, .24); }
+    .community { display: grid; grid-template-columns: 1.2fr .8fr; gap: 50px; align-items: center; padding: clamp(48px, 8vw, 86px); background: linear-gradient(135deg, rgba(42, 219, 214, .14), rgba(140, 99, 255, .16)), var(--navy-2); border: 1px solid rgba(42, 219, 214, .3); border-radius: 13px; box-shadow: 0 30px 90px rgba(0, 0, 0, .24); }
     .community h2 { margin-bottom: 23px; font-size: clamp(42px, 5vw, 68px); }
-    .community p { max-width: 650px; margin-bottom: 30px; color: #aebccd; font-size: 16px; line-height: 1.65; }
+    .community p { max-width: 650px; margin-bottom: 32px; color: #c5d2e3; font-size: 18px; line-height: 1.72; }
     .community-mark { display: grid; aspect-ratio: 1; place-items: center; border: 1px solid var(--line); border-radius: 50%; }
     .community-mark img { width: 62%; height: 62%; border-radius: 24%; filter: saturate(1.1); }
 
     footer { padding: 48px 0 62px; }
-    .footer-grid { display: flex; gap: 30px; align-items: center; justify-content: space-between; color: #70839d; font: 400 10px/1.5 var(--mono); }
+    .footer-grid { display: flex; gap: 30px; align-items: center; justify-content: space-between; color: #9db0c8; font: 400 13px/1.65 var(--mono); }
     .footer-links { display: flex; flex-wrap: wrap; gap: 20px; }
     .footer-links a { text-decoration: none; }
     .footer-links a:hover { color: var(--paper); }
@@ -280,7 +290,8 @@
     }
   </style>
 </head>
-<body>
+<body id="top">
+  <a class="skip-link" href="#main-content">Skip to Main Content</a>
   <header class="shell">
     <nav class="nav" aria-label="Primary navigation">
       <a class="brand" href="#top"><img src="assets/logo.png" alt="" width="37" height="37">Codex Coordinator</a>
@@ -294,7 +305,7 @@
     </nav>
   </header>
 
-  <main id="top">
+  <main id="main-content">
     <section class="hero shell">
       <div class="hero-copy">
         <p class="kicker">For anyone juggling more than one Codex task</p>
@@ -302,7 +313,7 @@
         <p class="lede">When one coding job spills into several task windows, you end up checking who changed what, relaying updates, and piecing the result together yourself. Codex Coordinator keeps the work organized and brings one clear update back to you.</p>
         <div class="actions">
           <a class="button primary" href="#fit">See the problems it solves <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m7 17 10-10M8 7h9v9"/></svg></a>
-          <a class="button" href="#install">Install v0.2.0</a>
+          <a class="button" href="#install">Install v0.2.1</a>
         </div>
         <p class="trust-note">Open source · MIT licensed · Python standard library · No coordination server</p>
       </div>
@@ -341,7 +352,7 @@
       <div class="section shell">
         <div class="section-head"><span class="section-label">Three steps to first value</span><h2>Tell it what “done” looks like. <em>It handles the split.</em></h2></div>
         <div class="steps">
-          <article class="step"><span class="step-num">01 / ADD</span><h3>Add the stable release</h3><p>Install one fixed version so the rules do not change in the middle of your work.</p><div class="command"><code id="install-command">codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.2.0</code><button class="copy" type="button" data-copy="install-command">Copy</button></div></article>
+          <article class="step"><span class="step-num">01 / ADD</span><h3>Add the stable release</h3><p>Install one fixed version so the rules do not change in the middle of your work.</p><div class="command"><code id="install-command">codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.2.1</code><button class="copy" type="button" data-copy="install-command">Copy</button></div></article>
           <article class="step"><span class="step-num">02 / REVIEW</span><h3>Review the restart helper</h3><p>Codex asks you to trust a small local hook. It remembers the useful handoff after a restart; it does not call the internet or change your files.</p></article>
           <article class="step"><span class="step-num">03 / DESCRIBE</span><h3>Ask for the finished outcome</h3><p>Describe the result you want. You should not have to design the agent org chart yourself.</p><div class="command"><code id="prompt-command">Use $codex-coordinator to coordinate this goal: &lt;goal&gt;</code><button class="copy" type="button" data-copy="prompt-command">Copy</button></div></article>
         </div>
@@ -373,11 +384,11 @@
       <div class="activity-inner shell">
         <div><h2 id="activity-title">Open-source activity</h2><p>Live public signals from GitHub. Zero is shown honestly.</p></div>
         <div class="badges" aria-label="Codex Coordinator GitHub activity">
-          <a href="https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/eyeinthesky6/codex-coordinator/ci.yml?branch=main&amp;style=flat-square&amp;label=validation&amp;labelColor=071224&amp;color=23D6CF" alt="Validation status"></a>
-          <a href="https://github.com/eyeinthesky6/codex-coordinator/releases/latest"><img src="https://img.shields.io/github/v/release/eyeinthesky6/codex-coordinator?style=flat-square&amp;label=release&amp;labelColor=071224&amp;color=8B5CF6" alt="Latest release"></a>
-          <a href="https://github.com/eyeinthesky6/codex-coordinator/stargazers"><img src="https://img.shields.io/github/stars/eyeinthesky6/codex-coordinator?style=flat-square&amp;logo=github&amp;label=stars&amp;labelColor=071224&amp;color=C7F36B" alt="GitHub stars"></a>
-          <a href="https://github.com/eyeinthesky6/codex-coordinator/forks"><img src="https://img.shields.io/github/forks/eyeinthesky6/codex-coordinator?style=flat-square&amp;logo=github&amp;label=forks&amp;labelColor=071224&amp;color=C7F36B" alt="GitHub forks"></a>
-          <a href="https://github.com/eyeinthesky6/codex-coordinator/graphs/contributors"><img src="https://img.shields.io/github/contributors/eyeinthesky6/codex-coordinator?style=flat-square&amp;logo=github&amp;label=contributors&amp;labelColor=071224&amp;color=23D6CF" alt="GitHub contributors"></a>
+          <a href="https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/eyeinthesky6/codex-coordinator/ci.yml?branch=main&amp;style=flat-square&amp;label=validation&amp;labelColor=06142F&amp;color=2ADBD6" alt="Validation status"></a>
+          <a href="https://github.com/eyeinthesky6/codex-coordinator/releases/latest"><img src="https://img.shields.io/github/v/release/eyeinthesky6/codex-coordinator?style=flat-square&amp;label=release&amp;labelColor=06142F&amp;color=8C63FF" alt="Latest release"></a>
+          <a href="https://github.com/eyeinthesky6/codex-coordinator/stargazers"><img src="https://img.shields.io/github/stars/eyeinthesky6/codex-coordinator?style=flat-square&amp;logo=github&amp;label=stars&amp;labelColor=06142F&amp;color=2ADBD6" alt="GitHub stars"></a>
+          <a href="https://github.com/eyeinthesky6/codex-coordinator/forks"><img src="https://img.shields.io/github/forks/eyeinthesky6/codex-coordinator?style=flat-square&amp;logo=github&amp;label=forks&amp;labelColor=06142F&amp;color=8C63FF" alt="GitHub forks"></a>
+          <a href="https://github.com/eyeinthesky6/codex-coordinator/graphs/contributors"><img src="https://img.shields.io/github/contributors/eyeinthesky6/codex-coordinator?style=flat-square&amp;logo=github&amp;label=contributors&amp;labelColor=06142F&amp;color=2ADBD6" alt="GitHub contributors"></a>
         </div>
       </div>
     </section>
@@ -394,6 +405,8 @@
     <div class="footer-grid"><span>Codex Coordinator · Independent open-source project · MIT License</span><div class="footer-links"><a href="https://github.com/eyeinthesky6/codex-coordinator">Source</a><a href="https://github.com/eyeinthesky6/codex-coordinator/releases/latest">Releases</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/SECURITY.md">Security</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/SUPPORT.md">Support</a></div></div>
   </footer>
 
+  <span class="sr-only" id="copy-status" aria-live="polite"></span>
+
   <script>
     document.querySelectorAll("[data-copy]").forEach((button) => {
       button.addEventListener("click", async () => {
@@ -402,6 +415,7 @@
           await navigator.clipboard.writeText(source.textContent.trim());
           const previous = button.textContent;
           button.textContent = "Copied";
+          document.getElementById("copy-status").textContent = `${source.textContent.trim()} copied to clipboard`;
           setTimeout(() => { button.textContent = previous; }, 1600);
         } catch (_) {
           window.getSelection().selectAllChildren(source);

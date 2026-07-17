@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import html
 import json
 import os
 import re
@@ -15,15 +16,25 @@ from typing import Any
 PLUGIN_NAME = "codex-coordinator"
 HOOK_NAME = "codex_coordinator_session_start.py"
 CAPABILITY_CONTRACT = "capabilities.json"
-CAPABILITY_CONTRACT_VERSION = 3
+CAPABILITY_CONTRACT_VERSION = 9
 REQUIRED_CAPABILITIES: dict[str, Any] = {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
+    "doctorDiagnostics": "json-with-optional-mermaid",
     "monitoring": "heartbeat-with-single-wake-fallback",
     "modelDefault": "inherit-unless-user-overrides",
     "reasoningDefault": "low-or-medium",
+    "registrationDelivery": "document-only-no-ack",
+    "workerGranularity": "durable-complex-only",
+    "microtaskExecution": "current-owner-or-parent-subagent",
+    "parallelWorkerTarget": "one-to-three-default-five-max",
     "stateTool": "scripts/coordination_state.py",
     "subagents": "allowed-parent-owned",
+    "operationsGuidance": "split-by-action-lane",
+    "coordinationReadCache": "two-phase-inbox-hash-checkpoint",
+    "nativeTaskReads": "host-cursor-no-mirror",
+    "continuationGuarantee": "verified-return-path-before-final",
+    "archivedRecovery": "direct-request-no-repeat-confirmation",
 }
 REQUIRED_TASK_LIFECYCLE = {
     "pin-coordinator",
@@ -36,20 +47,55 @@ REQUIRED_GUIDANCE = {
     "SKILL.md": (
         "Coordinator is control-first by default",
         "one temporary native heartbeat",
+        "end-of-turn continuation gate",
         "set reasoning explicitly to `low`",
         "Subagents remain available as parent-owned helpers",
+        "durable-thread gate",
+        "Task registration, acceptance, ownership recording",
         "scripts/coordination_state.py",
+        "short [operations index]",
+        "two-phase inbox hash checkpoint",
+        "The original direct user request supplies this creation authority",
     ),
     "references/operations.md": (
+        "[execution.md](execution.md)",
+        "[reconciliation.md](reconciliation.md)",
+        "[messaging.md](messaging.md)",
+        "Never cache codebase reads",
+    ),
+    "references/execution.md": (
         "complete executable assignment in the native creation prompt",
         "Subagents remain available inside",
+        "Inherit the user's configured model, but use cost-safe reasoning",
+        "host's equivalent reasoning field",
+        "Routine microtasks stay inside the current owner",
+    ),
+    "references/reconciliation.md": (
+        "scan-inbox",
+        "ack-inbox",
+        "afterCursor",
+        "Do not persist or mirror native turns",
         "codex_app__automation_update",
         "codex_app__set_thread_pinned",
         "codex_app__set_thread_archived",
         "codex_app__fork_thread",
         "codex_app__handoff_thread",
-        "Inherit the user's configured model, but use cost-safe reasoning",
-        "host's equivalent reasoning field",
+        "Never send task registration, acceptance, task-ID assignment",
+        "End-of-turn continuation gate",
+    ),
+    "references/messaging.md": (
+        "Project-bound routing",
+        "Native task messenger",
+        "Never switch to the collaboration messenger as a fallback",
+    ),
+    "references/doctor.md": (
+        "UNATTENDED_RETURN_PATH",
+        "verified absence of the required heartbeat",
+    ),
+    "references/recovery.md": (
+        "inspect that exact owner's native status in the same turn",
+        "never ask the user to ping the old task, repeat an exact phrase",
+        "The direct request that first exposes the archived owner",
     ),
 }
 FORBIDDEN_GUIDANCE = (
@@ -67,8 +113,16 @@ def _sha256(data: bytes) -> str:
 
 
 def _read_json(path: Path) -> dict[str, Any]:
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        for key, child in pairs:
+            if key in value:
+                raise DoctorError(f"Duplicate JSON key {key!r} in {path}")
+            value[key] = child
+        return value
+
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise DoctorError(f"Cannot parse {path}: {error}") from error
     if not isinstance(value, dict):
@@ -287,6 +341,125 @@ def _atomic_write(path: Path, data: bytes) -> None:
                 pass
 
 
+def _mermaid_label(value: Any) -> str:
+    """Return a single safe Mermaid label without exposing raw report structure."""
+    compact = " ".join(str(value).replace("\r", " ").replace("\n", " ").split())
+    return html.escape(compact, quote=True)
+
+
+def _mermaid_class(value: Any) -> str:
+    state = str(value).strip().lower()
+    return state if state in {"current", "drift", "missing", "updated", "passed", "error"} else "unknown"
+
+
+def _parent_state(report: dict[str, Any], kind: str) -> str:
+    states = [
+        _mermaid_class(item.get("state"))
+        for item in report.get("files", [])
+        if isinstance(item, dict) and item.get("kind") == kind
+    ]
+    check_states = [
+        _mermaid_class(check.get("status"))
+        for check in report.get("installationChecks", [])
+        if isinstance(check, dict)
+        and (str(check.get("name", "")).startswith("hook-") == (kind == "hook"))
+    ]
+    states.extend(check_states)
+    for candidate in ("error", "missing", "drift", "updated", "unknown"):
+        if candidate in states:
+            return candidate
+    return "current"
+
+
+def render_mermaid(report: dict[str, Any]) -> str:
+    """Project Doctor's verified JSON result into a dependency-free Mermaid map."""
+    status = _mermaid_class(report.get("status"))
+    changed = report.get("changedFiles", 0)
+    if not isinstance(changed, int) or isinstance(changed, bool) or changed < 0:
+        changed = 0
+
+    if status == "current":
+        outcome = "CURRENT<br/>Managed files and checks passed"
+    elif status == "updated":
+        outcome = f"UPDATED<br/>{changed} managed file(s) repaired"
+    elif status == "drift":
+        outcome = f"DRIFT<br/>{changed} managed file(s) differ"
+    elif status == "error":
+        outcome = "ERROR<br/>See Doctor JSON for the exact cause"
+    else:
+        outcome = "UNKNOWN<br/>Doctor returned an unsupported state"
+
+    lines = [
+        "flowchart TD",
+        '  doctor["Coordinator Doctor"]',
+        '  source["Trusted plugin package"]',
+        f'  outcome{{"{outcome}"}}',
+        "  doctor --> source",
+    ]
+
+    if status == "error":
+        lines.append("  source --> outcome")
+    else:
+        lines.extend(
+            [
+                '  skill["Installed global skill"]',
+                '  hook["SessionStart hook"]',
+                "  source --> skill",
+                "  source --> hook",
+                "  skill --> outcome",
+                "  hook --> outcome",
+            ]
+        )
+        for index, item in enumerate(report.get("files", []), start=1):
+            if not isinstance(item, dict):
+                continue
+            kind = "hook" if item.get("kind") == "hook" else "skill"
+            state = _mermaid_class(item.get("state"))
+            managed_path = item.get("managedPath") or Path(str(item.get("target", "file"))).name
+            label = _mermaid_label(managed_path)
+            node = f"file_{index}"
+            lines.append(f'  {node}["{label}<br/>{state.upper()}"]')
+            lines.append(f"  {kind} --> {node}")
+            lines.append(f"  class {node} {state}")
+
+        for index, check in enumerate(report.get("installationChecks", []), start=1):
+            if not isinstance(check, dict):
+                continue
+            name = str(check.get("name", "unnamed-check"))
+            parent = "hook" if name.startswith("hook-") else "skill"
+            state = _mermaid_class(check.get("status"))
+            label = _mermaid_label(name)
+            detail = check.get("detail")
+            detail_label = f"<br/>{_mermaid_label(detail)}" if detail is not None else ""
+            node = f"check_{index}"
+            lines.append(f'  {node}["{label}{detail_label}<br/>{state.upper()}"]')
+            lines.append(f"  {parent} --> {node}")
+            lines.append(f"  class {node} {state}")
+
+        lines.append(f"  class skill {_parent_state(report, 'skill')}")
+        lines.append(f"  class hook {_parent_state(report, 'hook')}")
+
+    lines.extend(
+        [
+            f"  class outcome {status}",
+            "  classDef current fill:#123d2b,stroke:#56d68b,color:#ffffff",
+            "  classDef passed fill:#123d2b,stroke:#56d68b,color:#ffffff",
+            "  classDef updated fill:#12344d,stroke:#65c7ff,color:#ffffff",
+            "  classDef drift fill:#4a3512,stroke:#f0b44d,color:#ffffff",
+            "  classDef missing fill:#4d1f28,stroke:#ff6b7a,color:#ffffff",
+            "  classDef error fill:#4d1f28,stroke:#ff6b7a,color:#ffffff",
+            "  classDef unknown fill:#2f3340,stroke:#9aa4b2,color:#ffffff",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def write_mermaid_report(path: Path, report: dict[str, Any]) -> str:
+    """Atomically write a visual projection of a completed Doctor report."""
+    _atomic_write(path, render_mermaid(report).encode("utf-8"))
+    return str(path.resolve(strict=False))
+
+
 def sync_installation(
     source_plugin: Path,
     skill_root: Path,
@@ -303,6 +476,14 @@ def sync_installation(
     else:
         raise DoctorError(
             "The SessionStart hook destination must not overlap the installed skill directory"
+        )
+    try:
+        resolved_skill_root.relative_to(resolved_hook_path)
+    except ValueError:
+        pass
+    else:
+        raise DoctorError(
+            "The installed skill directory must not overlap the SessionStart hook destination"
         )
 
     skill_source, hook_source = _validated_source(source_plugin)
@@ -331,6 +512,7 @@ def sync_installation(
         files.append(
             {
                 "kind": kind,
+                "managedPath": relative.as_posix(),
                 "source": str(source),
                 "target": str(target),
                 "before": before,
@@ -428,11 +610,17 @@ def main(argv: list[str] | None = None) -> int:
         default=_default_codex_home() / "hooks" / HOOK_NAME,
         help="Installed legacy/global SessionStart hook path.",
     )
+    parser.add_argument(
+        "--mermaid-out",
+        type=Path,
+        help="Write an optional Mermaid .mmd projection; JSON and exit status remain authoritative.",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true", help="Report drift without writing (default).")
     mode.add_argument("--apply", action="store_true", help="Atomically update drifted targets.")
     args = parser.parse_args(argv)
 
+    exit_code = 0
     try:
         report = sync_installation(
             args.source_plugin,
@@ -441,10 +629,22 @@ def main(argv: list[str] | None = None) -> int:
             apply=bool(args.apply),
         )
     except (DoctorError, OSError) as error:
-        print(json.dumps({"status": "error", "error": str(error)}, indent=2))
-        return 1
+        report = {"status": "error", "error": str(error)}
+        exit_code = 1
+
+    if args.mermaid_out is not None:
+        try:
+            report["mermaidPath"] = write_mermaid_report(args.mermaid_out, report)
+            report["mermaidNote"] = (
+                "Visual projection only; Doctor JSON, exit status, and checks remain authoritative."
+            )
+        except OSError as error:
+            report["mermaidError"] = str(error)
+            exit_code = 1
 
     print(json.dumps(report, indent=2))
+    if exit_code:
+        return exit_code
     if not args.apply and report["status"] == "drift":
         return 2
     return 0

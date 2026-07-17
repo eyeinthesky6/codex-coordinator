@@ -2,6 +2,24 @@
 
 Notable changes to Codex Coordinator will be recorded here.
 
+## Unreleased
+
+## 0.2.1 - 2026-07-17
+
+- Fixed stale ownership blocking direct user requests: Coordinator now verifies the alleged owner's native state in the same turn and, when it is archived or unusable, uses the original request to recover or replace it without asking for a ping, magic phrase, or duplicate approval.
+- Added a verified end-of-turn continuation gate: a Coordinator with non-terminal work must prove its heartbeat return path exists or record and surface the monitoring failure; Doctor now reports `UNATTENDED_RETURN_PATH` when a completed Coordinator turn leaves proven work without that heartbeat.
+- Added a durable-thread cost gate: normal runs target one to three substantial work-area tasks, five remains the default ceiling, and routine commands, narrow checks, or low-risk one-or-two-file fixes stay with the current owner or a parent-owned subagent.
+- Moved task registration, acceptance, ownership, and permission-to-continue handshakes out of visible task messages and into private coordination records; native messages are now reserved for real control actions and urgent boundary changes.
+- Split the large operating guide into a short router plus execution, reconciliation, and messaging lanes so routine tasks load only applicable rules.
+- Added a two-phase, disposable inbox hash checkpoint: scans remain pending until the active Coordinator durably reconciles and explicitly acknowledges each exact record hash.
+- Reused host-native task cursors when available without mirroring Codex task history, and explicitly excluded codebase reads, authority, and mutable canonical state from Coordinator caching.
+- Added a Mermaid decision/state map that separates instruction-driven coordination from executable validation checks.
+- Rejected malformed, duplicate, or ambiguous current-state rows, reconciliation records, JSON contracts, and Doctor installation targets instead of treating them as healthy or empty.
+- Preserved exact missing-state recovery warnings and Windows line endings during harmless state normalization.
+- Labelled surfaced Coordinator heartbeat prompts as inter-agent messages requiring no user action, while keeping real user decisions as separate plain-language requests.
+- Added optional, dependency-free Mermaid diagnostic maps to Doctor while keeping its JSON, exit status, hashes, syntax checks, and hook smoke run authoritative.
+- Restyled the public site around the logo's navy, cyan, and violet palette; increased small-text size, weight, spacing, and contrast; and added a public-version consistency check.
+
 ## 0.2.0 - 2026-07-17
 
 - Replaced empty worker holding turns and second assignment messages with one complete executable native creation prompt and immediate binding of the returned task identity.

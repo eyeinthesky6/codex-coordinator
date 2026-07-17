@@ -34,7 +34,7 @@ Keep maintenance reports user-facing and plain. Do not expose epochs, task or th
 
 ## Reinstall boundaries
 
-A normal plugin reinstall may replace only the plugin-managed global package or cache. It must not rewrite project `AGENTS.md`, `.gitignore`, `.codex/config.toml`, markers, current state, task records, suggestions, application files, or environment files. Preserve both enabled and explicitly opted-out projects. A separate user-authorised project repair or schema migration is required for any project-file change.
+A normal plugin reinstall may replace only the plugin-managed global package or cache. It must not rewrite project `AGENTS.md`, `.gitignore`, `.codex/config.toml`, markers, current state, task records, inbox records, suggestions, application files, or environment files. Preserve both enabled and explicitly opted-out projects. A separate user-authorised project repair or schema migration is required for any project-file change.
 
 When moving a machine from a manual global installation to the packaged plugin, do not leave both copies active. Install the plugin, verify its skill and hook in a new task, then remove only the legacy manual Coordinator skill copy and exact legacy hook entry and script. Preserve unrelated global instructions and every project file.
 
