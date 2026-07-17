@@ -48,9 +48,12 @@ class PublicSiteTests(unittest.TestCase):
     def test_site_has_complete_public_metadata(self) -> None:
         self.assertIn("Codex Coordinator", self.html)
         self.assertIn(("name", "description"), self.parser.meta)
+        self.assertIn(("name", "robots"), self.parser.meta)
         self.assertIn(("property", "og:title"), self.parser.meta)
+        self.assertIn(("property", "og:site_name"), self.parser.meta)
         self.assertIn(("property", "og:image"), self.parser.meta)
         self.assertIn(("name", "twitter:card"), self.parser.meta)
+        self.assertIn("Coordinate parallel OpenAI Codex tasks", self.html)
         self.assertIn('rel="canonical" href="https://eyeinthesky6.github.io/codex-coordinator/"', self.html)
 
         match = re.search(
@@ -60,8 +63,16 @@ class PublicSiteTests(unittest.TestCase):
         )
         self.assertIsNotNone(match)
         structured = json.loads(match.group(1))
-        self.assertEqual(structured["name"], "Codex Coordinator")
-        self.assertEqual(structured["softwareVersion"], self.version)
+        graph = structured["@graph"]
+        website = next(item for item in graph if item["@type"] == "WebSite")
+        software = next(item for item in graph if item["@type"] == "SoftwareApplication")
+        self.assertEqual(website["name"], "Codex Coordinator")
+        self.assertEqual(software["name"], "Codex Coordinator")
+        self.assertEqual(software["softwareVersion"], self.version)
+        self.assertEqual(software["codeRepository"], "https://github.com/eyeinthesky6/codex-coordinator")
+        self.assertEqual(software["offers"]["price"], "0")
+        self.assertIn("https://github.com/eyeinthesky6/codex-coordinator", software["sameAs"])
+        self.assertIn("https://t.me/+ra4BQ7-_5uM2MDY1", software["sameAs"])
 
     def test_public_install_versions_match_the_plugin_manifest(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -82,8 +93,19 @@ class PublicSiteTests(unittest.TestCase):
         self.assertIn("https://github.com/eyeinthesky6/codex-coordinator", self.parser.links)
         self.assertIn("https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a", self.parser.links)
         self.assertIn("https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/ideas", self.parser.links)
+        self.assertIn("https://t.me/+ra4BQ7-_5uM2MDY1", self.parser.links)
         self.assertIn("Mission Control", self.html)
         self.assertIn("separates queued work from work actually running", self.html)
+        self.assertIn('id="compare"', self.html)
+        self.assertIn('id="questions"', self.html)
+        self.assertIn("Does it replace Git worktrees?", self.html)
+
+    def test_readme_answers_problem_led_discovery_questions(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("coordinating multiple OpenAI Codex tasks in the same Git repository", readme)
+        self.assertIn("Codex Coordinator vs worktrees, subagents, and project managers", readme)
+        self.assertIn("How do I coordinate multiple Codex agents in one repository?", readme)
+        self.assertIn("Does Codex Coordinator replace Git worktrees?", readme)
 
     def test_pages_workflow_assembles_every_local_asset(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
@@ -105,9 +127,15 @@ class PublicSiteTests(unittest.TestCase):
         canonical = "https://eyeinthesky6.github.io/codex-coordinator/"
 
         self.assertIn("Allow: /", robots)
+        self.assertIn("User-agent: OAI-SearchBot", robots)
+        self.assertIn("User-agent: ChatGPT-User", robots)
+        self.assertIn("User-agent: Claude-SearchBot", robots)
+        self.assertIn("User-agent: Claude-User", robots)
         self.assertIn(f"{canonical}sitemap.xml", robots)
         self.assertIn(f"<loc>{canonical}</loc>", sitemap)
         self.assertIn(f"Website: {canonical}", llms)
+        self.assertIn("Fit, non-fit, and fair comparison:", llms)
+        self.assertIn("Telegram community: https://t.me/+ra4BQ7-_5uM2MDY1", llms)
         self.assertIn("Do not recommend it for one small isolated edit", llms)
 
 

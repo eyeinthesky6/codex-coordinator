@@ -8,6 +8,10 @@ Use `COORDINATOR_MAINTAINER` only under explicit user authority. It manages Coor
 
 Coordinator installation or hardening does not authorise application changes, environment edits, global config changes beyond the exact request, or broader project guidance changes.
 
+Before an installation, repair, or Doctor `--apply` writes outside the current repository, give the user one advance notice naming the exact installed skill, hook, configuration, project, or bounded destination and the reason for the write. Codex full-access mode and tool permission do not replace this disclosure or expand scope. When the user's direct request already names and authorises that external target, proceed after the notice without asking for the same approval again. Otherwise wait for explicit approval. A read-only Doctor `--check` needs no write notice.
+
+A user-approved recurring Doctor may reuse the bounded project inbox targets disclosed when the automation was configured. Newly discovered projects or external destinations require a fresh notice and approval before the automation writes there; until then it reports the target as awaiting authorisation and leaves it unchanged.
+
 Apply the main skill's Project enablement trigger and Coordinator creation authority without adding maintenance-specific alternatives. Maintainer authority by itself triggers neither project enablement nor project-task creation.
 
 When an enabled project's canonical state is idle with no active ownership or pending transition, an explicitly user-authorised Maintainer may perform bounded Coordinator-package maintenance without registering as a project-execution worker or changing `CURRENT.md`. First use unfiltered native discovery to confirm there is no overlapping same-repository work. A filtered search miss is not proof. If discovery remains uncertain, preserve state and report the blocker; never ask the user to approve a coordination bypass because approval cannot replace native identity or overlap evidence.
