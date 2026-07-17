@@ -61,6 +61,12 @@ flowchart TD
 8. On SessionStart, the Python hook reads bounded state from the primary worktree and emits a short context block. It does not change repository files.
 9. An optional Codex automation may run Doctor across locally discovered enabled projects. Doctor writes only deduplicated inbox findings; each project Coordinator remains the sole owner of canonical reconciliation and repair.
 
+## Mission Control observer
+
+Mission Control is an optional source-installed companion with a separate process boundary from the plugin. Its Python standard-library server binds only to `127.0.0.1`, reads bounded local Codex receipts and Coordinator records, and renders a reviewer-facing snapshot. A submitted user message is `queued` until a later agent reasoning, response, or tool event proves work started; it is never labelled `Working now` merely because the task received text.
+
+The dashboard may update its own local settings, run the bounded Doctor contract, and record an optional local feedback dismissal. It cannot assign work, change ownership, send task messages, edit application code, or replace the canonical Coordinator records.
+
 ## State boundary
 
 - `.codex/coordination/project.yaml` is the stable, trackable discovery marker.
@@ -76,7 +82,7 @@ The hook validates and bounds marker values, text size, table rows, Git output, 
 
 Doctor is a scheduled maintenance audit, not a daemon or second project Coordinator. It compares native task state with existing project records and may write one append-only, deduplicated finding to the affected project's private inbox. It never edits canonical ownership, creates or wakes tasks, or sends routine task messages.
 
-In a configured development or legacy manual setup, the source-sync helper validates one trusted plugin source and atomically refreshes only the manual global skill and exact legacy hook. Its installed checks include the current capability contract, required operating guidance, state-helper syntax, skill links, and hook behavior. An optional Mermaid map projects those structured results for visual diagnosis; it neither performs checks nor changes their authority. Doctor does not rewrite managed plugin caches or project files.
+In a configured development or legacy manual setup, the source-sync helper validates one trusted package and atomically refreshes only the manual global skill and exact legacy hook. Installed checks cover the current capability contract, required operating guidance, state-helper syntax, skill links, and hook behavior. Doctor may separately inspect enabled projects and add deduplicated findings to their private inboxes, but it does not rewrite managed plugin caches, Mission Control, canonical project state, or application files. Mission Control's Python, static assets, launchers, HTTP boundary, and browser behavior are release-test responsibilities.
 
 ## What the plugin does not own
 
@@ -96,4 +102,6 @@ In a configured development or legacy manual setup, the source-sync helper valid
 - `plugins/codex-coordinator/skills/codex-coordinator/references/doctor.md`
 - `plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`
 - `plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`
+- `apps/mission_control/`
+- `tests/test_mission_control.py`
 - `.gitignore`

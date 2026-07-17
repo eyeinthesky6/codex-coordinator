@@ -17,6 +17,7 @@ When an enabled project's canonical state is idle with no active ownership or pe
 Only a user-authorised Maintainer may change:
 
 - the global Codex Coordinator skill package;
+- the source-installed Mission Control companion files;
 - the Coordinator block in repository `AGENTS.md`, or an exact legacy global block during migration or removal;
 - `.codex/coordination/project.yaml`;
 - the plugin-managed hook registration and SessionStart script, or an exact legacy global hook entry during migration or removal;
@@ -28,7 +29,7 @@ Legacy project-local Coordinator READMEs, manuals, skill or hook copies, and `sy
 
 Adding the Coordinator-state block to `.gitignore` does not untrack existing files. Removing mutable state paths from the Git index is allowed only when the user explicitly asks to stop tracking Coordinator state and the active Git integration owner has confirmed a safe boundary. Keep the working files and keep `project.yaml` trackable; do not remove project coordination state from disk.
 
-After a global skill or hook change, require resumed coordinated sessions to reload the global skill before acting. Threads retain previously loaded instructions until reloaded.
+After a global skill or hook change, require resumed coordinated sessions to reload the global skill before acting. Threads retain previously loaded instructions until reloaded. After a Mission Control package change, restart a running Mission Control process so it serves the current source bytes; verify that restart through Mission Control's own health check and UAT rather than Doctor.
 
 Keep maintenance reports user-facing and plain. Do not expose epochs, task or thread IDs, scope kinds, acceptance flags, or role constants unless the user explicitly asks for raw diagnostics.
 

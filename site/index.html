@@ -28,7 +28,7 @@
     "name": "Codex Coordinator",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Windows, macOS, Linux",
-    "softwareVersion": "0.2.1",
+    "softwareVersion": "0.3.0",
     "description": "Helps people keep several Codex tasks organized without duplicated work, crossed wires, lost handoffs, or constant status checking.",
     "url": "https://eyeinthesky6.github.io/codex-coordinator/",
     "codeRepository": "https://github.com/eyeinthesky6/codex-coordinator",
@@ -313,7 +313,7 @@
         <p class="lede">When one coding job spills into several task windows, you end up checking who changed what, relaying updates, and piecing the result together yourself. Codex Coordinator keeps the work organized and brings one clear update back to you.</p>
         <div class="actions">
           <a class="button primary" href="#fit">See the problems it solves <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m7 17 10-10M8 7h9v9"/></svg></a>
-          <a class="button" href="#install">Install v0.2.1</a>
+          <a class="button" href="#install">Install v0.3.0</a>
         </div>
         <p class="trust-note">Open source · MIT licensed · Python standard library · No coordination server</p>
       </div>
@@ -352,7 +352,7 @@
       <div class="section shell">
         <div class="section-head"><span class="section-label">Three steps to first value</span><h2>Tell it what “done” looks like. <em>It handles the split.</em></h2></div>
         <div class="steps">
-          <article class="step"><span class="step-num">01 / ADD</span><h3>Add the stable release</h3><p>Install one fixed version so the rules do not change in the middle of your work.</p><div class="command"><code id="install-command">codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.2.1</code><button class="copy" type="button" data-copy="install-command">Copy</button></div></article>
+          <article class="step"><span class="step-num">01 / ADD</span><h3>Add the stable release</h3><p>Install one fixed version so the rules do not change in the middle of your work.</p><div class="command"><code id="install-command">codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.3.0</code><button class="copy" type="button" data-copy="install-command">Copy</button></div></article>
           <article class="step"><span class="step-num">02 / REVIEW</span><h3>Review the restart helper</h3><p>Codex asks you to trust a small local hook. It remembers the useful handoff after a restart; it does not call the internet or change your files.</p></article>
           <article class="step"><span class="step-num">03 / DESCRIBE</span><h3>Ask for the finished outcome</h3><p>Describe the result you want. You should not have to design the agent org chart yourself.</p><div class="command"><code id="prompt-command">Use $codex-coordinator to coordinate this goal: &lt;goal&gt;</code><button class="copy" type="button" data-copy="prompt-command">Copy</button></div></article>
         </div>
@@ -369,6 +369,7 @@
         <article class="tile half"><div class="tile-code">04 / The updates</div><h3>You are no longer the message bus</h3><p>Agents keep their findings with their own work. Coordinator gathers the useful parts and gives you one project update instead of constant status chatter.</p></article>
         <article class="tile narrow"><div class="tile-code">05 / The review</div><h3>Review waits for finished work</h3><p>The reviewer checks one stable result instead of chasing files while other agents are still changing them.</p></article>
         <article class="tile wide"><div class="tile-code">06 / Your say</div><h3>Agents still cannot overrule you</h3><p>Coordination does not turn a suggestion into permission. Publishing, deployment, database changes, and other important decisions still wait for your approval.</p></article>
+        <article class="tile wide"><div class="tile-code">07 / Mission Control</div><h3>See the whole job on one local board</h3><p>The optional source-installed dashboard separates queued work from work actually running, shows native task names and next actions, and keeps project state on your machine.</p></article>
       </div>
     </section>
 

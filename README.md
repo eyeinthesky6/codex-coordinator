@@ -105,7 +105,7 @@ Subagents remain supported as helpers inside a registered task. The parent keeps
 1. Add the tagged repository as a marketplace:
 
    ```powershell
-   codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.2.1
+   codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.3.0
    ```
 
 2. Open Codex Plugins and install **Codex Coordinator** from the `codex-coordinator` marketplace.
@@ -134,6 +134,20 @@ Hand off <task> to <registered task name>.
 
 To opt a repository out, say `Turn Codex Coordinator off for this repository.`
 
+### Optional Mission Control
+
+Mission Control gives you one local, read-only view of current Codex tasks, queued work, completed work, concrete overlap warnings, and Doctor findings. It runs on `127.0.0.1`, has no login or telemetry, and never becomes a second coordination authority.
+
+Mission Control is a source-installed companion, not a web app hidden inside the plugin cache. Clone the same stable tag and run it from that checkout:
+
+```powershell
+git clone --branch v0.3.0 --depth 1 https://github.com/eyeinthesky6/codex-coordinator.git
+cd codex-coordinator
+python -m apps.mission_control
+```
+
+On Windows, `./apps/mission_control/start-background.ps1 -Open` starts or reuses one hidden local process without opening duplicate browser tabs. See the [Mission Control guide](apps/mission_control/README.md) for project selection, settings, Doctor behavior, token use, and stopping the background process.
+
 ## What it takes off your plate—and what stays yours
 
 | Coordinator helps with | You and existing tools still decide |
@@ -143,7 +157,7 @@ To opt a repository out, say `Turn Codex Coordinator off for this repository.`
 | Remembering handoffs when tasks restart | Git commits, branches, worktrees, and history |
 | Bringing progress, blockers, and results into one update | Publishing, deployment, database, and other important approvals |
 
-The separately installed local Mission Control may observe the same native tasks and canonical records. It is an observer, not another coordination authority.
+The optional local Mission Control observes the same native tasks and canonical records. It is an observer, not another coordination authority.
 
 ## What happens when several tasks are moving
 
@@ -177,7 +191,7 @@ Agents still cannot overrule you. A message from Coordinator cannot silently rep
 
 ### Doctor: quiet project health checks
 
-The optional Doctor checks whether the installed Coordinator and its restart helper are complete and current. It can flag concrete drift, including a completed Coordinator turn that still has proven non-terminal work but no verified heartbeat return path. It does not change project ownership, wake old tasks, or treat an idle project as broken simply because time passed. For a visual investigation, `--mermaid-out <path>.mmd` writes a private diagram of the exact verified result; the JSON report and exit status remain the real gate.
+The optional Doctor checks and safely repairs the installed global Coordinator skill, state helper, and exact SessionStart hook. It also scans enabled projects for concrete coordination defects, including a completed Coordinator turn that still has proven non-terminal work but no verified heartbeat return path, and writes deduplicated findings to each project's private inbox. It does not test Mission Control, run repository release checks, change project ownership, wake old tasks, inspect application code, or treat an idle project as broken simply because time passed. Mission Control's own behavior is covered by the repository test suite and browser UAT.
 
 ## Model and reasoning choices
 
@@ -189,6 +203,7 @@ An exact user choice wins when the destination supports it, without rewriting gl
 - `.codex/coordination/CURRENT.md`: local current ownership and handoff state;
 - `.codex/coordination/inbox/`: local append-only notices, reconciliation records, resume requests, and Doctor findings;
 - `.codex/coordination/cache/`: optional disposable hashes for inbox records already reconciled by the exact current Coordinator;
+- `.codex/coordination/feedback.json`: optional ignored receipt that prevents the first field-report request from repeating;
 - task and suggestion records only when real work requires them;
 - one small discovery block in the root `AGENTS.md`;
 - narrow ignore rules that keep mutable coordination state local.
@@ -201,24 +216,29 @@ The plugin does not copy its operating manual into user projects and does not ch
 - [`plugins/codex-coordinator/hooks/hooks.json`](plugins/codex-coordinator/hooks/hooks.json): SessionStart registration;
 - [`plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`](plugins/codex-coordinator/scripts/codex_coordinator_session_start.py): bounded, read-only restart context;
 - [`plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`](plugins/codex-coordinator/scripts/codex_coordinator_doctor.py): installed-package repair and validation;
+- [`apps/mission_control/`](apps/mission_control/): optional source-installed localhost dashboard and its standard-library collector;
 - [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json): marketplace entry.
 
 For contributors, start with the [architecture](docs/codebase/ARCHITECTURE.md), [structure](docs/codebase/STRUCTURE.md), [testing](docs/codebase/TESTING.md), and [known concerns](docs/codebase/CONCERNS.md).
 
 ## Update
 
-Refresh the marketplace, update or reinstall the plugin, review the changed hook, and start a new task:
+Tagged marketplaces stay pinned to the version you added. To move to a newer stable tag, replace the pinned marketplace and reinstall the plugin:
 
 ```powershell
-codex plugin marketplace upgrade codex-coordinator
+codex plugin remove codex-coordinator@codex-coordinator
+codex plugin marketplace remove codex-coordinator
+codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.3.0
+codex plugin add codex-coordinator@codex-coordinator
 ```
 
-An update replaces only plugin-managed files. It does not rewrite project coordination state. When migrating from a manual install, verify the plugin first, then remove the legacy copy so both hooks do not run.
+An update replaces only plugin-managed files. It does not rewrite project coordination state. Review and trust the changed hook, then start a new Codex task so the updated skill is loaded. If you need to roll back, repeat the same sequence with the previous known-good tag, such as `v0.2.1`. When migrating from a manual install, verify the plugin first, then remove the legacy copy so both hooks do not run.
 
 ## Community and trust
 
 - Ask usage questions in [Q&A](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a).
 - Share early requests in [Ideas](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/ideas).
+- After the first completed coordinated goal, one optional field-report link may appear. Nothing is sent automatically, and the request does not repeat in that project.
 - Use Issues only for a reproducible bug or accepted, scoped work.
 - Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing code.
 - Follow [SECURITY.md](SECURITY.md) for private vulnerability reports.

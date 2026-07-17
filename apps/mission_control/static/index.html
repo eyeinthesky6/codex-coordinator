@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#07142b">
+    <title>Mission Control · Codex Coordinator</title>
+    <link rel="icon" href="/logo.png">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true">
+      <div class="glow glow-cyan"></div>
+      <div class="glow glow-violet"></div>
+      <div class="grid-plane"></div>
+    </div>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Mission Control home">
+          <span class="brand-mark"><img src="/logo.png" alt=""></span>
+          <span class="brand-copy">
+            <strong>Mission Control</strong>
+            <small>by Codex Coordinator</small>
+          </span>
+        </a>
+
+        <div class="topbar-actions">
+          <div class="live-chip" title="This dashboard reads local files only">
+            <span class="live-pulse" aria-hidden="true"></span>
+            <span id="live-label">Connecting locally</span>
+          </div>
+          <button class="icon-button" id="refresh-button" type="button" aria-label="Refresh now" title="Refresh now">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7"></path></svg>
+          </button>
+          <button class="settings-button" id="settings-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6l-.08.1H10l-.08-.1a1.7 1.7 0 0 0-1-.6 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1l-.1-.08V10l.1-.08a1.7 1.7 0 0 0 .6-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6l.08-.1H14l.08.1a1.7 1.7 0 0 0 1 .6 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.08.4.3.76.6 1l.1.08V14l-.1.08c-.3.24-.52.6-.6 1Z"></path></svg>
+            Settings
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="page-title">
+          <div class="hero-copy">
+            <div class="eyebrow"><span></span> Live work, before the commit</div>
+            <h1 id="page-title">Know what every<br><em>Codex task</em> is doing.</h1>
+            <p>See work in motion, surface attention early, and open the exact task when you need the detail.</p>
+          </div>
+          <aside class="radar-card" aria-label="Collector status">
+            <div class="radar-visual" aria-hidden="true">
+              <span class="radar-ring ring-one"></span>
+              <span class="radar-ring ring-two"></span>
+              <span class="radar-ring ring-three"></span>
+              <span class="radar-sweep"></span>
+              <span class="radar-core"></span>
+            </div>
+            <div class="radar-copy">
+              <span class="overline">Collector pulse</span>
+              <strong id="collector-cadence">Every 1 minute</strong>
+              <small id="collector-next">Local scan starting…</small>
+            </div>
+          </aside>
+        </section>
+
+        <nav class="project-switcher" aria-label="Filter Mission Control by project">
+          <span class="overline">View</span>
+          <div class="project-tabs" id="project-tabs">
+            <button class="project-tab is-active" type="button" data-project="overall" aria-pressed="true">Overall</button>
+          </div>
+        </nav>
+
+        <section class="metrics" aria-label="Mission summary">
+          <button class="metric metric-primary" type="button" data-filter="live" aria-pressed="true">
+            <span class="metric-kicker">In motion</span>
+            <strong id="metric-active">—</strong>
+            <small>active or queued tasks</small>
+            <span class="metric-line"></span>
+          </button>
+          <button class="metric" type="button" data-filter="action" aria-pressed="false">
+            <span class="metric-kicker">Action needed</span>
+            <strong id="metric-attention">—</strong>
+            <small id="metric-action-label">conflicts or blockers</small>
+            <span class="metric-line"></span>
+          </button>
+          <button class="metric" type="button" data-filter="done" aria-pressed="false">
+            <span class="metric-kicker">Landed today</span>
+            <strong id="metric-completed">—</strong>
+            <small>tasks finished</small>
+            <span class="metric-line"></span>
+          </button>
+        </section>
+
+        <section class="workspace-grid">
+          <div class="work-panel panel" id="workboard">
+            <div class="section-heading">
+              <div>
+                <span class="overline">Live workboard</span>
+                <h2 id="workboard-title">Tasks in motion</h2>
+              </div>
+              <div class="filter-tabs" role="group" aria-label="Filter tasks">
+                <button class="filter-tab is-active" type="button" data-filter="live" aria-pressed="true">In motion</button>
+                <button class="filter-tab" type="button" data-filter="action">Action</button>
+                <button class="filter-tab" type="button" data-filter="done">Done</button>
+                <button class="filter-tab" type="button" data-filter="all">All</button>
+              </div>
+            </div>
+            <div id="task-list" class="task-list" aria-live="polite">
+              <div class="loading-row"><span></span><span></span><span></span></div>
+            </div>
+          </div>
+
+          <aside class="side-stack">
+            <section class="panel signal-panel">
+              <div class="section-heading compact">
+                <div>
+                  <span class="overline">Conflicts and blockers</span>
+                  <h2>Action center</h2>
+                </div>
+                <span class="signal-count" id="signal-count">0</span>
+              </div>
+              <p class="overlap-summary" id="overlap-summary">Checking path conflicts and blocked work.</p>
+              <div id="conflict-list" class="conflict-list"></div>
+            </section>
+
+            <section class="panel feedback-panel" id="feedback-panel" aria-labelledby="feedback-title">
+              <div class="feedback-heading">
+                <div>
+                  <span class="overline">Feedback and community</span>
+                  <h2 id="feedback-title">Help shape Coordinator</h2>
+                </div>
+                <span class="feedback-mark" aria-hidden="true">↗</span>
+              </div>
+              <p class="feedback-copy">
+                Share what saved time, what got in your way, or what we should build next.
+              </p>
+              <div class="feedback-actions">
+                <a class="feedback-primary" id="feedback-share" href="https://t.me/+ra4BQ7-_5uM2MDY1" target="_blank" rel="noopener noreferrer">Join on Telegram</a>
+              </div>
+            </section>
+
+            <section class="panel doctor-panel" aria-labelledby="doctor-title">
+              <div class="doctor-heading">
+                <div>
+                  <span class="overline">Project health</span>
+                  <h2 id="doctor-title">Doctor</h2>
+                </div>
+                <button class="doctor-run-button" id="doctor-run-button" type="button" title="Project review uses GPT-5.6 Sol · Medium reasoning">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v5a4 4 0 0 0 8 0V4M7 4h2M17 13v2a4 4 0 0 1-4 4h-1M17 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg>
+                  <span id="doctor-button-label">Run Doctor</span>
+                </button>
+              </div>
+              <div class="doctor-result">
+                <span class="doctor-health-icon is-idle" id="doctor-health-icon" aria-hidden="true"></span>
+                <ul class="doctor-summary" id="doctor-summary">
+                  <li>Validate the installed Coordinator and enabled projects.</li>
+                </ul>
+              </div>
+              <div class="doctor-foot" aria-live="polite">
+                <span id="doctor-status">Ready</span>
+                <span id="doctor-last-run">Not run manually</span>
+              </div>
+            </section>
+
+          </aside>
+        </section>
+
+        <footer class="footer">
+          <p><span class="privacy-dot"></span> Local-only view. No login, cloud service or telemetry.</p>
+          <p id="last-updated">Waiting for the first local scan</p>
+        </footer>
+      </main>
+    </div>
+
+    <dialog id="settings-dialog" class="settings-dialog">
+      <form id="settings-form" method="dialog">
+        <div class="dialog-header">
+          <div>
+            <span class="overline">Tune the pulse</span>
+            <h2>Mission Control settings</h2>
+          </div>
+          <button class="dialog-close" value="cancel" aria-label="Close settings" type="submit">×</button>
+        </div>
+
+        <label class="setting-row" for="refresh-seconds">
+          <span>
+            <strong>Local refresh</strong>
+            <small>Reading local task files is free and uses no model tokens.</small>
+          </span>
+          <select id="refresh-seconds" name="refresh_seconds">
+            <option value="60">Every minute</option>
+            <option value="300">Every 5 minutes</option>
+            <option value="900">Every 15 minutes</option>
+            <option value="1800">Every 30 minutes</option>
+          </select>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button-secondary" value="cancel" type="submit">Cancel</button>
+          <button class="button-primary" id="save-settings" value="default" type="button">Save settings</button>
+        </div>
+        <p class="form-message" id="settings-message" role="status"></p>
+      </form>
+    </dialog>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

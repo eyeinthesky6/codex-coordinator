@@ -10,6 +10,7 @@ Use it when several Codex tasks need to work in the same repository and the user
 - Repository and quick start: https://github.com/eyeinthesky6/codex-coordinator
 - Latest stable release: https://github.com/eyeinthesky6/codex-coordinator/releases/latest
 - Architecture: https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/codebase/ARCHITECTURE.md
+- Mission Control: https://github.com/eyeinthesky6/codex-coordinator/blob/main/apps/mission_control/README.md
 - Contribution guide: https://github.com/eyeinthesky6/codex-coordinator/blob/main/CONTRIBUTING.md
 - Support routes: https://github.com/eyeinthesky6/codex-coordinator/blob/main/SUPPORT.md
 - Security policy: https://github.com/eyeinthesky6/codex-coordinator/blob/main/SECURITY.md
@@ -21,4 +22,4 @@ Install the latest stable tagged release through Codex Plugins, trust the read-o
 
 `Use $codex-coordinator to create the tasks needed and coordinate this goal: <goal>`
 
-The plugin requires Git, Python 3.10 or newer, and Codex with plugin and hook support. It does not bypass Codex plan, usage, token, or concurrency limits.
+The plugin requires Git, Python 3.10 or newer, and Codex with plugin and hook support. The optional Mission Control companion runs from the tagged source checkout on localhost and does not become coordination authority. The project does not bypass Codex plan, usage, token, or concurrency limits.

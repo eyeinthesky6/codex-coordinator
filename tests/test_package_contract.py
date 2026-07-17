@@ -62,6 +62,25 @@ class PackageContractTests(unittest.TestCase):
             self.assertTrue(asset.is_relative_to(PLUGIN.resolve()))
             self.assertTrue(asset.is_file(), f"missing manifest asset: {field}")
 
+    def test_public_source_release_contains_mission_control_companion(self) -> None:
+        required = (
+            "__main__.py",
+            "collector.py",
+            "server.py",
+            "README.md",
+            "static/index.html",
+            "static/app.js",
+            "static/styles.css",
+        )
+        app = REPOSITORY / "apps" / "mission_control"
+        for relative in required:
+            self.assertTrue((app / relative).is_file(), relative)
+
+        readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
+        self.assertIn("python -m apps.mission_control", readme)
+        self.assertIn("source-installed companion", readme)
+        self.assertTrue((REPOSITORY / "tests" / "test_mission_control.py").is_file())
+
     def test_skill_markdown_references_resolve_inside_the_skill(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         link_pattern = re.compile(r"\[[^]]+\]\(([^)]+)\)")
@@ -302,7 +321,7 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Multi-agent work without Ultra", readme)
         self.assertIn("does not bypass Codex plan availability", readme)
         self.assertIn("explicit delegation without Ultra", manifest["description"])
-        self.assertEqual(manifest["version"], "0.2.1")
+        self.assertEqual(manifest["version"], "0.3.0")
         self.assertIn(f"@v{manifest['version']}", readme)
         self.assertIn(f"## {manifest['version']} - ", changelog)
 
@@ -407,7 +426,10 @@ class PackageContractTests(unittest.TestCase):
 
         self.assertIn("references/doctor.md", skill)
         self.assertIn("Installed implementation repair", doctor)
-        self.assertIn("Repository tests, release audits, and codebase review remain", doctor)
+        self.assertIn(
+            "Repository tests, release audits, Mission Control checks, and codebase review remain",
+            doctor,
+        )
         self.assertIn("capability-contract version and required behavior markers", doctor)
         self.assertIn("bounded isolated hook smoke run", doctor)
         self.assertNotIn("Require the source checkout to pass its package test suite", doctor)

@@ -1,6 +1,6 @@
 {
   "name": "codex-coordinator",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Keep several Codex agents from duplicating work or losing handoffs on one large repository goal, with explicit delegation without Ultra.",
   "author": {
     "name": "Six Ideas"
