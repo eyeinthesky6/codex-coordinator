@@ -33,6 +33,8 @@ Running several agents sounds useful until two of them solve the same problem, o
 
 It works with the Codex tasks and Git setup you already use. There is no coordination server, separate dashboard, database, or lock manager to operate.
 
+> **Zero third-party runtime dependencies.** Beyond Codex, Git, and Python 3.10+, there is no runtime package to install. The core plugin needs no orchestration framework, coordination daemon, database, or queue. Even the optional local Mission Control uses only Python's standard library and runs only when you start it.
+
 > **Independent project:** Codex Coordinator is a third-party plugin for OpenAI Codex. It is not affiliated with, endorsed by, or maintained by OpenAI. Codex and related OpenAI product names belong to OpenAI.
 
 ## How the communication flow works

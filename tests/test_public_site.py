@@ -49,6 +49,7 @@ class PublicSiteTests(unittest.TestCase):
         self.assertIn("Codex Coordinator", self.html)
         self.assertIn(("name", "description"), self.parser.meta)
         self.assertIn(("name", "robots"), self.parser.meta)
+        self.assertIn(("name", "google-site-verification"), self.parser.meta)
         self.assertIn(("property", "og:title"), self.parser.meta)
         self.assertIn(("property", "og:site_name"), self.parser.meta)
         self.assertIn(("property", "og:image"), self.parser.meta)
@@ -109,6 +110,17 @@ class PublicSiteTests(unittest.TestCase):
         self.assertIn("Codex Coordinator vs worktrees, subagents, and project managers", readme)
         self.assertIn("How do I coordinate multiple Codex agents in one repository?", readme)
         self.assertIn("Does Codex Coordinator replace Git worktrees?", readme)
+
+    def test_dependency_free_runtime_claim_is_prominent_and_precise(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        discovery = (ROOT / "docs" / "DISCOVERY.md").read_text(encoding="utf-8")
+
+        for public_surface in (self.html, readme):
+            self.assertIn("Zero third-party runtime dependencies", public_surface)
+            self.assertIn("Python", public_surface)
+
+        self.assertIn("no third-party runtime dependency", discovery)
+        self.assertIn("Requires Codex, Git, and Python 3.10+", self.html)
 
     def test_pages_workflow_assembles_every_local_asset(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
