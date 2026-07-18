@@ -102,6 +102,21 @@ class CoordinationStateTests(unittest.TestCase):
             with self.assertRaisesRegex(state.StateError, "missing, duplicate, or unknown"):
                 state.validate_current(path)
 
+    def test_inspect_current_returns_only_validated_structured_tables(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "CURRENT.md"
+            path.write_text(_current(), encoding="utf-8")
+
+            report = state.inspect_current(path)
+
+            self.assertEqual(report["status"], "valid")
+            self.assertEqual(report["fields"]["Project ID"], "sample")
+            self.assertEqual(len(report["tables"]["Registered sessions"]), 1)
+            self.assertEqual(
+                report["tables"]["Registered sessions"][0]["Role"], "COORDINATOR"
+            )
+            self.assertEqual(report["tables"]["Active tasks"], [])
+
     def test_validate_current_rejects_invalid_required_metadata(self) -> None:
         replacements = {
             "blank project": ("**Project ID:** sample", "**Project ID:** ", "Project ID"),

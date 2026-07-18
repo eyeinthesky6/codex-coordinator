@@ -1,9 +1,11 @@
 {
-  "contractVersion": 11,
+  "contractVersion": 14,
   "capabilities": {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
     "doctorDiagnostics": "json-with-optional-mermaid",
+    "doctorProjectScan": "deterministic-structured-state-zero-model",
+    "doctorSemanticReview": "user-triggered-allowlisted-low-candidate-only",
     "monitoring": "heartbeat-with-single-wake-fallback",
     "modelDefault": "inherit-unless-user-overrides",
     "reasoningDefault": "low-or-medium",

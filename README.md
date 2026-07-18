@@ -31,9 +31,7 @@ Codex Coordinator is a free, open-source plugin for coordinating multiple OpenAI
 
 Running several agents sounds useful until two of them solve the same problem, one changes a file another still depends on, and a paused task forgets where the handoff was. Then you become the person checking every window, relaying every update, and deciding whether the project is actually finished. Give Coordinator one repository outcome; it divides the work into a few clear jobs and keeps each job with one owner.
 
-It works with the Codex tasks and Git setup you already use. There is no coordination server, separate dashboard, database, or lock manager to operate.
-
-> **Zero third-party runtime dependencies.** Beyond Codex, Git, and Python 3.10+, there is no runtime package to install. The core plugin needs no orchestration framework, coordination daemon, database, or queue. Even the optional local Mission Control uses only Python's standard library and runs only when you start it.
+It works with the Codex tasks and Git setup you already use. There is no coordination server, database, or lock manager to operate. Mission Control is an optional local dashboard; the core Coordinator works without it.
 
 > **Independent project:** Codex Coordinator is a third-party plugin for OpenAI Codex. It is not affiliated with, endorsed by, or maintained by OpenAI. Codex and related OpenAI product names belong to OpenAI.
 
@@ -167,6 +165,9 @@ python -m apps.mission_control
 
 On Windows, `./apps/mission_control/start-background.ps1 -Open` starts or reuses one hidden local process without opening duplicate browser tabs. See the [Mission Control guide](apps/mission_control/README.md) for project selection, settings, Doctor behavior, token use, and stopping the background process.
 
+Not sure whether you need Coordinator, Mission Control, Doctor, tests, or a fresh-machine check? Use
+the [operating guide](docs/OPERATING_GUIDE.md) to choose the smallest tool that proves the outcome.
+
 ## What it takes off your plate—and what stays yours
 
 | Coordinator helps with | You and existing tools still decide |
@@ -177,6 +178,10 @@ On Windows, `./apps/mission_control/start-background.ps1 -Open` starts or reuses
 | Bringing progress, blockers, and results into one update | Publishing, deployment, database, and other important approvals |
 
 The optional local Mission Control observes the same native tasks and canonical records. It is an observer, not another coordination authority.
+
+### Zero third-party runtime dependencies
+
+The shipped plugin stays small by design. Beyond Codex, Git, and Python 3.10+, there is no orchestration framework, coordination daemon, database, queue, pip package, or npm package to install. The optional Mission Control also uses only Python's standard library and runs only when you start it.
 
 ## What happens when several tasks are moving
 
@@ -210,7 +215,7 @@ Agents still cannot overrule you. A message from Coordinator cannot silently rep
 
 ### Doctor: quiet project health checks
 
-The optional Doctor checks and safely repairs the installed global Coordinator skill, state helper, and exact SessionStart hook. It also scans enabled projects for concrete coordination defects, including a completed Coordinator turn that still has proven non-terminal work but no verified heartbeat return path, and writes deduplicated findings to each project's private inbox. It does not test Mission Control, run repository release checks, change project ownership, wake old tasks, inspect application code, or treat an idle project as broken simply because time passed. Mission Control's own behavior is covered by the repository test suite and browser UAT.
+The optional Doctor checks and safely repairs the installed global Coordinator skill, state helper, and exact SessionStart hook. Project health is now a zero-model local scan of validated Coordinator state, bounded task-contract headers, native completion metadata, inbox checkpoints, and heartbeat definitions. It never reads application code or parses transcript bodies, emits compact JSON, and writes only deduplicated evidence-backed private findings. Two prose-meaning checks—whether a worker is too small and whether its goal is unrelated—stay visibly marked review-only instead of being guessed. Doctor does not test Mission Control, run repository release checks, change project ownership, wake old tasks, or treat an idle project as broken simply because time passed.
 
 ## Model and reasoning choices
 

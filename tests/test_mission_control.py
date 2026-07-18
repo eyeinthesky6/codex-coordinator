@@ -15,9 +15,11 @@ from unittest import mock
 from apps.mission_control.collector import (
     CodexThreadReader,
     Collector,
+    DeepReviewRunner,
     DoctorRunner,
     Settings,
     SettingsStore,
+    _codex_token_usage,
     _epoch_datetime,
     _extract_patch_paths,
     _local_date,
@@ -154,6 +156,19 @@ class MissionControlFixture:
 
 
 class CollectorTests(unittest.TestCase):
+    def test_codex_json_token_receipt_is_counted_without_double_counting_cache(self):
+        receipt = json.dumps(
+            {
+                "type": "turn.completed",
+                "usage": {
+                    "input_tokens": 100,
+                    "cached_input_tokens": 80,
+                    "output_tokens": 20,
+                },
+            }
+        )
+        self.assertEqual(_codex_token_usage(receipt, ""), 120)
+
     def test_user_message_stays_queued_until_agent_work_begins(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = MissionControlFixture(Path(directory))
@@ -617,7 +632,7 @@ class CollectorTests(unittest.TestCase):
             )
             self.assertEqual(SettingsStore(data_dir).get(), Settings(refresh_seconds=300))
 
-    def test_manual_doctor_run_is_ephemeral_bounded_and_persisted(self):
+    def test_manual_doctor_run_is_deterministic_zero_token_and_persisted(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             data_dir = root / "data"
@@ -637,17 +652,15 @@ class CollectorTests(unittest.TestCase):
                         "openUrl": "codex://threads/example",
                     }
                 ],
+                "conflicts": [
+                    {
+                        "severity": "high",
+                        "confidence": "declared",
+                        "tasks": ["task-a", "task-b"],
+                        "detail": "private path should not reach the model",
+                    }
+                ],
             }
-
-            def complete(command, **kwargs):
-                output = Path(command[command.index("--output-last-message") + 1])
-                output.write_text(
-                    "- Installed Coordinator is current.\n"
-                    "- One enabled project checked; no findings.\n"
-                    "DOCTOR_HEALTH: healthy",
-                    encoding="utf-8",
-                )
-                return mock.Mock(returncode=0, stderr="", stdout="tokens used 1,234")
 
             with (
                 mock.patch.object(
@@ -655,41 +668,30 @@ class CollectorTests(unittest.TestCase):
                     "_repair_installed_runtime",
                     return_value={"status": "current"},
                 ) as repair,
-                mock.patch("apps.mission_control.collector.subprocess.run", side_effect=complete) as run,
+                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
             ):
+                scanner.return_value.scan.return_value = {
+                    "status": "review",
+                    "projectsChecked": 1,
+                    "findingCount": 1,
+                    "findingsWritten": 1,
+                }
                 self.assertTrue(runner.run(snapshot))
 
             repair.assert_called_once_with()
-            command = run.call_args.args[0]
-            prompt = run.call_args.kwargs["input"]
-            self.assertIn("--ephemeral", command)
-            self.assertEqual(command[command.index("--model") + 1], "gpt-5.6-sol")
-            self.assertEqual(command[command.index("--sandbox") + 1], "danger-full-access")
-            self.assertEqual(command[command.index("--ask-for-approval") + 1], "never")
-            self.assertLess(command.index("--sandbox"), command.index("exec"))
-            self.assertLess(command.index("--ask-for-approval"), command.index("exec"))
-            self.assertIn('model_reasoning_effort="medium"', command)
-            self.assertIn("Do not create, message, wake", prompt)
-            self.assertIn("already repaired and verified deterministically", prompt)
-            self.assertIn("Do not load any skill or reference file", prompt)
-            self.assertIn("Do not inspect", prompt)
-            self.assertIn("Mission Control", prompt)
-            self.assertIn("NON-TERMINAL TASK HINTS", prompt)
-            self.assertNotIn("--mission-control-root", prompt)
-            self.assertNotIn("--project-health-in", prompt)
-            self.assertNotIn("--mermaid-out", prompt)
-            self.assertIn("UNATTENDED_RETURN_PATH", prompt)
-            self.assertIn("verified absence of an enabled heartbeat", prompt)
-            self.assertIn("DOCTOR_HEALTH: healthy", prompt)
-            self.assertNotIn("full unittest suite", prompt)
-            self.assertNotIn(str(runner.source_root), prompt)
+            scanner.assert_called_once_with(runner.source_root, runner.codex_home)
+            scanner.return_value.scan.assert_called_once_with(
+                [root / "sample"], write_findings=True
+            )
             state = runner.read_state()
             self.assertEqual(state["lastResult"], "success")
             self.assertFalse(state["running"])
-            self.assertEqual(state["tokensUsed"], 1234)
-            self.assertIn("One enabled project checked", state["summary"])
-            self.assertEqual(state["health"], "healthy")
-            self.assertEqual(len(state["bullets"]), 2)
+            self.assertEqual(state["tokensUsed"], 0)
+            self.assertEqual(state["model"], "deterministic-local")
+            self.assertEqual(state["reasoning"], "none")
+            self.assertIn("1 enabled projects checked deterministically", state["summary"])
+            self.assertEqual(state["health"], "review")
+            self.assertEqual(len(state["bullets"]), 3)
 
     def test_manual_doctor_repairs_and_checks_only_installed_skill_and_hook(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -715,27 +717,53 @@ class CollectorTests(unittest.TestCase):
             self.assertIn("--check", check_command)
             self.assertIn("--skill-root", apply_command)
             self.assertIn("--hook-path", apply_command)
+            self.assertIn("--compact", apply_command)
+            self.assertIn("--compact", check_command)
             self.assertNotIn("--mission-control-root", apply_command)
             self.assertNotIn("--project-health-in", apply_command)
             self.assertNotIn("--mermaid-out", apply_command)
 
-    def test_manual_doctor_skips_model_when_no_enabled_projects_exist(self):
+    def test_manual_doctor_reports_healthy_without_spawning_a_model(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             runner = DoctorRunner(root / "data", root / "source", root / "codex-home")
-            with mock.patch.object(
-                runner,
-                "_repair_installed_runtime",
-                return_value={"status": "current"},
-            ) as repair:
-                self.assertTrue(runner.run({"projects": [], "tasks": []}))
+            snapshot = {
+                "projects": [{"id": "sample", "path": str(root / "sample"), "enabled": True}],
+                "tasks": [
+                    {
+                        "key": "safe-task",
+                        "projectId": "sample",
+                        "status": "active",
+                        "coordinated": True,
+                        "receiptComplete": False,
+                        "attention": "",
+                    }
+                ],
+                "conflicts": [],
+            }
+            with (
+                mock.patch.object(
+                    runner,
+                    "_repair_installed_runtime",
+                    return_value={"status": "current"},
+                ) as repair,
+                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+            ):
+                scanner.return_value.scan.return_value = {
+                    "status": "healthy",
+                    "projectsChecked": 1,
+                    "findingCount": 0,
+                    "findingsWritten": 0,
+                }
+                self.assertTrue(runner.run(snapshot))
 
             repair.assert_called_once_with()
             state = runner.read_state()
             self.assertEqual(state["lastResult"], "success")
             self.assertEqual(state["tokensUsed"], 0)
             self.assertEqual(state["health"], "healthy")
-            self.assertIn("No enabled Coordinator projects", state["summary"])
+            self.assertIn("No verified coordination mismatches", state["summary"])
+            self.assertEqual(scanner.return_value.scan.call_count, 1)
 
     def test_doctor_legacy_summary_only_shows_green_for_explicitly_clear_health(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -772,21 +800,16 @@ class CollectorTests(unittest.TestCase):
             )
             self.assertEqual(runner.read_state()["health"], "healthy")
 
-    def test_manual_doctor_never_downgrades_when_cli_is_too_old(self):
+    def test_manual_doctor_records_deterministic_scanner_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             runner = DoctorRunner(root / "data", root / "source", root / "codex-home")
             runner.source_root.mkdir()
             runner.codex_home.mkdir()
-            incompatible = mock.Mock(
-                returncode=1,
-                stderr="The 'gpt-5.6-sol' model requires a newer version of Codex.",
-                stdout="",
-            )
-
             snapshot = {
                 "projects": [{"id": "sample", "path": str(root / "sample"), "enabled": True}],
                 "tasks": [],
+                "conflicts": [],
             }
             with (
                 mock.patch.object(
@@ -794,21 +817,15 @@ class CollectorTests(unittest.TestCase):
                     "_repair_installed_runtime",
                     return_value={"status": "current"},
                 ),
-                mock.patch(
-                    "apps.mission_control.collector.subprocess.run",
-                    return_value=incompatible,
-                ) as run,
+                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
             ):
+                scanner.return_value.scan.side_effect = RuntimeError("structured scan failed")
                 self.assertFalse(runner.run(snapshot))
 
-            run.assert_called_once()
-            command = run.call_args.args[0]
-            self.assertEqual(command[command.index("--model") + 1], "gpt-5.6-sol")
             state = runner.read_state()
             self.assertEqual(state["lastResult"], "failed")
-            self.assertEqual(state["model"], "gpt-5.6-sol")
-            self.assertIn("newer Codex CLI", state["error"])
-            self.assertIn("will not downgrade", state["error"])
+            self.assertEqual(state["model"], "deterministic-local")
+            self.assertIn("structured scan failed", state["error"])
 
     def test_interrupted_doctor_run_is_recovered_on_server_start(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -834,6 +851,152 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(state["lastResult"], "failed")
             self.assertFalse(state["running"])
             self.assertIn("interrupted by a Mission Control restart", state["error"])
+
+    def test_deep_review_skips_the_model_when_no_worker_contracts_are_eligible(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = DeepReviewRunner(root / "data", root / "source", root / "codex-home")
+            snapshot = {
+                "projects": [{"path": str(root / "sample"), "enabled": True}]
+            }
+            with (
+                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch("apps.mission_control.collector.subprocess.run") as run,
+            ):
+                scanner.return_value.semantic_review_packet.return_value = {
+                    "schemaVersion": 1,
+                    "checks": [
+                        "worker-semantic-granularity",
+                        "thread-goal-semantic-match",
+                    ],
+                    "tasks": [],
+                    "truncated": False,
+                }
+                self.assertTrue(runner.run(snapshot))
+
+            run.assert_not_called()
+            state = runner.read_state()
+            self.assertEqual(state["lastResult"], "success")
+            self.assertEqual(state["tokensUsed"], 0)
+            self.assertEqual(state["taskCount"], 0)
+            self.assertEqual(state["findingsWritten"], 0)
+            self.assertEqual(state["authority"], "candidate-only")
+
+    def test_deep_review_uses_low_reasoning_allowlisted_ephemeral_model_call(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = DeepReviewRunner(root / "data", root / "source", root / "codex-home")
+            packet = {
+                "schemaVersion": 1,
+                "checks": [
+                    "worker-semantic-granularity",
+                    "thread-goal-semantic-match",
+                ],
+                "tasks": [
+                    {
+                        "taskKey": "0000000000000000",
+                        "threadTitle": "Launch everything",
+                        "individualGoal": "Prepare one bounded release checklist.",
+                        "executionMode": "bounded",
+                        "declaredWritePathCount": 1,
+                    }
+                ],
+                "truncated": False,
+            }
+
+            def complete(command, **kwargs):
+                output = Path(command[command.index("--output-last-message") + 1])
+                output.write_text(
+                    json.dumps(
+                        {
+                            "status": "review",
+                            "summary": "One title may overstate the assigned lane.",
+                            "candidates": [
+                                {
+                                    "taskKey": "0000000000000000",
+                                    "checks": ["thread-goal-semantic-match"],
+                                    "reason": "The title is much broader than the stated checklist goal.",
+                                }
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return mock.Mock(returncode=0, stdout="tokens used 1,234", stderr="")
+
+            with (
+                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch(
+                    "apps.mission_control.collector.subprocess.run", side_effect=complete
+                ) as run,
+            ):
+                scanner.return_value.semantic_review_packet.return_value = packet
+                self.assertTrue(
+                    runner.run(
+                        {"projects": [{"path": str(root / "sample"), "enabled": True}]}
+                    )
+                )
+
+            command = run.call_args.args[0]
+            prompt = run.call_args.kwargs["input"]
+            self.assertIn("read-only", command)
+            self.assertIn("--ephemeral", command)
+            self.assertIn("shell_tool", command)
+            self.assertIn('model_reasoning_effort="low"', command)
+            self.assertNotIn("--model", command)
+            self.assertNotEqual(Path(run.call_args.kwargs["cwd"]), runner.source_root)
+            self.assertIn("0000000000000000", prompt)
+            self.assertNotIn(str(root / "sample"), prompt)
+            state = runner.read_state()
+            self.assertEqual(state["tokensUsed"], 1234)
+            self.assertEqual(state["candidateCount"], 1)
+            self.assertEqual(state["health"], "review")
+            self.assertEqual(state["findingsWritten"], 0)
+            self.assertIn("Launch everything", state["bullets"][0])
+
+    def test_failed_deep_review_still_records_model_tokens_without_writing_findings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = DeepReviewRunner(root / "data", root / "source", root / "codex-home")
+            packet = {
+                "schemaVersion": 1,
+                "checks": ["thread-goal-semantic-match"],
+                "tasks": [
+                    {
+                        "taskKey": "0000000000000000",
+                        "threadTitle": "Task",
+                        "individualGoal": "Goal",
+                        "executionMode": "bounded",
+                        "declaredWritePathCount": 0,
+                    }
+                ],
+                "truncated": False,
+            }
+
+            def invalid_result(command, **kwargs):
+                output = Path(command[command.index("--output-last-message") + 1])
+                output.write_text("not-json", encoding="utf-8")
+                return mock.Mock(returncode=0, stdout="tokens used 88", stderr="")
+
+            with (
+                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch(
+                    "apps.mission_control.collector.subprocess.run",
+                    side_effect=invalid_result,
+                ),
+            ):
+                scanner.return_value.semantic_review_packet.return_value = packet
+                self.assertFalse(
+                    runner.run(
+                        {"projects": [{"path": str(root / "sample"), "enabled": True}]}
+                    )
+                )
+
+            state = runner.read_state()
+            self.assertEqual(state["lastResult"], "failed")
+            self.assertEqual(state["tokensUsed"], 88)
+            self.assertEqual(state["taskCount"], 1)
+            self.assertEqual(state["findingsWritten"], 0)
 
 
 class ServerTests(unittest.TestCase):
@@ -886,7 +1049,7 @@ class ServerTests(unittest.TestCase):
                 with urllib.request.urlopen(base + "/api/health", timeout=5) as response:
                     health = json.load(response)
                     self.assertEqual(health["scope"], "localhost")
-                    self.assertEqual(health["doctorContractVersion"], 1)
+                    self.assertEqual(health["doctorContractVersion"], 2)
                     self.assertEqual(response.headers["X-Frame-Options"], "DENY")
                 with urllib.request.urlopen(base + "/", timeout=5) as response:
                     html = response.read().decode("utf-8")
@@ -894,7 +1057,9 @@ class ServerTests(unittest.TestCase):
                     self.assertIn("active or queued tasks", html)
                     self.assertIn("Action center", html)
                     self.assertIn("Run Doctor", html)
-                    self.assertIn("Project review uses GPT-5.6 Sol · Medium reasoning", html)
+                    self.assertIn("Deterministic local checks · zero model calls", html)
+                    self.assertIn("AI Review", html)
+                    self.assertIn("candidate only", html)
                     self.assertIn('id="doctor-health-icon"', html)
                     self.assertIn('<ul class="doctor-summary"', html)
                     self.assertNotIn('id="doctor-diagnostic"', html)
@@ -929,6 +1094,36 @@ class ServerTests(unittest.TestCase):
                         self.assertEqual(response.status, HTTPStatus.ACCEPTED)
                         self.assertTrue(json.load(response)["doctor"]["running"])
                     start_doctor.assert_called_once_with()
+
+                with mock.patch.object(
+                    runtime,
+                    "start_deep_review",
+                    return_value={"doctor": {"deepReview": {"running": True}}},
+                ) as start_deep_review:
+                    review_request = urllib.request.Request(
+                        base + "/api/doctor/deep-review",
+                        data=json.dumps(
+                            {"confirmation": "user-triggered-model-review"}
+                        ).encode("utf-8"),
+                        method="POST",
+                        headers={"Content-Type": "application/json"},
+                    )
+                    with urllib.request.urlopen(review_request, timeout=5) as response:
+                        self.assertEqual(response.status, HTTPStatus.ACCEPTED)
+                        self.assertTrue(json.load(response)["doctor"]["deepReview"]["running"])
+                    start_deep_review.assert_called_once_with()
+
+                with mock.patch.object(runtime, "start_deep_review") as start_deep_review:
+                    unconfirmed_review = urllib.request.Request(
+                        base + "/api/doctor/deep-review",
+                        data=b"{}",
+                        method="POST",
+                        headers={"Content-Type": "application/json"},
+                    )
+                    with self.assertRaises(urllib.error.HTTPError) as raised:
+                        urllib.request.urlopen(unconfirmed_review, timeout=5)
+                    self.assertEqual(raised.exception.code, HTTPStatus.BAD_REQUEST)
+                    start_deep_review.assert_not_called()
 
                 with mock.patch.object(runtime, "start_doctor") as start_doctor:
                     hostile = urllib.request.Request(

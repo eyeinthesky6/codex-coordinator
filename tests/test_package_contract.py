@@ -66,6 +66,7 @@ class PackageContractTests(unittest.TestCase):
         required = (
             "__main__.py",
             "collector.py",
+            "doctor_scan.py",
             "server.py",
             "README.md",
             "static/index.html",
@@ -474,6 +475,8 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Time, `idle`, or `notLoaded` alone never proves", doctor)
         self.assertIn("UNATTENDED_RETURN_PATH", doctor)
         self.assertIn("verified absence of the required heartbeat", doctor)
+        self.assertIn("zero-model structured-state scan", doctor)
+        self.assertIn("coverage.reviewOnly", doctor)
         self.assertIn("defer any check whose evidence could be a normal in-turn transition", doctor)
         self.assertIn("It never edits `CURRENT.md`", doctor)
         self.assertIn("fingerprint", doctor)
@@ -484,10 +487,18 @@ class PackageContractTests(unittest.TestCase):
             (PLUGIN / "scripts" / "codex_coordinator_doctor.py").is_file()
         )
         contract = json.loads((skill_root / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 11)
+        self.assertEqual(contract["contractVersion"], 14)
         self.assertEqual(
             contract["capabilities"]["doctorDiagnostics"],
             "json-with-optional-mermaid",
+        )
+        self.assertEqual(
+            contract["capabilities"]["doctorProjectScan"],
+            "deterministic-structured-state-zero-model",
+        )
+        self.assertEqual(
+            contract["capabilities"]["doctorSemanticReview"],
+            "user-triggered-allowlisted-low-candidate-only",
         )
         self.assertEqual(contract["capabilities"]["reasoningDefault"], "low-or-medium")
         self.assertEqual(

@@ -16,11 +16,13 @@ from typing import Any
 PLUGIN_NAME = "codex-coordinator"
 HOOK_NAME = "codex_coordinator_session_start.py"
 CAPABILITY_CONTRACT = "capabilities.json"
-CAPABILITY_CONTRACT_VERSION = 11
+CAPABILITY_CONTRACT_VERSION = 14
 REQUIRED_CAPABILITIES: dict[str, Any] = {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
     "doctorDiagnostics": "json-with-optional-mermaid",
+    "doctorProjectScan": "deterministic-structured-state-zero-model",
+    "doctorSemanticReview": "user-triggered-allowlisted-low-candidate-only",
     "monitoring": "heartbeat-with-single-wake-fallback",
     "modelDefault": "inherit-unless-user-overrides",
     "reasoningDefault": "low-or-medium",
@@ -102,6 +104,9 @@ REQUIRED_GUIDANCE = {
     "references/doctor.md": (
         "UNATTENDED_RETURN_PATH",
         "verified absence of the required heartbeat",
+        "never receives project paths, task URLs, transcript text, or application files",
+        "Deep Review is never scheduled",
+        "candidate-only",
     ),
     "references/recovery.md": (
         "inspect that exact owner's native status in the same turn",
@@ -631,6 +636,11 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="Write an optional Mermaid .mmd projection; JSON and exit status remain authoritative.",
     )
+    parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Print only status and aggregate check counts without paths or managed-file detail.",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true", help="Report drift without writing (default).")
     mode.add_argument("--apply", action="store_true", help="Atomically update drifted targets.")
@@ -658,7 +668,20 @@ def main(argv: list[str] | None = None) -> int:
             report["mermaidError"] = str(error)
             exit_code = 1
 
-    print(json.dumps(report, indent=2))
+    output = report
+    if args.compact:
+        output = {
+            "status": report.get("status", "error"),
+            "changedFiles": int(report.get("changedFiles") or 0),
+            "checksPassed": sum(
+                check.get("status") == "passed"
+                for check in report.get("installationChecks", [])
+                if isinstance(check, dict)
+            ),
+        }
+        if report.get("error"):
+            output["error"] = report["error"]
+    print(json.dumps(output, indent=None if args.compact else 2, separators=(",", ":") if args.compact else None))
     if exit_code:
         return exit_code
     if not args.apply and report["status"] == "drift":

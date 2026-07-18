@@ -11,14 +11,20 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from .collector import Collector, DoctorRunner, SettingsStore, default_data_dir
+from .collector import (
+    Collector,
+    DeepReviewRunner,
+    DoctorRunner,
+    SettingsStore,
+    default_data_dir,
+)
 
 
 APP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = APP_DIR / "static"
 REPO_ROOT = APP_DIR.parent.parent
 LOGO_PATH = REPO_ROOT / "plugins" / "codex-coordinator" / "assets" / "logo.png"
-DOCTOR_CONTRACT_VERSION = 1
+DOCTOR_CONTRACT_VERSION = 2
 
 
 class MissionControlRuntime:
@@ -26,12 +32,16 @@ class MissionControlRuntime:
         self.settings = SettingsStore(data_dir)
         self.collector = Collector(roots, codex_home=codex_home)
         self.doctor = DoctorRunner(data_dir, REPO_ROOT, self.collector.codex_home)
+        self.deep_review = DeepReviewRunner(
+            data_dir, REPO_ROOT, self.collector.codex_home
+        )
         self._lock = threading.RLock()
         self._scan_lock = threading.Lock()
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._snapshot: dict[str, Any] = {}
         self._doctor_running = False
+        self._deep_review_running = False
         self._thread: threading.Thread | None = None
 
     def _decorate(self, snapshot: dict[str, Any]) -> dict[str, Any]:
@@ -39,6 +49,9 @@ class MissionControlRuntime:
         snapshot["settings"] = settings.public_dict()
         doctor = self.doctor.read_state()
         doctor["running"] = self._doctor_running or doctor["running"]
+        deep_review = self.deep_review.read_state()
+        deep_review["running"] = self._deep_review_running or deep_review["running"]
+        doctor["deepReview"] = deep_review
         snapshot["doctor"] = doctor
         return snapshot
 
@@ -63,7 +76,7 @@ class MissionControlRuntime:
 
     def start_doctor(self) -> dict[str, Any]:
         with self._lock:
-            if self._doctor_running:
+            if self._doctor_running or self._deep_review_running:
                 return self.get_snapshot()
             self._doctor_running = True
             frozen_snapshot = json.loads(json.dumps(self._snapshot))
@@ -83,8 +96,33 @@ class MissionControlRuntime:
         threading.Thread(target=run, name="mission-control-doctor", daemon=True).start()
         return self.get_snapshot()
 
+    def start_deep_review(self) -> dict[str, Any]:
+        with self._lock:
+            if self._doctor_running or self._deep_review_running:
+                return self.get_snapshot()
+            self._deep_review_running = True
+            frozen_snapshot = json.loads(json.dumps(self._snapshot))
+            if self._snapshot:
+                self._snapshot = self._decorate(self._snapshot)
+
+        def run() -> None:
+            try:
+                self.deep_review.run(frozen_snapshot)
+            finally:
+                with self._lock:
+                    self._deep_review_running = False
+                    if self._snapshot:
+                        self._snapshot = self._decorate(self._snapshot)
+                self.scan()
+
+        threading.Thread(
+            target=run, name="mission-control-deep-review", daemon=True
+        ).start()
+        return self.get_snapshot()
+
     def start(self) -> None:
         self.doctor.recover_interrupted_run()
+        self.deep_review.recover_interrupted_run()
         self.scan()
 
         def loop() -> None:
@@ -257,6 +295,14 @@ class MissionControlHandler(BaseHTTPRequestHandler):
             if path == "/api/doctor":
                 self._read_json()
                 self._send_json(self.runtime.start_doctor(), HTTPStatus.ACCEPTED)
+                return
+            if path == "/api/doctor/deep-review":
+                request = self._read_json()
+                if request.get("confirmation") != "user-triggered-model-review":
+                    raise ValueError("Deep Review requires an explicit user-triggered confirmation.")
+                self._send_json(
+                    self.runtime.start_deep_review(), HTTPStatus.ACCEPTED
+                )
                 return
         except ValueError as error:
             self._send_json({"error": str(error)}, HTTPStatus.BAD_REQUEST)

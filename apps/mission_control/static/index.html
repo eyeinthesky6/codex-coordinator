@@ -146,10 +146,15 @@
                   <span class="overline">Project health</span>
                   <h2 id="doctor-title">Doctor</h2>
                 </div>
-                <button class="doctor-run-button" id="doctor-run-button" type="button" title="Project review uses GPT-5.6 Sol · Medium reasoning">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v5a4 4 0 0 0 8 0V4M7 4h2M17 13v2a4 4 0 0 1-4 4h-1M17 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg>
-                  <span id="doctor-button-label">Run Doctor</span>
-                </button>
+                <div class="doctor-actions">
+                  <button class="doctor-run-button" id="doctor-run-button" type="button" title="Deterministic local checks · zero model calls · compact JSON receipt">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v5a4 4 0 0 0 8 0V4M7 4h2M17 13v2a4 4 0 0 1-4 4h-1M17 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg>
+                    <span id="doctor-button-label">Run Doctor</span>
+                  </button>
+                  <button class="doctor-run-button deep-review-button" id="deep-review-button" type="button" title="Triggers AI using your configured Codex model · Low reasoning · candidate only">
+                    <span id="deep-review-button-label">AI Review</span>
+                  </button>
+                </div>
               </div>
               <div class="doctor-result">
                 <span class="doctor-health-icon is-idle" id="doctor-health-icon" aria-hidden="true"></span>
@@ -160,6 +165,17 @@
               <div class="doctor-foot" aria-live="polite">
                 <span id="doctor-status">Ready</span>
                 <span id="doctor-last-run">Not run manually</span>
+              </div>
+              <div class="deep-review-result" aria-live="polite">
+                <div class="deep-review-heading">
+                  <strong>Optional AI review</strong>
+                  <span id="deep-review-status">User-triggered only</span>
+                </div>
+                <p>Reviews a ≤12 KB allowlisted task packet at Low reasoning. Candidate only; it cannot write Doctor findings.</p>
+                <ul class="doctor-summary" id="deep-review-summary">
+                  <li>Click AI Review only when wording or task scope needs a second look.</li>
+                </ul>
+                <small id="deep-review-last-run">Never run · zero tokens</small>
               </div>
             </section>
 

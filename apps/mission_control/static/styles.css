@@ -880,6 +880,13 @@ h1 em {
   font-weight: 520;
 }
 
+.doctor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .doctor-run-button {
   min-height: 40px;
   display: inline-flex;
@@ -919,6 +926,17 @@ h1 em {
 
 .doctor-run-button.is-running svg {
   animation: livePulse 1.4s ease-in-out infinite;
+}
+
+.deep-review-button {
+  border-color: rgba(177, 139, 255, 0.32);
+  color: var(--violet-soft);
+  background: rgba(177, 139, 255, 0.08);
+}
+
+.deep-review-button:hover:not(:disabled) {
+  color: var(--navy-950);
+  background: var(--violet-soft);
 }
 
 .doctor-result {
@@ -1019,6 +1037,40 @@ h1 em {
 
 .doctor-foot a:hover {
   text-decoration: underline;
+}
+
+.deep-review-result {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.deep-review-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted-strong);
+  font-size: 0.72rem;
+}
+
+.deep-review-heading strong {
+  color: var(--violet-soft);
+  font-weight: 600;
+}
+
+.deep-review-result > p {
+  margin: 7px 0 10px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.deep-review-result small {
+  display: block;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 0.64rem;
 }
 
 .signal-count {

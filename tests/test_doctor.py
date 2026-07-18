@@ -87,6 +87,8 @@ Never switch to the collaboration messenger as a fallback.
 DOCTOR_TEXT = """# Source doctor
 
 Report UNATTENDED_RETURN_PATH only after verified absence of the required heartbeat.
+Routine Doctor never receives project paths, task URLs, transcript text, or application files.
+Deep Review is never scheduled and its result is candidate-only.
 """
 
 RECOVERY_TEXT = """# Source recovery
@@ -228,6 +230,34 @@ class DoctorTests(unittest.TestCase):
             payload = json.loads(print_output.call_args.args[0])
             self.assertEqual(payload["mermaidPath"], str(diagram_path.resolve()))
             self.assertIn("Visual projection only", payload["mermaidNote"])
+
+    def test_compact_cli_omits_paths_and_file_details(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hooks" / "session_start.py"
+
+            with mock.patch("builtins.print") as print_output:
+                result = doctor.main(
+                    [
+                        "--source-plugin",
+                        str(source),
+                        "--skill-root",
+                        str(skill_root),
+                        "--hook-path",
+                        str(hook_path),
+                        "--compact",
+                        "--check",
+                    ]
+                )
+
+            self.assertEqual(result, 2)
+            raw = print_output.call_args.args[0]
+            self.assertLess(len(raw.encode("utf-8")), 200)
+            payload = json.loads(raw)
+            self.assertEqual(set(payload), {"status", "changedFiles", "checksPassed"})
+            self.assertNotIn(str(root), raw)
 
     def test_check_apply_and_repeat_are_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

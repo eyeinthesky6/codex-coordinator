@@ -4,6 +4,9 @@ Notable changes to Codex Coordinator will be recorded here.
 
 ## Unreleased
 
+- Replaced Doctor's model-backed signal summary with a deterministic structured-state scanner that reads no application code, parses no transcript bodies, emits compact JSON, writes deduplicated findings, and uses zero model tokens for project diagnosis.
+- Added a separate user-triggered Mission Control Deep Review for the two semantic checks deterministic Doctor defers. It uses the configured model at Low reasoning over a capped allowlisted packet, records actual token use, and can return candidates but cannot write Doctor findings or coordination state.
+
 ## 0.3.0 - 2026-07-17
 
 - Published Mission Control as an optional, source-installed localhost companion with a dependency-free dashboard, project filters, settings, a bounded Doctor control, and a permanent community feedback link.
