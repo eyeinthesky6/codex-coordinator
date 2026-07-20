@@ -3,8 +3,11 @@
   "version": "0.3.0",
   "description": "Keep several Codex agents from duplicating work or losing handoffs on one large repository goal, with explicit delegation without Ultra.",
   "author": {
-    "name": "Six Ideas"
+    "name": "Six Ideas",
+    "url": "https://github.com/eyeinthesky6"
   },
+  "homepage": "https://eyeinthesky6.github.io/codex-coordinator/",
+  "repository": "https://github.com/eyeinthesky6/codex-coordinator",
   "license": "MIT",
   "keywords": [
     "codex",
@@ -24,14 +27,16 @@
       "Interactive",
       "Write"
     ],
+    "websiteURL": "https://eyeinthesky6.github.io/codex-coordinator/",
+    "privacyPolicyURL": "https://github.com/eyeinthesky6/codex-coordinator/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/eyeinthesky6/codex-coordinator/blob/main/TERMS.md",
     "brandColor": "#06142F",
     "composerIcon": "./assets/logo.png",
     "logo": "./assets/logo.png",
     "defaultPrompt": [
       "Create the tasks needed and coordinate this goal: <goal>",
       "Show who is working on what and what is blocked",
-      "Run Doctor across my enabled Coordinator projects",
-      "Turn Codex Coordinator off for this repository"
+      "Run Doctor across my enabled Coordinator projects"
     ]
   }
 }
