@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import subprocess
@@ -16,10 +17,25 @@ from typing import Any
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
-if str(PLUGIN_ROOT) not in sys.path:
-    sys.path.insert(0, str(PLUGIN_ROOT))
 
-from mission_control.lifecycle import lifecycle_lock, read_state, write_state
+
+def _load_lifecycle_helpers() -> Any:
+    helper_path = (PLUGIN_ROOT / "mission_control" / "lifecycle.py").resolve(strict=True)
+    helper_path.relative_to(PLUGIN_ROOT.resolve(strict=True))
+    spec = importlib.util.spec_from_file_location(
+        "_codex_coordinator_mission_control_lifecycle", helper_path
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load packaged Mission Control lifecycle helper: {helper_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_LIFECYCLE_HELPERS = _load_lifecycle_helpers()
+lifecycle_lock = _LIFECYCLE_HELPERS.lifecycle_lock
+read_state = _LIFECYCLE_HELPERS.read_state
+write_state = _LIFECYCLE_HELPERS.write_state
 
 
 DEFAULT_PORT = 4317
@@ -75,22 +91,49 @@ def _shutdown(port: int) -> bool:
         return False
 
 
-def _module_command() -> tuple[Path, str]:
+def _module_command() -> Path:
     plugin_root = Path(__file__).resolve().parent.parent
-    if (plugin_root / "mission_control" / "__main__.py").is_file():
-        return plugin_root, "mission_control"
+    packaged = plugin_root / "mission_control"
+    if (packaged / "__init__.py").is_file() and (packaged / "__main__.py").is_file():
+        return packaged.resolve(strict=True)
     source_root = plugin_root.parent.parent
-    if (source_root / "apps" / "mission_control" / "__main__.py").is_file():
-        return source_root, "apps.mission_control"
+    source_package = source_root / "plugins" / "codex-coordinator" / "mission_control"
+    if (source_package / "__init__.py").is_file() and (
+        source_package / "__main__.py"
+    ).is_file():
+        return source_package.resolve(strict=True)
     raise FileNotFoundError("The Mission Control runtime is not included in this installation.")
 
 
+_ISOLATED_MODULE_RUNNER = """\
+import importlib.util
+import runpy
+import sys
+from pathlib import Path
+
+package = Path(sys.argv.pop(1)).resolve(strict=True)
+spec = importlib.util.spec_from_file_location(
+    "mission_control",
+    package / "__init__.py",
+    submodule_search_locations=[str(package)],
+)
+if spec is None or spec.loader is None:
+    raise ImportError(f"Cannot load packaged Mission Control runtime: {package}")
+module = importlib.util.module_from_spec(spec)
+sys.modules["mission_control"] = module
+spec.loader.exec_module(module)
+runpy.run_module("mission_control", run_name="__main__", alter_sys=True)
+"""
+
+
 def _spawn(project: Path, port: int, *, open_browser: bool) -> None:
-    working_directory, module = _module_command()
+    package = _module_command()
     command = [
         sys.executable,
-        "-m",
-        module,
+        "-I",
+        "-c",
+        _ISOLATED_MODULE_RUNNER,
+        str(package),
         "--project",
         str(project.resolve(strict=False)),
         "--port",
@@ -99,7 +142,7 @@ def _spawn(project: Path, port: int, *, open_browser: bool) -> None:
     if not open_browser:
         command.append("--no-open")
     options: dict[str, Any] = {
-        "cwd": str(working_directory),
+        "cwd": str(package.parent),
         "stdin": subprocess.DEVNULL,
         "stdout": subprocess.DEVNULL,
         "stderr": subprocess.DEVNULL,

@@ -384,6 +384,7 @@ def _start_mission_control(project_root: Path) -> None:
         return
     command = [
         sys.executable,
+        "-I",
         str(lifecycle),
         "start",
         "--automatic",

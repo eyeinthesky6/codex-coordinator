@@ -958,27 +958,29 @@ class DoctorTests(unittest.TestCase):
             self.assertFalse(skill_root.exists())
             self.assertFalse(hook_path.exists())
 
-    def test_marketplace_health_requires_and_accepts_external_release_identity(self) -> None:
+    def test_marketplace_matching_caller_pins_still_require_supported_reinstall(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = _source_plugin(root / "codex-home" / "plugins" / "cache")
             skill_root = source / "skills" / "codex-coordinator"
             hook_path = source / "scripts" / doctor.HOOK_NAME
 
-            report = doctor.sync_installation(
-                source,
-                skill_root,
-                hook_path,
-                apply=True,
-                installation_kind="marketplace",
-                **_release_identity(source),
-            )
+            with mock.patch.object(doctor, "_validated_source") as validate_source:
+                report = doctor.sync_installation(
+                    source,
+                    skill_root,
+                    hook_path,
+                    apply=True,
+                    installation_kind="marketplace",
+                    **_release_identity(source),
+                )
 
-            self.assertEqual(report["status"], "current")
-            self.assertEqual(report["integrityState"], "healthy")
-            self.assertEqual(report["recoveryState"], "not_needed")
+            self.assertEqual(report["status"], "error")
+            self.assertNotEqual(report["integrityState"], "healthy")
+            self.assertEqual(report["recoveryState"], "reinstall_required")
             self.assertEqual(report["installationKind"], "marketplace")
             self.assertEqual(report["changedFiles"], 0)
+            validate_source.assert_not_called()
 
     def test_marketplace_missing_malformed_or_mismatched_identity_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1028,22 +1030,26 @@ class DoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = _source_plugin(root / "codex-home" / "plugins" / "cache")
-            identity = _release_identity(source)
             skill_root = source / "skills" / "codex-coordinator"
             hook_path = source / "scripts" / doctor.HOOK_NAME
             skill_path = skill_root / "SKILL.md"
             tampered = b"co-tampered package and receipt\n"
             skill_path.write_bytes(tampered)
             _refresh_receipt(source)
+            recomputed_identity = _release_identity(source)
 
-            with mock.patch.object(doctor, "_InstalledTargetAccess") as target_access:
+            with mock.patch.object(
+                doctor, "_InstalledTargetAccess"
+            ) as target_access, mock.patch.object(
+                doctor, "_validated_source"
+            ) as validate_source:
                 report = doctor.sync_installation(
                     source,
                     skill_root,
                     hook_path,
                     apply=True,
                     installation_kind="marketplace",
-                    **identity,
+                    **recomputed_identity,
                 )
 
             self.assertEqual(report["status"], "error")
@@ -1054,6 +1060,7 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(report["files"], [])
             self.assertEqual(skill_path.read_bytes(), tampered)
             target_access.assert_not_called()
+            validate_source.assert_not_called()
 
     def test_manifest_cannot_redirect_the_fixed_release_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1068,18 +1075,16 @@ class DoctorTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            report = doctor.sync_installation(
+            _, _, trusted_receipt, _ = doctor._validated_source(
                 source,
-                source / "skills" / "codex-coordinator",
-                source / "scripts" / doctor.HOOK_NAME,
-                apply=False,
-                installation_kind="marketplace",
-                **_release_identity(source),
+                expected_receipt_sha256=_release_identity(source)[
+                    "expected_receipt_sha256"
+                ],
+                expected_package_version="1.0.0",
             )
 
-            self.assertEqual(report["status"], "current")
             self.assertEqual(
-                report["trustedReceipt"]["packageId"],
+                trusted_receipt["packageId"],
                 f"{doctor.PLUGIN_NAME}-package@1.0.0"
                 f"+contract{doctor.CAPABILITY_CONTRACT_VERSION}",
             )
@@ -1676,6 +1681,245 @@ class DoctorTests(unittest.TestCase):
             )
             self.assertIn("simulated first temporary write failure", report["error"])
             self.assertEqual(skill_path.read_bytes(), last_good)
+
+    @unittest.skipUnless(os.name == "nt", "Windows checked-handle cleanup regression")
+    def test_parent_traversal_read_and_final_parent_close_failures_are_exact(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            skill_root = root / "installed" / "skill"
+            target = skill_root / "nested" / "file.txt"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(b"installed")
+            hook_path = root / "installed" / "hook.py"
+            hook_path.write_bytes(b"hook")
+
+            cases = (
+                ("parent traversal", Path(target.anchor)),
+                ("read", target),
+                ("final parent", target.parent),
+            )
+            for label, selected_target in cases:
+                with self.subTest(lifetime=label):
+                    access = doctor._InstalledTargetAccess(skill_root, hook_path)
+                    original_close = access._windows_close_error
+                    failed = False
+
+                    def fail_selected_close(handle: int, close_target: Path) -> str | None:
+                        nonlocal failed
+                        error = original_close(handle, close_target)
+                        if Path(close_target) == selected_target and not failed:
+                            failed = True
+                            return (
+                                f"native handle cleanup unproven for {close_target}: "
+                                f"CloseHandle returned 0 (Windows error 6: simulated {label})"
+                            )
+                        return error
+
+                    with mock.patch.object(
+                        access, "_windows_close_error", side_effect=fail_selected_close
+                    ):
+                        with self.assertRaises(doctor._InstalledMutationError) as failure:
+                            access.read_bytes(target)
+
+                    self.assertIn(label, str(failure.exception))
+                    self.assertTrue(failed)
+                    self.assertEqual(len(failure.exception.recovery_errors), 1)
+
+    @unittest.skipUnless(os.name == "nt", "Windows checked-handle cleanup regression")
+    def test_rejected_child_and_unlink_close_failures_are_exact(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            skill_root = root / "installed" / "skill"
+            rejected = skill_root / "rejected"
+            rejected.mkdir(parents=True)
+            target = rejected / "file.txt"
+            target.write_bytes(b"installed")
+            hook_path = root / "installed" / "hook.py"
+            hook_path.write_bytes(b"hook")
+
+            access = doctor._InstalledTargetAccess(skill_root, hook_path)
+            original_validate = access._windows_validate_handle
+            original_close = access._windows_close_error
+
+            def reject_child(
+                handle: int, expected: Path, *, directory: bool
+            ) -> None:
+                if directory and Path(expected) == rejected:
+                    raise doctor.DoctorError("simulated rejected child")
+                original_validate(handle, expected, directory=directory)
+
+            def fail_rejected_close(handle: int, close_target: Path) -> str | None:
+                error = original_close(handle, close_target)
+                if Path(close_target) == rejected:
+                    return (
+                        f"native handle cleanup unproven for {rejected}: "
+                        "CloseHandle returned 0 (Windows error 6: simulated rejected child)"
+                    )
+                return error
+
+            with mock.patch.object(
+                access, "_windows_validate_handle", side_effect=reject_child
+            ), mock.patch.object(
+                access, "_windows_close_error", side_effect=fail_rejected_close
+            ):
+                with self.assertRaises(doctor._InstalledMutationError) as rejected_failure:
+                    access.read_bytes(target)
+
+            self.assertIn(str(rejected), rejected_failure.exception.recovery_errors[0])
+
+            access = doctor._InstalledTargetAccess(skill_root, hook_path)
+            original_close = access._windows_close_error
+
+            def fail_unlink_close(handle: int, close_target: Path) -> str | None:
+                error = original_close(handle, close_target)
+                if Path(close_target) == target:
+                    return (
+                        f"native handle cleanup unproven for {target}: "
+                        "CloseHandle returned 0 (Windows error 6: simulated unlink)"
+                    )
+                return error
+
+            with mock.patch.object(
+                access, "_windows_close_error", side_effect=fail_unlink_close
+            ):
+                with self.assertRaises(doctor._InstalledMutationError) as unlink_failure:
+                    access.unlink(target, missing_ok=False)
+
+            self.assertIn(str(target), unlink_failure.exception.recovery_errors[0])
+
+    @unittest.skipUnless(os.name == "nt", "Windows BaseException cleanup regression")
+    def test_close_failure_never_masks_base_exception(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            skill_root = root / "installed" / "skill"
+            target = skill_root / "file.txt"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(b"installed")
+            hook_path = root / "installed" / "hook.py"
+            hook_path.write_bytes(b"hook")
+            access = doctor._InstalledTargetAccess(skill_root, hook_path)
+            original_close = access._windows_close_error
+
+            def fail_file_close(handle: int, close_target: Path) -> str | None:
+                error = original_close(handle, close_target)
+                if Path(close_target) == target:
+                    return (
+                        f"native handle cleanup unproven for {target}: "
+                        "CloseHandle returned 0 (Windows error 6: simulated cleanup failure)"
+                    )
+                return error
+
+            with mock.patch.object(
+                access, "_windows_read_handle", side_effect=KeyboardInterrupt
+            ), mock.patch.object(
+                access, "_windows_close_error", side_effect=fail_file_close
+            ):
+                with self.assertRaises(KeyboardInterrupt):
+                    access.read_bytes(target)
+
+    @unittest.skipUnless(os.name == "nt", "manual rollback requires handle-bound replace")
+    def test_absence_rollback_close_failure_never_claims_restoration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+            _sync_installation(source, skill_root, hook_path, apply=True)
+            missing_path = skill_root / doctor.CAPABILITY_CONTRACT
+            missing_path.unlink()
+            original_close = doctor._InstalledTargetAccess._windows_close_error
+            target_closes = 0
+
+            def fail_second_target_close(
+                access: object, handle: int, close_target: Path
+            ) -> str | None:
+                nonlocal target_closes
+                error = original_close(access, handle, close_target)
+                if Path(close_target) == missing_path:
+                    target_closes += 1
+                    if target_closes == 2:
+                        return (
+                            f"native handle cleanup unproven for {missing_path}: "
+                            "CloseHandle returned 0 (Windows error 6: simulated absence rollback)"
+                        )
+                return error
+
+            with mock.patch.object(
+                doctor._InstalledTargetAccess,
+                "_windows_close_error",
+                new=fail_second_target_close,
+            ), mock.patch.object(
+                doctor,
+                "_validate_installation",
+                side_effect=RuntimeError("force rollback after missing-file replacement"),
+            ):
+                with self.assertRaises(doctor.RepairFailed) as failure:
+                    _sync_installation(source, skill_root, hook_path, apply=True)
+
+            report = failure.exception.report
+            self.assertGreaterEqual(target_closes, 2)
+            self.assertEqual(report["recoveryState"], "manual_action_required")
+            self.assertFalse(report["rollback"]["lastGoodRestored"])
+            self.assertIn(str(missing_path), report["rollback"]["errors"][0])
+
+    @unittest.skipUnless(os.name == "nt", "Windows leaked-handle sharing regression")
+    def test_leaked_target_handle_sharing_error_is_reported_as_unrestored(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+            _sync_installation(source, skill_root, hook_path, apply=True)
+            skill_path = skill_root / "SKILL.md"
+            last_good = b"# Last good before leaked handle\n"
+            skill_path.write_bytes(last_good)
+            original_close = doctor._InstalledTargetAccess._windows_close_error
+            leaked_handle: int | None = None
+            target_closes = 0
+
+            def leak_first_replaced_target(
+                access: object, handle: int, close_target: Path
+            ) -> str | None:
+                nonlocal leaked_handle, target_closes
+                if Path(close_target) == skill_path:
+                    target_closes += 1
+                    if target_closes == 2 and leaked_handle is None:
+                        leaked_handle = handle
+                        return (
+                            f"native handle cleanup unproven for {skill_path}: "
+                            "CloseHandle returned 0 (Windows error 6: simulated leaked handle)"
+                        )
+                return original_close(access, handle, close_target)
+
+            try:
+                with mock.patch.object(
+                    doctor._InstalledTargetAccess,
+                    "_windows_close_error",
+                    new=leak_first_replaced_target,
+                ):
+                    with self.assertRaises(doctor.RepairFailed) as failure:
+                        _sync_installation(source, skill_root, hook_path, apply=True)
+            finally:
+                if leaked_handle is not None:
+                    doctor.ctypes.WinDLL("kernel32", use_last_error=True).CloseHandle(
+                        leaked_handle
+                    )
+
+            report = failure.exception.report
+            self.assertIsNotNone(leaked_handle)
+            self.assertEqual(report["recoveryState"], "manual_action_required")
+            self.assertFalse(report["rollback"]["lastGoodRestored"])
+            self.assertTrue(any(str(skill_path) in error for error in report["rollback"]["errors"]))
+            self.assertTrue(
+                any(
+                    "used by another process" in error.lower()
+                    or "sharing" in error.lower()
+                    or "windows error 32" in error.lower()
+                    or "access is denied" in error.lower()
+                    for error in report["rollback"]["errors"]
+                ),
+                report["rollback"]["errors"],
+            )
 
     @unittest.skipUnless(os.name == "nt", "manual rollback requires handle-bound replace")
     def test_failed_last_good_restore_requires_manual_action(self) -> None:

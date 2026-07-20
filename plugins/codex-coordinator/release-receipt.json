@@ -81,7 +81,7 @@
       "kind": "hook",
       "sourcePath": "scripts/codex_coordinator_session_start.py",
       "managedPath": "codex_coordinator_session_start.py",
-      "sha256": "273cd319b3c0d15ba0348c2d34561df3c5014928d22cfec6aeeb4af28e44e955"
+      "sha256": "31ac91ba1a5d3af0b662117d02363fc61b4e598d220b9d3754afed8ab6121183"
     }
   ]
 }

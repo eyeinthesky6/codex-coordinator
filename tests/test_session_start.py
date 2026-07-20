@@ -255,10 +255,61 @@ class SessionStartHookTests(unittest.TestCase):
 
         command = popen.call_args.args[0]
         self.assertEqual(command[0], sys.executable)
-        self.assertEqual(Path(command[1]).name, "mission_control_lifecycle.py")
+        self.assertEqual(command[1], "-I")
+        self.assertEqual(Path(command[2]).name, "mission_control_lifecycle.py")
         self.assertIn("--automatic", command)
         self.assertEqual(command[-1], str(REPOSITORY))
         self.assertEqual(popen.call_args.kwargs["stdout"], subprocess.DEVNULL)
+
+    def test_lifecycle_child_uses_isolated_installed_shape_imports(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plugin = root / "plugin"
+            scripts = plugin / "scripts"
+            scripts.mkdir(parents=True)
+            shutil.copy2(HOOK, scripts / HOOK.name)
+            shutil.copy2(PLUGIN / "scripts" / "mission_control_lifecycle.py", scripts)
+            shutil.copytree(PLUGIN / "mission_control", plugin / "mission_control")
+            marker = root / "shadow-executed.txt"
+            shadow = (
+                "import os\n"
+                "open(os.environ['CODEX_SHADOW_MARKER'], 'w', encoding='utf-8').write(__file__)\n"
+                "raise RuntimeError('shadow json executed')\n"
+            )
+            (scripts / "json.py").write_text(shadow, encoding="utf-8")
+            (plugin / "json.py").write_text(shadow, encoding="utf-8")
+            spec = importlib.util.spec_from_file_location(
+                "isolated_session_start_fixture", scripts / HOOK.name
+            )
+            assert spec and spec.loader
+            hook = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = hook
+            spec.loader.exec_module(hook)
+
+            with mock.patch.dict(
+                os.environ,
+                {"CODEX_COORDINATOR_DISABLE_MISSION_CONTROL_AUTOSTART": "0"},
+            ), mock.patch.object(hook.subprocess, "Popen") as popen:
+                hook._start_mission_control(REPOSITORY)
+
+            command = popen.call_args.args[0]
+            self.assertEqual(command[:2], [sys.executable, "-I"])
+            environment = os.environ.copy()
+            environment["CODEX_SHADOW_MARKER"] = str(marker)
+            environment["PYTHONPATH"] = str(plugin)
+            completed = subprocess.run(
+                [*command[:3], "status", "--port", "65534"],
+                cwd=plugin,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=20,
+                env=environment,
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertFalse(marker.exists(), completed.stderr)
+            self.assertIn("automatic_start_enabled", json.loads(completed.stdout))
 
     def setUp(self) -> None:
         if shutil.which("git") is None:
