@@ -1116,11 +1116,15 @@ def sync_installation(
             for item in planned:
                 if item["before"] == "current":
                     continue
+                # Register recovery intent before any safety check or replacement can
+                # raise. A replacement may already have committed when _atomic_write
+                # reports a post-replace failure, so rollback accounting must not
+                # depend on the helper returning successfully.
+                applied.append(item)
                 item["assertTarget"](item["target"])
                 _atomic_write(
                     item["target"], item["sourceBytes"], item["assertTarget"]
                 )
-                applied.append(item)
             for item in applied:
                 item["assertTarget"](item["target"])
                 if _sha256(item["target"].read_bytes()) != item["sourceHash"]:
@@ -1139,15 +1143,27 @@ def sync_installation(
                     item["assertTarget"](item["target"])
                     if item["targetBytes"] is None:
                         item["target"].unlink(missing_ok=True)
+                        item["assertTarget"](item["target"])
+                        if item["target"].exists():
+                            raise DoctorError(
+                                f"Last-good target should be absent after rollback: {item['target']}"
+                            )
                     else:
                         _atomic_write(
                             item["target"],
                             item["targetBytes"],
                             item["assertTarget"],
                         )
+                        item["assertTarget"](item["target"])
+                        restored_bytes = item["target"].read_bytes()
+                        item["assertTarget"](item["target"])
+                        if restored_bytes != item["targetBytes"]:
+                            raise DoctorError(
+                                f"Last-good bytes were not restored at {item['target']}"
+                            )
                 except (DoctorError, OSError) as rollback_error:
                     rollback_errors.append(
-                        f"{item['relative'].as_posix()}: {rollback_error}"
+                        f"{item['relative'].as_posix()} -> {item['target']}: {rollback_error}"
                     )
             report = _rollback_report(
                 files=files,

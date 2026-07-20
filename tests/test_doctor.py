@@ -313,6 +313,13 @@ def _redirect_directory(path: Path, target: Path) -> None:
         path.symlink_to(target, target_is_directory=True)
 
 
+def _remove_redirect_directory(path: Path) -> None:
+    if os.name == "nt":
+        path.rmdir()
+    else:
+        path.unlink()
+
+
 class DoctorTests(unittest.TestCase):
     def test_mermaid_projection_shows_verified_states_without_private_paths(self) -> None:
         report = {
@@ -1168,6 +1175,116 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(
                 (saved_scripts / "coordination_state.py").read_bytes(),
                 (source / "skills" / "codex-coordinator" / "scripts" / "coordination_state.py").read_bytes(),
+            )
+
+    def test_post_replace_directory_swap_restores_last_good_at_safe_target(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "source")
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+            _sync_installation(source, skill_root, hook_path, apply=True)
+            scripts = skill_root / "scripts"
+            state_tool = scripts / "coordination_state.py"
+            state_tool.write_bytes(b"last-good-local")
+            outside = root / "outside"
+            outside.mkdir()
+            outside_target = outside / "coordination_state.py"
+            outside_target.write_bytes(b"outside-original")
+            saved_scripts = skill_root / "saved-scripts"
+            original_replace = Path.replace
+            redirected = False
+
+            def swap_after_replace(path: Path, target: Path) -> Path:
+                nonlocal redirected
+                result = original_replace(path, target)
+                if Path(target) == state_tool and not redirected:
+                    scripts.rename(saved_scripts)
+                    _redirect_directory(scripts, outside)
+                    _remove_redirect_directory(scripts)
+                    saved_scripts.rename(scripts)
+                    redirected = True
+                    raise OSError("simulated post-replace directory swap")
+                return result
+
+            with mock.patch.object(Path, "replace", swap_after_replace):
+                with self.assertRaises(doctor.RepairFailed) as failure:
+                    _sync_installation(source, skill_root, hook_path, apply=True)
+
+            self.assertTrue(redirected)
+            self.assertEqual(
+                failure.exception.report["recoveryState"],
+                "repair_failed_last_good_restored",
+            )
+            self.assertTrue(failure.exception.report["rollback"]["lastGoodRestored"])
+            self.assertEqual(
+                failure.exception.report["rollback"]["errors"], []
+            )
+            self.assertEqual(state_tool.read_bytes(), b"last-good-local")
+            self.assertEqual(outside_target.read_bytes(), b"outside-original")
+
+    def test_post_replace_directory_swap_never_claims_unproven_restore(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "source")
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+            _sync_installation(source, skill_root, hook_path, apply=True)
+            scripts = skill_root / "scripts"
+            state_tool = scripts / "coordination_state.py"
+            state_tool.write_bytes(b"last-good-local")
+            outside = root / "outside"
+            outside.mkdir()
+            outside_target = outside / "coordination_state.py"
+            outside_target.write_bytes(b"outside-original")
+            saved_scripts = skill_root / "saved-scripts"
+            original_replace = Path.replace
+            original_read_bytes = Path.read_bytes
+            outside_reads: list[Path] = []
+            redirected = False
+
+            def redirect_after_replace(path: Path, target: Path) -> Path:
+                nonlocal redirected
+                result = original_replace(path, target)
+                if Path(target) == state_tool and not redirected:
+                    scripts.rename(saved_scripts)
+                    _redirect_directory(scripts, outside)
+                    redirected = True
+                return result
+
+            def track_read(path: Path) -> bytes:
+                try:
+                    path.resolve(strict=False).relative_to(outside.resolve())
+                except ValueError:
+                    pass
+                else:
+                    outside_reads.append(path)
+                return original_read_bytes(path)
+
+            with mock.patch.object(
+                Path, "replace", redirect_after_replace
+            ), mock.patch.object(Path, "read_bytes", track_read):
+                with self.assertRaises(doctor.RepairFailed) as failure:
+                    _sync_installation(source, skill_root, hook_path, apply=True)
+
+            self.assertTrue(redirected)
+            self.assertEqual(
+                failure.exception.report["recoveryState"], "manual_action_required"
+            )
+            self.assertFalse(failure.exception.report["rollback"]["lastGoodRestored"])
+            self.assertEqual(len(failure.exception.report["rollback"]["errors"]), 1)
+            self.assertIn(str(state_tool), failure.exception.report["rollback"]["errors"][0])
+            self.assertIn(
+                "symlink or reparse-point",
+                failure.exception.report["rollback"]["errors"][0],
+            )
+            self.assertEqual(outside_reads, [])
+            self.assertEqual(
+                original_read_bytes(outside_target), b"outside-original"
+            )
+            self.assertNotEqual(
+                original_read_bytes(saved_scripts / "coordination_state.py"),
+                b"last-good-local",
             )
 
     def test_installed_runtime_failure_rolls_back_the_update(self) -> None:
