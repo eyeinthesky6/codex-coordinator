@@ -9,7 +9,7 @@ Mission Control, Doctor, and the test suite for every change: they answer differ
 |---|---|---|
 | One small, isolated Codex change | A normal Codex task | Ask for the change normally. Coordinator should stay out of the way. |
 | Several substantial Codex tasks in one repository | Codex Coordinator | Ask Codex to coordinate the bounded goal, for example: `Use $codex-coordinator to coordinate the release-readiness work in this repository.` |
-| A local view of current project work | Mission Control | Run `python -m apps.mission_control` from a trusted source checkout. |
+| A local view of current project work | Mission Control | It starts after the first Coordinator session, or ask Codex to `Start Mission Control`. |
 | Check whether the installed Coordinator is current | Doctor check | Run the Doctor with `--check`; this is read-only. |
 | Repair a drifted manual Coordinator installation | Doctor apply | Review the trusted source package, then explicitly run the Doctor with `--apply`. |
 | Prove the source package still behaves correctly | Repository tests | Run the full Python test suite. |
@@ -43,7 +43,18 @@ it. Expensive reasoning is not required for coordination.
 ### Observe current work
 
 Mission Control is optional. It reads local Codex and Coordinator records and displays a local
-dashboard; it does not become the project authority.
+dashboard; it does not become the project authority. The bundled server starts on the first valid
+Coordinator session and later sessions reuse it without opening duplicate tabs.
+
+From chat:
+
+```text
+Start Mission Control.
+Stop Mission Control.
+```
+
+Stopping it from chat or the Settings panel disables automatic restart. An explicit chat start
+turns automatic startup back on. For source development, the direct command remains:
 
 ```powershell
 python -m apps.mission_control

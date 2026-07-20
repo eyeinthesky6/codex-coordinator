@@ -31,9 +31,12 @@ def _load_hook_module():
 
 
 def _run(command: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    environment = os.environ.copy()
+    environment["CODEX_COORDINATOR_DISABLE_MISSION_CONTROL_AUTOSTART"] = "1"
     return subprocess.run(
         command,
         cwd=cwd,
+        env=environment,
         check=False,
         capture_output=True,
         text=True,
@@ -235,6 +238,24 @@ def _current(
 
 
 class SessionStartHookTests(unittest.TestCase):
+    def test_valid_session_start_dispatches_bounded_mission_control_lifecycle(self) -> None:
+        module = _load_hook_module()
+        with (
+            mock.patch.dict(
+                os.environ,
+                {"CODEX_COORDINATOR_DISABLE_MISSION_CONTROL_AUTOSTART": "0"},
+            ),
+            mock.patch.object(module.subprocess, "Popen") as popen,
+        ):
+            module._start_mission_control(REPOSITORY)
+
+        command = popen.call_args.args[0]
+        self.assertEqual(command[0], sys.executable)
+        self.assertEqual(Path(command[1]).name, "mission_control_lifecycle.py")
+        self.assertIn("--automatic", command)
+        self.assertEqual(command[-1], str(REPOSITORY))
+        self.assertEqual(popen.call_args.kwargs["stdout"], subprocess.DEVNULL)
+
     def setUp(self) -> None:
         if shutil.which("git") is None:
             self.skipTest("Git is required for SessionStart hook tests")
@@ -881,6 +902,9 @@ class SessionStartHookTests(unittest.TestCase):
         expected = '${PLUGIN_ROOT}/scripts/codex_coordinator_session_start.py'
         self.assertIn(expected, hook["command"])
         self.assertIn(expected, hook["commandWindows"])
+        self.assertIn("codex_coordinator_bootstrap.sh", hook["command"])
+        self.assertIn("codex_coordinator_bootstrap.ps1", hook["commandWindows"])
+        self.assertGreaterEqual(hook["timeout"], 120)
         self.assertNotIn("./scripts/", hook["command"])
         self.assertNotIn("./scripts/", hook["commandWindows"])
         self.assertTrue(HOOK.is_file())

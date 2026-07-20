@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only Codex Coordinator SessionStart context hook."""
+"""Load Coordinator context and start the optional local Mission Control observer."""
 
 from __future__ import annotations
 
@@ -358,6 +358,36 @@ def _emit(context: str) -> None:
         },
         sys.stdout,
     )
+
+
+def _start_mission_control(project_root: Path) -> None:
+    if os.environ.get("CODEX_COORDINATOR_DISABLE_MISSION_CONTROL_AUTOSTART") == "1":
+        return
+    lifecycle = Path(__file__).with_name("mission_control_lifecycle.py")
+    if not lifecycle.is_file():
+        return
+    command = [
+        sys.executable,
+        str(lifecycle),
+        "start",
+        "--automatic",
+        "--project",
+        str(project_root),
+    ]
+    options: dict[str, object] = {
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "close_fds": True,
+    }
+    if os.name == "nt":
+        options["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    else:
+        options["start_new_session"] = True
+    try:
+        subprocess.Popen(command, **options)
+    except OSError:
+        return
 
 
 def _marker_value(text: str, key: str) -> str | None:
@@ -736,6 +766,7 @@ def main() -> None:
             _emit_invalid_marker(project_id, marker_warnings)
             return
         enabled_project_id = project_id
+        _start_mission_control(root)
 
         current_path = coordination / "CURRENT.md"
         if current_path.exists() and not current_path.is_file():

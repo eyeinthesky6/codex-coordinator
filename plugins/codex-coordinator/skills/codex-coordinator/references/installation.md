@@ -10,10 +10,32 @@ Keep global behavior separate from project state:
 
 - The global skill contains Coordinator behavior.
 - The global read-only SessionStart hook provides restart context.
-- The optional source-installed Mission Control companion observes local native and Coordinator records and exposes the bounded Doctor action; it is not project state or a second authority.
+- The bundled Mission Control companion observes local native and Coordinator records and exposes the bounded Doctor action; it is not project state or a second authority.
 - Project files contain identity and current state only.
 
 The installed plugin exposes the global skill to agents. An enabled repository's minimal root `AGENTS.md` block provides project-local discovery; no global `AGENTS.md` edit is required for a clean plugin install.
+
+## Python runtime bootstrap
+
+The SessionStart registration first runs the packaged OS-native bootstrap. It accepts only Python 3.10 or newer and checks PATH, the Windows Python launcher and registry where applicable, standard installation folders, and bounded Codex runtime-cache folders. It validates every candidate before using it. Do not recursively scan an entire drive, another user's profile, or unrelated directories.
+
+If no compatible interpreter exists, the bootstrap writes a plain notice before attempting installation. Prefer an existing user-scoped installer: `winget --scope user` on Windows, then `uv` or Homebrew on supported Unix systems. A system package manager may run only when the current process is already root. Never invoke `sudo`, prompt for an administrator password, permanently edit PATH, or download an unverified standalone binary. If installation is unavailable or fails, return valid SessionStart output explaining that Python 3.10+ is required so the task can continue without a broken hook response.
+
+Once selected, the same interpreter runs the Coordinator hook and its bundled Mission Control lifecycle. A discovered Codex-bundled interpreter is a best-effort fallback; do not hardcode one versioned cache path or describe that internal path as a stable Codex API.
+
+## Mission Control lifecycle
+
+The first valid SessionStart in any enabled Coordinator repository starts or reuses the bundled localhost Mission Control server. It opens the dashboard only on that first automatic launch. Later sessions reuse the process without opening duplicate tabs.
+
+When Coordinator enables a previously unmarked repository during the current task, SessionStart has already passed. After the marker and initial state validate, make the bounded local application-data disclosure required below, then run `scripts/mission_control_lifecycle.py start --automatic --project <primary-worktree>` once. This gives first-time enablement the same behavior without requiring another Codex task or restart.
+
+Mission Control keeps `automatic_start_enabled` and whether the first browser launch occurred in its existing local application-data directory. It never writes that preference into a project, plugin cache, global config, or environment file.
+
+When the user asks in chat to **Start Mission Control**, disclose that the action writes the lifecycle preference in the operating system's local Codex Coordinator application-data directory and starts a localhost process, then run the packaged `scripts/mission_control_lifecycle.py start --project <primary-worktree> --open`. This explicit request authorises that bounded preference write and process start. Report the returned status and URL.
+
+When the user asks in chat to **Stop Mission Control**, make the same bounded application-data disclosure, then run `scripts/mission_control_lifecycle.py stop`. This disables automatic restart and requests a graceful server shutdown. A stop request while no server is running still records the disabled preference. **Start Mission Control** explicitly re-enables it.
+
+For a read-only status request, run `scripts/mission_control_lifecycle.py status`. Do not edit environment or Codex configuration for any lifecycle command. If the packaged runtime is missing, report the installation defect instead of downloading code or guessing a source checkout.
 
 Never copy or synchronize a Coordinator README, capability manual, skill, hook, `system-source`, SOP, template library, or behavior summary into a project. Existing project-local copies are non-authoritative. Remove them only when the user explicitly authorises removal in that repository.
 
@@ -70,6 +92,7 @@ Run this procedure only when the main skill's Project enablement trigger selects
 11. When the user explicitly requests a project default, resolve the exact supported model/reasoning combination from the target host, confirm any unavailable exact choice, then create or minimally merge only `model` and `model_reasoning_effort`. Preserve every unrelated setting and never edit global config.
 12. Initialise `CURRENT.md` with the main skill's exact compatibility contract: epoch `0`, mode `IDLE`, shared goal `none`, Coordinator `NONE / UNREGISTERED / accepts=false`, and empty required tables with no sessions, tasks, commands, paused work, resume actions, or decisions.
 13. Create `tasks/`, `inbox/`, or `suggestions/` only when writing the first real record of that kind. Do not add placeholders.
+14. After a newly enabled marker and initial state pass validation, run the packaged Mission Control lifecycle helper in automatic mode as described above. Re-enabling a repository must respect an existing user-disabled lifecycle preference; automatic mode never overrides it.
 
 ## Enabled marker with missing local state
 
@@ -152,6 +175,10 @@ Use $codex-coordinator to create the tasks needed and coordinate this goal: <goa
 Use $codex-coordinator to report who is working on what, what is waiting, and what is blocked without changing anything.
 
 Use $codex-coordinator to repair only the Coordinator system.
+
+Start Mission Control.
+
+Stop Mission Control.
 
 Turn Codex Coordinator off for this repository.
 ```

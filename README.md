@@ -115,7 +115,7 @@ Subagents remain supported as helpers inside a registered task. The parent keeps
 
 - Codex with plugin and hook support;
 - Git;
-- Python 3.10 or newer available as `python` on Windows and `python3` on macOS or Linux.
+- Python 3.10 or newer. The startup launcher reuses a compatible system or Codex-bundled Python when available. If none is found, it tells you before attempting installation.
 
 ### Install the latest stable release
 
@@ -125,8 +125,14 @@ Subagents remain supported as helpers inside a registered task. The parent keeps
    codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.3.0
    ```
 
-2. Open Codex Plugins and install **Codex Coordinator** from the `codex-coordinator` marketplace.
-3. Review and trust the SessionStart hook when Codex asks. It reads local coordination records, makes no network calls, and never writes project state. In the CLI, use `/hooks`; an untrusted hook is skipped.
+2. Install **Codex Coordinator** from the new marketplace:
+
+   ```shell
+   codex plugin add codex-coordinator@codex-coordinator
+   ```
+3. Review and trust the SessionStart hook when Codex asks. It reads local coordination records, never writes project state, and starts the bundled localhost Mission Control after the first valid Coordinator session. Before it runs, an OS-native launcher checks PATH, registered and standard Python locations, and Codex runtime folders for Python 3.10+. If none is compatible, it informs you and tries an available user-scoped installer; it never silently uses `sudo` or changes PATH. Its only lifecycle preference is kept in local application data. In the CLI, use `/hooks`; an untrusted hook is skipped.
+
+No Codex app restart or Coordinator service is required. Open a new Codex task after installation so it can load the plugin, then describe the result you want. The first Coordinator-enabled session starts Mission Control automatically; shut it down from its Settings panel or ask Codex to `Stop Mission Control` if you do not want it running.
 4. Start a new Codex task and use the prompt at the top of this README.
 
 For an offline or development checkout, clone or download the repository and add its local directory instead:
@@ -155,11 +161,11 @@ To opt a repository out, say `Turn Codex Coordinator off for this repository.`
 
 Mission Control gives you one local, read-only view of current Codex tasks, queued work, completed work, concrete overlap warnings, and Doctor findings. It runs on `127.0.0.1`, has no login or telemetry, and never becomes a second coordination authority.
 
-Mission Control is a source-installed companion, not a web app hidden inside the plugin cache. Clone the same stable tag and run it from that checkout:
+Mission Control is bundled with the plugin. After the hook is trusted, the first session in any Coordinator-enabled repository starts it and opens the dashboard once. Later sessions reuse the same local process without opening duplicate tabs.
+
+From chat, ask `Start Mission Control` to enable and open it or `Stop Mission Control` to disable automatic startup and shut it down. The Settings panel has the same shutdown control. The source-development command remains:
 
 ```powershell
-git clone --branch v0.3.0 --depth 1 https://github.com/eyeinthesky6/codex-coordinator.git
-cd codex-coordinator
 python -m apps.mission_control
 ```
 
@@ -181,7 +187,7 @@ The optional local Mission Control observes the same native tasks and canonical 
 
 ### Zero third-party runtime dependencies
 
-The shipped plugin stays small by design. Beyond Codex, Git, and Python 3.10+, there is no orchestration framework, coordination daemon, database, queue, pip package, or npm package to install. The optional Mission Control also uses only Python's standard library and runs only when you start it.
+The shipped plugin stays small by design. Beyond Codex, Git, and Python 3.10+, there is no orchestration framework, coordination daemon, database, queue, pip package, or npm package to install. The launcher can reuse Codex's bundled Python, but treats its location as a best-effort fallback rather than a stable public path. If Python is missing, Windows uses `winget` for a user-scoped install when available; macOS or Linux uses an existing user-scoped package tool, or a system package manager only when Codex is already running as root. Otherwise it reports what you need to install. The optional Mission Control also uses only Python's standard library and runs while its local lifecycle preference is enabled.
 
 ## What happens when several tasks are moving
 
@@ -203,9 +209,17 @@ Task registration, acceptance, ownership, and “you may continue” confirmatio
 
 Before it ends any coordinating turn, Coordinator checks what is completed, still active, waiting, blocked, or needs your decision. If anything remains, it verifies that its one quiet heartbeat really exists; merely intending to monitor is not enough. If the host cannot provide that return path, Coordinator keeps the work non-terminal and tells you plainly instead of leaving it unattended. Its final update is the single project view: completed, active, queued, blocked, and decisions needed.
 
+### Scheduled follow-up across native Codex tasks
+
+A request to coordinate or keep a goal moving authorises one temporary native Codex heartbeat for the Coordinator while unfinished work remains. It uses the cadence you request, or 15 minutes by default. Each check reads only registered tasks whose native turn changed plus new local handoff records; it reconciles completed work, blockers, ownership, capacity, and decisions already inside the shared goal. When nothing material changed, it produces no user update and sends no task message. When the goal is genuinely finished, it removes its own heartbeat without touching automations you created yourself.
+
+This is a return path, not a separate Coordinator daemon or polling database. If native heartbeats are unavailable, Coordinator must say automatic continuation is not active and may use only one result-or-blocker wake from an eligible worker. Scheduled continuations remain subject to normal Codex plan, token, and concurrency limits.
+
 ### Native identity, without handshake chatter
 
 New agents receive the real job in their first prompt. There is no empty “are you ready?” turn and no ritual where workers repeat their ID, availability, or status before useful work can begin.
+
+Internally, every logical job is bound to the exact native Codex thread ID that owns it. The current Coordinator is also registered by its exact native thread, and the coordination epoch identifies the current generation of ownership. A task instruction is accepted only when its repository, current epoch, sender, recipient, and registered ownership all match. That is how an outdated message from a replaced Coordinator—or a message meant for another repository—fails closed instead of reaching the wrong task. These IDs remain private project bookkeeping rather than chat noise.
 
 If a recorded owner or Coordinator was archived, Coordinator verifies that native state immediately when your request first encounters it and restores the unfinished boundary to a replacement. You do not have to ping the archived task, repeat a prescribed sentence, or confirm the same action twice.
 
@@ -215,7 +229,16 @@ Agents still cannot overrule you. A message from Coordinator cannot silently rep
 
 ### Doctor: quiet project health checks
 
-The optional Doctor checks and safely repairs the installed global Coordinator skill, state helper, and exact SessionStart hook. Project health is now a zero-model local scan of validated Coordinator state, bounded task-contract headers, native completion metadata, inbox checkpoints, and heartbeat definitions. It never reads application code or parses transcript bodies, emits compact JSON, and writes only deduplicated evidence-backed private findings. Two prose-meaning checks—whether a worker is too small and whether its goal is unrelated—stay visibly marked review-only instead of being guessed. Doctor does not test Mission Control, run repository release checks, change project ownership, wake old tasks, or treat an idle project as broken simply because time passed.
+The optional Doctor has two deliberately separate review paths:
+
+| Review | How it starts | AI use | What it may do |
+|---|---|---|---|
+| Regular Doctor | A Mission Control click or a user-approved recurring Codex automation | Zero model calls and zero model tokens | Validate and safely repair the trusted installed Coordinator files; scan enabled-project coordination records; write one deduplicated private finding for a verified mismatch |
+| AI Deep Review | A separate explicit click in Mission Control; never scheduled and never included in Regular Doctor | Your configured Codex model at Low reasoning | Review whether a worker looks too small for a durable task or its title no longer matches its goal; return schema-validated suggestions only |
+
+Regular Doctor checks the installed global Coordinator skill, state helper, capability contract, and exact SessionStart hook. Its project scan reads validated Coordinator state, bounded active task headers, native completion metadata, inbox checkpoints, and heartbeat definitions. It does not read application code or parse chat bodies, and it does not change ownership, wake tasks, or treat an idle project as broken merely because time passed. A scheduled run is still a user-approved Codex automation over previously disclosed project roots; Doctor does not install its own scheduler or silently add newly discovered projects.
+
+AI Deep Review receives at most 12 active worker summaries and 12 KB total. The packet includes bounded task titles, goals, execution modes, and write-path counts while withholding literal project and task IDs, roots, paths, URLs, transcripts, application code, configuration, environment data, skills, and memories. Mission Control shows the actual token receipt and any truncation. Deep Review cannot write a Doctor finding, edit coordination state, message or wake a task, or grant repair authority.
 
 ## Model and reasoning choices
 
@@ -238,9 +261,10 @@ The plugin does not copy its operating manual into user projects and does not ch
 
 - [`plugins/codex-coordinator/skills/codex-coordinator/`](plugins/codex-coordinator/skills/codex-coordinator/): coordination behavior, action-specific operating lanes, capability contract, and deterministic state helper;
 - [`plugins/codex-coordinator/hooks/hooks.json`](plugins/codex-coordinator/hooks/hooks.json): SessionStart registration;
-- [`plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`](plugins/codex-coordinator/scripts/codex_coordinator_session_start.py): bounded, read-only restart context;
+- [`plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`](plugins/codex-coordinator/scripts/codex_coordinator_session_start.py): bounded restart context and Mission Control lifecycle dispatch;
 - [`plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`](plugins/codex-coordinator/scripts/codex_coordinator_doctor.py): installed-package repair and validation;
-- [`apps/mission_control/`](apps/mission_control/): optional source-installed localhost dashboard and its standard-library collector;
+- [`plugins/codex-coordinator/mission_control/`](plugins/codex-coordinator/mission_control/): bundled localhost dashboard and standard-library collector;
+- [`apps/mission_control/`](apps/mission_control/): source-checkout compatibility launchers and guide;
 - [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json): marketplace entry.
 
 For contributors, start with the [architecture](docs/codebase/ARCHITECTURE.md), [structure](docs/codebase/STRUCTURE.md), [testing](docs/codebase/TESTING.md), and [known concerns](docs/codebase/CONCERNS.md).

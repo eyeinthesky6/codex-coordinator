@@ -38,7 +38,7 @@ flowchart TD
     terminal -->|"yes"| finish["Release ownership, archive finished workers, remove heartbeat, return to idle"]
 
     doctor["Doctor agent scans installed behavior and enabled projects"] -. "deduplicated finding only" .-> reconcile
-    hook["SessionStart read-only context"] -. "restart hint; never authority" .-> stateCheck
+    hook["SessionStart context and observer launcher"] -. "restart hint; never authority" .-> stateCheck
 
     classDef instruction fill:#17152f,stroke:#8b7cf6,color:#ffffff;
     classDef executable fill:#102b3a,stroke:#56d6d2,color:#ffffff;
@@ -58,14 +58,14 @@ flowchart TD
 5. The Coordinator remains control-first; bounded workers own normal product and integration execution. Subagents may help a registered task while their parent retains durable ownership and reporting.
 6. One temporary native heartbeat reconciles changed worker turns while a shared goal is live. It uses a host-native incremental cursor when available and never mirrors Codex task history. Native messages remain a sparse fallback for exact control transitions or one unattended result/blocker wake.
 7. Durable repository-local records preserve the handoff when a task pauses, compacts, or restarts. The bundled state helper validates required fields, identifiers, table rows, uniqueness, and reconciliation ledgers, safely creates task or inbox records without overwriting existing files, and maintains an optional two-phase hash checkpoint only for inbox records already reconciled by the exact current Coordinator.
-8. On SessionStart, the Python hook reads bounded state from the primary worktree and emits a short context block. It does not change repository files.
+8. On SessionStart, the Python hook reads bounded state from the primary worktree, emits a short context block, and starts or reuses the bundled local Mission Control observer when the repository is enabled. It does not change repository files.
 9. An optional Codex automation may run Doctor across locally discovered enabled projects. Doctor writes only deduplicated inbox findings; each project Coordinator remains the sole owner of canonical reconciliation and repair.
 
 ## Mission Control observer
 
-Mission Control is an optional source-installed companion with a separate process boundary from the plugin. Its Python standard-library server binds only to `127.0.0.1`, reads bounded local Codex receipts and Coordinator records, and renders a reviewer-facing snapshot. A submitted user message is `queued` until a later agent reasoning, response, or tool event proves work started; it is never labelled `Working now` merely because the task received text.
+Mission Control is an optional runtime bundled with the plugin and kept behind a separate local process boundary. Its Python standard-library server binds only to `127.0.0.1`, reads bounded local Codex receipts and Coordinator records, and renders a reviewer-facing snapshot. The first valid Coordinator SessionStart launches it once; later sessions reuse it. A submitted user message is `queued` until a later agent reasoning, response, or tool event proves work started; it is never labelled `Working now` merely because the task received text.
 
-The dashboard may update its own local settings, run the bounded Doctor contract, and record an optional local feedback dismissal. It cannot assign work, change ownership, send task messages, edit application code, or replace the canonical Coordinator records.
+The dashboard may update its own local settings, run the bounded Doctor contract, and shut down its own server. A shutdown records a local disabled preference so the next SessionStart respects the user's choice; an explicit chat start re-enables it. It cannot assign work, change ownership, send task messages, edit application code, or replace the canonical Coordinator records.
 
 ## State boundary
 
@@ -76,7 +76,7 @@ The dashboard may update its own local settings, run the bounded Doctor contract
 
 ## Hook safety boundary
 
-The hook validates and bounds marker values, text size, table rows, Git output, and emitted context. It uses a bounded Git query to find the primary worktree, treats malformed or truncated state as unknown, and never turns recovered text into authority.
+The hook validates and bounds marker values, text size, table rows, Git output, and emitted context. It uses a bounded Git query to find the primary worktree, treats malformed or truncated state as unknown, and never turns recovered text into authority. Only after a valid enabled marker is confirmed may it launch the packaged lifecycle helper; that helper writes only its local application-data preference and starts the loopback observer.
 
 ## Doctor safety boundary
 

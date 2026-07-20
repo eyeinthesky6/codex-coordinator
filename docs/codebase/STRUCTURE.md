@@ -27,7 +27,9 @@
 - `plugins/codex-coordinator/skills/codex-coordinator/references/`: short operations router plus execution, reconciliation, messaging, installation, recovery, maintenance, and Doctor lanes loaded as needed.
 - `plugins/codex-coordinator/skills/codex-coordinator/agents/openai.yaml`: agent-facing display metadata and default prompt.
 - `plugins/codex-coordinator/hooks/hooks.json`: SessionStart registration.
-- `plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`: read-only restart-context hook.
+- `plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`: bounded restart-context hook and Mission Control lifecycle dispatch.
+- `plugins/codex-coordinator/scripts/mission_control_lifecycle.py`: idempotent local start, stop, status, and persisted user opt-out.
+- `plugins/codex-coordinator/mission_control/`: bundled localhost dashboard runtime.
 - `plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`: atomic repair plus installed skill and hook validation for the configured Coordinator runtime, with optional Mermaid diagnostic output.
 - `plugins/codex-coordinator/LICENSE`: license included with the distributed plugin.
 

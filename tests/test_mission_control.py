@@ -12,7 +12,10 @@ from http import HTTPStatus
 from pathlib import Path
 from unittest import mock
 
-from apps.mission_control.collector import (
+PLUGIN = Path(__file__).resolve().parents[1] / "plugins" / "codex-coordinator"
+sys.path.insert(0, str(PLUGIN))
+
+from mission_control.collector import (
     CodexThreadReader,
     Collector,
     DeepReviewRunner,
@@ -24,7 +27,7 @@ from apps.mission_control.collector import (
     _extract_patch_paths,
     _local_date,
 )
-from apps.mission_control.server import MissionControlRuntime, MissionControlServer
+from mission_control.server import MissionControlRuntime, MissionControlServer
 
 
 THREAD_ONE = "11111111-1111-4111-8111-111111111111"
@@ -668,7 +671,7 @@ class CollectorTests(unittest.TestCase):
                     "_repair_installed_runtime",
                     return_value={"status": "current"},
                 ) as repair,
-                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
             ):
                 scanner.return_value.scan.return_value = {
                     "status": "review",
@@ -705,7 +708,7 @@ class CollectorTests(unittest.TestCase):
             ]
 
             with mock.patch(
-                "apps.mission_control.collector.subprocess.run", side_effect=reports
+                "mission_control.collector.subprocess.run", side_effect=reports
             ) as run:
                 self.assertEqual(runner._repair_installed_runtime()["status"], "current")
 
@@ -747,7 +750,7 @@ class CollectorTests(unittest.TestCase):
                     "_repair_installed_runtime",
                     return_value={"status": "current"},
                 ) as repair,
-                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
             ):
                 scanner.return_value.scan.return_value = {
                     "status": "healthy",
@@ -817,7 +820,7 @@ class CollectorTests(unittest.TestCase):
                     "_repair_installed_runtime",
                     return_value={"status": "current"},
                 ),
-                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
             ):
                 scanner.return_value.scan.side_effect = RuntimeError("structured scan failed")
                 self.assertFalse(runner.run(snapshot))
@@ -860,8 +863,8 @@ class CollectorTests(unittest.TestCase):
                 "projects": [{"path": str(root / "sample"), "enabled": True}]
             }
             with (
-                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
-                mock.patch("apps.mission_control.collector.subprocess.run") as run,
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch("mission_control.collector.subprocess.run") as run,
             ):
                 scanner.return_value.semantic_review_packet.return_value = {
                     "schemaVersion": 1,
@@ -925,9 +928,9 @@ class CollectorTests(unittest.TestCase):
                 return mock.Mock(returncode=0, stdout="tokens used 1,234", stderr="")
 
             with (
-                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
                 mock.patch(
-                    "apps.mission_control.collector.subprocess.run", side_effect=complete
+                    "mission_control.collector.subprocess.run", side_effect=complete
                 ) as run,
             ):
                 scanner.return_value.semantic_review_packet.return_value = packet
@@ -979,9 +982,9 @@ class CollectorTests(unittest.TestCase):
                 return mock.Mock(returncode=0, stdout="tokens used 88", stderr="")
 
             with (
-                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
                 mock.patch(
-                    "apps.mission_control.collector.subprocess.run",
+                    "mission_control.collector.subprocess.run",
                     side_effect=invalid_result,
                 ),
             ):
@@ -1000,6 +1003,25 @@ class CollectorTests(unittest.TestCase):
 
 
 class ServerTests(unittest.TestCase):
+    def test_server_shutdown_disables_automatic_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = MissionControlFixture(Path(directory))
+            runtime = MissionControlRuntime(
+                [fixture.project], fixture.codex_home, fixture.data_dir
+            )
+            server = MissionControlServer(("127.0.0.1", 0), runtime)
+            try:
+                with mock.patch.object(server, "shutdown") as shutdown:
+                    server.request_shutdown()
+                    time.sleep(0.1)
+                shutdown.assert_called_once_with()
+                lifecycle = json.loads(
+                    (fixture.data_dir / "lifecycle.json").read_text(encoding="utf-8")
+                )
+                self.assertFalse(lifecycle["automatic_start_enabled"])
+            finally:
+                server.server_close()
+
     def test_background_launcher_opens_browser_only_when_requested(self):
         launcher = Path("apps/mission_control/start-background.ps1").read_text(encoding="utf-8")
         self.assertIn("[switch]$Open", launcher)
@@ -1059,6 +1081,7 @@ class ServerTests(unittest.TestCase):
                     self.assertIn("Run Doctor", html)
                     self.assertIn("Deterministic local checks · zero model calls", html)
                     self.assertIn("AI Review", html)
+                    self.assertIn("Shut down Mission Control", html)
                     self.assertIn("candidate only", html)
                     self.assertIn('id="doctor-health-icon"', html)
                     self.assertIn('<ul class="doctor-summary"', html)
@@ -1149,6 +1172,20 @@ class ServerTests(unittest.TestCase):
                 with self.assertRaises(urllib.error.HTTPError) as raised:
                     urllib.request.urlopen(plain_text, timeout=5)
                 self.assertEqual(raised.exception.code, HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
+
+                with mock.patch.object(server, "request_shutdown") as request_shutdown:
+                    shutdown_request = urllib.request.Request(
+                        base + "/api/shutdown",
+                        data=json.dumps(
+                            {"confirmation": "user-requested-shutdown"}
+                        ).encode("utf-8"),
+                        method="POST",
+                        headers={"Content-Type": "application/json"},
+                    )
+                    with urllib.request.urlopen(shutdown_request, timeout=5) as response:
+                        self.assertEqual(response.status, HTTPStatus.ACCEPTED)
+                        self.assertEqual(json.load(response)["status"], "stopping")
+                    request_shutdown.assert_called_once_with()
             finally:
                 server.shutdown()
                 server.server_close()

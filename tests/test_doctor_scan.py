@@ -2,18 +2,22 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from apps.mission_control.doctor_scan import (
+REPOSITORY = Path(__file__).resolve().parents[1]
+PLUGIN = REPOSITORY / "plugins" / "codex-coordinator"
+sys.path.insert(0, str(PLUGIN))
+
+from mission_control.doctor_scan import (
     DeterministicDoctorScanner,
     MAX_SEMANTIC_PACKET_BYTES,
     compact_report,
 )
 
 
-REPOSITORY = Path(__file__).resolve().parents[1]
 COORDINATOR = "11111111-1111-4111-8111-111111111111"
 WORKER = "22222222-2222-4222-8222-222222222222"
 

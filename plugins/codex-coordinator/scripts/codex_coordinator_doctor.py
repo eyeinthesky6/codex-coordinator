@@ -16,7 +16,7 @@ from typing import Any
 PLUGIN_NAME = "codex-coordinator"
 HOOK_NAME = "codex_coordinator_session_start.py"
 CAPABILITY_CONTRACT = "capabilities.json"
-CAPABILITY_CONTRACT_VERSION = 14
+CAPABILITY_CONTRACT_VERSION = 16
 REQUIRED_CAPABILITIES: dict[str, Any] = {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
@@ -39,6 +39,7 @@ REQUIRED_CAPABILITIES: dict[str, Any] = {
     "archivedRecovery": "direct-request-no-repeat-confirmation",
     "externalWriteDisclosure": "prewrite-notice-and-scope-authority",
     "subagentDispatch": "one-to-three-for-two-independent-lanes",
+    "pythonRuntimeBootstrap": "bounded-machine-discovery-informed-install",
 }
 REQUIRED_TASK_LIFECYCLE = {
     "pin-coordinator",

@@ -21,7 +21,7 @@ When an enabled project's canonical state is idle with no active ownership or pe
 Only a user-authorised Maintainer may change:
 
 - the global Codex Coordinator skill package;
-- the source-installed Mission Control companion files;
+- the bundled Mission Control companion files and lifecycle helper;
 - the Coordinator block in repository `AGENTS.md`, or an exact legacy global block during migration or removal;
 - `.codex/coordination/project.yaml`;
 - the plugin-managed hook registration and SessionStart script, or an exact legacy global hook entry during migration or removal;

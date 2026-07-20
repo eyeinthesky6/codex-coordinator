@@ -51,6 +51,11 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("${PLUGIN_ROOT}/" + target, hook["command"])
         self.assertIn("${PLUGIN_ROOT}/" + target, hook["commandWindows"])
         self.assertTrue((PLUGIN / target).is_file())
+        self.assertIn("codex_coordinator_bootstrap.sh", hook["command"])
+        self.assertIn("codex_coordinator_bootstrap.ps1", hook["commandWindows"])
+        self.assertTrue((PLUGIN / "scripts" / "codex_coordinator_bootstrap.sh").is_file())
+        self.assertTrue((PLUGIN / "scripts" / "codex_coordinator_bootstrap.ps1").is_file())
+        self.assertTrue((PLUGIN / "scripts" / "mission_control_lifecycle.py").is_file())
 
     def test_manifest_brand_assets_exist_inside_the_plugin(self) -> None:
         manifest = json.loads(
@@ -62,24 +67,32 @@ class PackageContractTests(unittest.TestCase):
             self.assertTrue(asset.is_relative_to(PLUGIN.resolve()))
             self.assertTrue(asset.is_file(), f"missing manifest asset: {field}")
 
-    def test_public_source_release_contains_mission_control_companion(self) -> None:
+    def test_distributed_plugin_contains_mission_control_runtime(self) -> None:
         required = (
             "__main__.py",
             "collector.py",
             "doctor_scan.py",
+            "lifecycle.py",
             "server.py",
             "README.md",
             "static/index.html",
             "static/app.js",
             "static/styles.css",
         )
-        app = REPOSITORY / "apps" / "mission_control"
+        app = PLUGIN / "mission_control"
         for relative in required:
             self.assertTrue((app / relative).is_file(), relative)
 
         readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
         self.assertIn("python -m apps.mission_control", readme)
-        self.assertIn("source-installed companion", readme)
+        installation = (
+            PLUGIN / "skills" / "codex-coordinator" / "references" / "installation.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("The bundled Mission Control companion", installation)
+        self.assertIn("Start Mission Control", installation)
+        self.assertIn("Stop Mission Control", installation)
+        self.assertIn("start --automatic --project <primary-worktree>", installation)
+        self.assertIn("automatic mode never overrides it", installation)
         self.assertTrue((REPOSITORY / "tests" / "test_mission_control.py").is_file())
 
     def test_skill_markdown_references_resolve_inside_the_skill(self) -> None:
@@ -487,7 +500,11 @@ class PackageContractTests(unittest.TestCase):
             (PLUGIN / "scripts" / "codex_coordinator_doctor.py").is_file()
         )
         contract = json.loads((skill_root / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 14)
+        self.assertEqual(contract["contractVersion"], 16)
+        self.assertEqual(
+            contract["capabilities"]["missionControlLifecycle"],
+            "bundled-autostart-user-disable-chat-control",
+        )
         self.assertEqual(
             contract["capabilities"]["doctorDiagnostics"],
             "json-with-optional-mermaid",
@@ -545,6 +562,10 @@ class PackageContractTests(unittest.TestCase):
         self.assertEqual(
             contract["capabilities"]["subagentDispatch"],
             "one-to-three-for-two-independent-lanes",
+        )
+        self.assertEqual(
+            contract["capabilities"]["pythonRuntimeBootstrap"],
+            "bounded-machine-discovery-informed-install",
         )
         self.assertTrue((skill_root / "scripts" / "coordination_state.py").is_file())
 

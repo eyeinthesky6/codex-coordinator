@@ -1,5 +1,5 @@
 {
-  "contractVersion": 14,
+  "contractVersion": 16,
   "capabilities": {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
@@ -21,7 +21,9 @@
     "continuationGuarantee": "verified-return-path-before-final",
     "archivedRecovery": "direct-request-no-repeat-confirmation",
     "externalWriteDisclosure": "prewrite-notice-and-scope-authority",
+    "missionControlLifecycle": "bundled-autostart-user-disable-chat-control",
     "subagentDispatch": "one-to-three-for-two-independent-lanes",
+    "pythonRuntimeBootstrap": "bounded-machine-discovery-informed-install",
     "taskLifecycle": [
       "pin-coordinator",
       "rename-worker",
