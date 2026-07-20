@@ -6,6 +6,7 @@ import html
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -203,6 +204,65 @@ class RepairFailed(DoctorError):
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _absolute_path(path: Path) -> Path:
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def _reject_redirecting_components(path: Path) -> None:
+    absolute = _absolute_path(path)
+    components = (absolute, *absolute.parents)
+    for component in reversed(components):
+        try:
+            metadata = os.lstat(component)
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            raise DoctorError(
+                f"Cannot inspect installation target component {component}: {error}"
+            ) from error
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+        if stat.S_ISLNK(metadata.st_mode) or (
+            reparse_flag and attributes & reparse_flag
+        ):
+            raise DoctorError(
+                f"Installation target contains a symlink or reparse-point component: {component}"
+            )
+
+
+def _canonical_destination(path: Path) -> Path:
+    absolute = _absolute_path(path)
+    _reject_redirecting_components(absolute)
+    return absolute.resolve(strict=False)
+
+
+def _assert_installed_target(
+    target: Path,
+    *,
+    kind: str,
+    canonical_skill_root: Path,
+    canonical_hook_path: Path,
+) -> Path:
+    absolute = _absolute_path(target)
+    _reject_redirecting_components(absolute)
+    resolved = absolute.resolve(strict=False)
+    if kind == "skill":
+        try:
+            resolved.relative_to(canonical_skill_root)
+        except ValueError as error:
+            raise DoctorError(
+                f"Installed skill target escapes its canonical root: {target}"
+            ) from error
+    elif kind == "hook":
+        if resolved != canonical_hook_path:
+            raise DoctorError(
+                "SessionStart hook target does not match its authorised canonical path"
+            )
+    else:
+        raise DoctorError(f"Unsupported installed target kind: {kind!r}")
+    return absolute
 
 
 def _parse_json(path: Path, raw: bytes) -> dict[str, Any]:
@@ -492,8 +552,13 @@ def _source_files(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(entries, key=lambda item: (str(item["kind"]), item["relative"].as_posix()))
 
 
-def _validate_capability_contract(skill_root: Path) -> list[dict[str, str]]:
+def _validate_capability_contract(
+    skill_root: Path,
+    assert_target: Any | None = None,
+) -> list[dict[str, str]]:
     contract_path = skill_root / CAPABILITY_CONTRACT
+    if assert_target is not None:
+        contract_path = assert_target(contract_path)
     contract = _read_json(contract_path)
     if contract.get("contractVersion") != CAPABILITY_CONTRACT_VERSION:
         raise DoctorError(
@@ -517,6 +582,8 @@ def _validate_capability_contract(skill_root: Path) -> list[dict[str, str]]:
 
     for relative, required_markers in REQUIRED_GUIDANCE.items():
         path = skill_root / relative
+        if assert_target is not None:
+            path = assert_target(path)
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeError) as error:
@@ -533,6 +600,8 @@ def _validate_capability_contract(skill_root: Path) -> list[dict[str, str]]:
                 )
 
     state_tool = skill_root / str(REQUIRED_CAPABILITIES["stateTool"])
+    if assert_target is not None:
+        state_tool = assert_target(state_tool)
     try:
         compile(state_tool.read_text(encoding="utf-8"), str(state_tool), "exec")
     except (OSError, UnicodeError, SyntaxError) as error:
@@ -550,8 +619,16 @@ def _validate_capability_contract(skill_root: Path) -> list[dict[str, str]]:
 def _validate_skill_package(
     skill_root: Path,
     managed_markdown: list[Path],
+    assert_target: Any | None = None,
 ) -> list[dict[str, str]]:
+    canonical_skill_root = (
+        assert_target(skill_root).resolve(strict=False)
+        if assert_target is not None
+        else skill_root.resolve(strict=False)
+    )
     skill_path = skill_root / "SKILL.md"
+    if assert_target is not None:
+        skill_path = assert_target(skill_path)
     try:
         skill_text = skill_path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as error:
@@ -562,9 +639,11 @@ def _validate_skill_package(
     ):
         raise DoctorError(f"Installed skill has invalid Coordinator frontmatter: {skill_path}")
 
-    capability_checks = _validate_capability_contract(skill_root)
+    capability_checks = _validate_capability_contract(skill_root, assert_target)
     checked_links = 0
     for markdown in sorted(managed_markdown):
+        if assert_target is not None:
+            markdown = assert_target(markdown)
         try:
             text = markdown.read_text(encoding="utf-8")
         except (OSError, UnicodeError) as error:
@@ -573,9 +652,12 @@ def _validate_skill_package(
             target = raw_target.strip().strip("<>").split("#", 1)[0].strip()
             if not target or target.startswith("#") or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target):
                 continue
-            resolved = (markdown.parent / target).resolve(strict=False)
+            resolved = markdown.parent / target
+            if assert_target is not None:
+                resolved = assert_target(resolved)
+            resolved = resolved.resolve(strict=False)
             try:
-                resolved.relative_to(skill_root.resolve(strict=False))
+                resolved.relative_to(canonical_skill_root)
             except ValueError as error:
                 raise DoctorError(f"Installed skill link escapes its package: {markdown} -> {target}") from error
             if not resolved.is_file():
@@ -587,7 +669,12 @@ def _validate_skill_package(
     ]
 
 
-def _validate_installed_hook(hook_path: Path) -> list[dict[str, str]]:
+def _validate_installed_hook(
+    hook_path: Path,
+    assert_target: Any | None = None,
+) -> list[dict[str, str]]:
+    if assert_target is not None:
+        hook_path = assert_target(hook_path)
     try:
         hook_text = hook_path.read_text(encoding="utf-8")
         compile(hook_text, str(hook_path), "exec")
@@ -595,6 +682,8 @@ def _validate_installed_hook(hook_path: Path) -> list[dict[str, str]]:
         raise DoctorError(f"Installed SessionStart hook is invalid: {hook_path}: {error}") from error
 
     try:
+        if assert_target is not None:
+            hook_path = assert_target(hook_path)
         with tempfile.TemporaryDirectory(prefix="codex-coordinator-doctor-") as directory:
             completed = subprocess.run(
                 [sys.executable, str(hook_path)],
@@ -622,12 +711,20 @@ def _validate_installation(
     skill_root: Path,
     hook_path: Path,
     managed_markdown: list[Path],
+    assert_skill_target: Any | None = None,
+    assert_hook_target: Any | None = None,
 ) -> list[dict[str, str]]:
-    return _validate_skill_package(skill_root, managed_markdown) + _validate_installed_hook(hook_path)
+    return _validate_skill_package(
+        skill_root, managed_markdown, assert_skill_target
+    ) + _validate_installed_hook(hook_path, assert_hook_target)
 
 
-def _atomic_write(path: Path, data: bytes) -> None:
+def _atomic_write(path: Path, data: bytes, assert_safe: Any | None = None) -> None:
+    if assert_safe is not None:
+        path = assert_safe(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    if assert_safe is not None:
+        path = assert_safe(path)
     temporary_name = ""
     try:
         with tempfile.NamedTemporaryFile(
@@ -637,13 +734,14 @@ def _atomic_write(path: Path, data: bytes) -> None:
             temporary.flush()
             os.fsync(temporary.fileno())
             temporary_name = temporary.name
+        if assert_safe is not None:
+            path = assert_safe(path)
         Path(temporary_name).replace(path)
     finally:
         if temporary_name:
-            try:
-                Path(temporary_name).unlink(missing_ok=True)
-            except OSError:
-                pass
+            if assert_safe is not None:
+                assert_safe(path)
+            Path(temporary_name).unlink(missing_ok=True)
 
 
 def _mermaid_label(value: Any) -> str:
@@ -774,6 +872,14 @@ def _path_in_plugin_cache(path: Path) -> bool:
     return False
 
 
+def _path_lexically_in_plugin_cache(path: Path) -> bool:
+    lowered = [part.casefold() for part in _absolute_path(path).parts]
+    return any(
+        lowered[index : index + 2] == ["plugins", "cache"]
+        for index in range(len(lowered) - 1)
+    )
+
+
 def _looks_marketplace_managed(path: Path) -> bool:
     resolved = path.resolve(strict=False)
     if _path_in_plugin_cache(resolved):
@@ -852,8 +958,8 @@ def sync_installation(
         installation_kind == "auto"
         and (
             _path_in_plugin_cache(source_plugin)
-            or _path_in_plugin_cache(skill_root)
-            or _path_in_plugin_cache(hook_path)
+            or _path_lexically_in_plugin_cache(skill_root)
+            or _path_lexically_in_plugin_cache(hook_path)
         )
     )
     expected_receipt_sha256, expected_package_version = _validate_expected_release(
@@ -885,8 +991,29 @@ def sync_installation(
                 "Doctor never rewrites marketplace-managed cache files directly."
             ),
         }
-    resolved_skill_root = skill_root.resolve(strict=False)
-    resolved_hook_path = hook_path.resolve(strict=False)
+    canonical_skill_root = _canonical_destination(skill_root)
+    canonical_hook_path = _canonical_destination(hook_path)
+
+    def assert_skill_target(path: Path) -> Path:
+        return _assert_installed_target(
+            path,
+            kind="skill",
+            canonical_skill_root=canonical_skill_root,
+            canonical_hook_path=canonical_hook_path,
+        )
+
+    def assert_hook_target(path: Path) -> Path:
+        return _assert_installed_target(
+            path,
+            kind="hook",
+            canonical_skill_root=canonical_skill_root,
+            canonical_hook_path=canonical_hook_path,
+        )
+
+    assert_skill_target(skill_root)
+    assert_hook_target(hook_path)
+    resolved_skill_root = canonical_skill_root
+    resolved_hook_path = canonical_hook_path
     try:
         resolved_hook_path.relative_to(resolved_skill_root)
     except ValueError:
@@ -915,6 +1042,8 @@ def sync_installation(
         source = source_entry["source"]
         relative = source_entry["relative"]
         target = skill_root / relative if file_kind == "skill" else hook_path
+        assert_target = assert_skill_target if file_kind == "skill" else assert_hook_target
+        target = assert_target(target)
         source_bytes = source_entry["sourceBytes"]
         source_hash = source_entry["sourceHash"]
         try:
@@ -950,6 +1079,7 @@ def sync_installation(
                 "sourceHash": source_hash,
                 "targetBytes": target_bytes,
                 "before": before,
+                "assertTarget": assert_target,
             }
         )
 
@@ -966,8 +1096,8 @@ def sync_installation(
             "recoveryState": "reinstall_required",
             "installationKind": kind,
             "sourcePlugin": str(source_plugin.resolve(strict=True)),
-            "skillRoot": str(skill_root.resolve(strict=False)),
-            "hookPath": str(hook_path.resolve(strict=False)),
+            "skillRoot": str(canonical_skill_root),
+            "hookPath": str(canonical_hook_path),
             "changedFiles": changed,
             "files": files,
             "installationChecks": [],
@@ -986,21 +1116,36 @@ def sync_installation(
             for item in planned:
                 if item["before"] == "current":
                     continue
-                _atomic_write(item["target"], item["sourceBytes"])
+                item["assertTarget"](item["target"])
+                _atomic_write(
+                    item["target"], item["sourceBytes"], item["assertTarget"]
+                )
                 applied.append(item)
             for item in applied:
+                item["assertTarget"](item["target"])
                 if _sha256(item["target"].read_bytes()) != item["sourceHash"]:
                     raise DoctorError(f"Installation verification failed for {item['target']}")
-            installation_checks = _validate_installation(skill_root, hook_path, managed_markdown)
+            installation_checks = _validate_installation(
+                skill_root,
+                hook_path,
+                managed_markdown,
+                assert_skill_target,
+                assert_hook_target,
+            )
         except (DoctorError, OSError) as error:
             rollback_errors: list[str] = []
             for item in reversed(applied):
                 try:
+                    item["assertTarget"](item["target"])
                     if item["targetBytes"] is None:
                         item["target"].unlink(missing_ok=True)
                     else:
-                        _atomic_write(item["target"], item["targetBytes"])
-                except OSError as rollback_error:
+                        _atomic_write(
+                            item["target"],
+                            item["targetBytes"],
+                            item["assertTarget"],
+                        )
+                except (DoctorError, OSError) as rollback_error:
                     rollback_errors.append(
                         f"{item['relative'].as_posix()}: {rollback_error}"
                     )
@@ -1017,7 +1162,13 @@ def sync_installation(
             if file["before"] != "current":
                 file["state"] = "updated"
     elif not changed:
-        installation_checks = _validate_installation(skill_root, hook_path, managed_markdown)
+        installation_checks = _validate_installation(
+            skill_root,
+            hook_path,
+            managed_markdown,
+            assert_skill_target,
+            assert_hook_target,
+        )
 
     return {
         "status": "updated" if apply and changed else ("drift" if changed else "current"),
@@ -1029,8 +1180,8 @@ def sync_installation(
         ),
         "installationKind": kind,
         "sourcePlugin": str(source_plugin.resolve(strict=True)),
-        "skillRoot": str(skill_root.resolve(strict=False)),
-        "hookPath": str(hook_path.resolve(strict=False)),
+        "skillRoot": str(canonical_skill_root),
+        "hookPath": str(canonical_hook_path),
         "changedFiles": changed,
         "files": files,
         "installationChecks": installation_checks,

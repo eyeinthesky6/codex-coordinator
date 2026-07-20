@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -295,6 +296,21 @@ def _sync_installation(
     for key, value in identity.items():
         kwargs.setdefault(key, value)
     return doctor.sync_installation(source, skill_root, hook_path, **kwargs)
+
+
+def _redirect_directory(path: Path, target: Path) -> None:
+    if os.name == "nt":
+        completed = subprocess.run(
+            ["cmd", "/d", "/c", "mklink", "/J", str(path), str(target)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise OSError(completed.stderr or completed.stdout)
+    else:
+        path.symlink_to(target, target_is_directory=True)
 
 
 class DoctorTests(unittest.TestCase):
@@ -894,6 +910,82 @@ class DoctorTests(unittest.TestCase):
                 _sync_installation(source, skill_root, hook_path, apply=True)
             self.assertFalse(hook_path.exists())
 
+    @unittest.skipUnless(os.name == "nt", "Windows junction regression")
+    def test_windows_junction_is_rejected_without_outside_read_or_write(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "source")
+            skill_root = root / "installed" / "skill"
+            skill_root.mkdir(parents=True)
+            outside = root / "outside"
+            outside.mkdir()
+            outside_target = outside / "coordination_state.py"
+            outside_target.write_bytes(b"outside-original")
+            _redirect_directory(skill_root / "scripts", outside)
+            hook_path = root / "installed" / "hook.py"
+            outside_reads: list[Path] = []
+            original_read_bytes = Path.read_bytes
+
+            def track_read(path: Path) -> bytes:
+                try:
+                    path.resolve(strict=False).relative_to(outside.resolve())
+                except ValueError:
+                    pass
+                else:
+                    outside_reads.append(path)
+                return original_read_bytes(path)
+
+            with mock.patch.object(Path, "read_bytes", track_read):
+                with self.assertRaisesRegex(
+                    doctor.DoctorError, "symlink or reparse-point"
+                ):
+                    _sync_installation(source, skill_root, hook_path, apply=True)
+
+            self.assertEqual(outside_reads, [])
+            self.assertEqual(outside_target.read_bytes(), b"outside-original")
+            self.assertFalse(hook_path.exists())
+
+    @unittest.skipIf(os.name == "nt", "Unix symlink regression")
+    def test_unix_hook_symlink_is_rejected_without_outside_read_or_write(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "source")
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+            hook_path.parent.mkdir(parents=True)
+            outside_hook = root / "outside-hook.py"
+            outside_hook.write_bytes(b"outside-original")
+            hook_path.symlink_to(outside_hook)
+            outside_reads: list[Path] = []
+            original_read_bytes = Path.read_bytes
+
+            def track_read(path: Path) -> bytes:
+                if path.resolve(strict=False) == outside_hook.resolve():
+                    outside_reads.append(path)
+                return original_read_bytes(path)
+
+            with mock.patch.object(Path, "read_bytes", track_read):
+                with self.assertRaisesRegex(
+                    doctor.DoctorError, "symlink or reparse-point"
+                ):
+                    _sync_installation(source, skill_root, hook_path, apply=True)
+
+            self.assertEqual(outside_reads, [])
+            self.assertEqual(outside_hook.read_bytes(), b"outside-original")
+
+    def test_safe_nested_skill_directories_remain_supported(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "source")
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hooks" / "hook.py"
+
+            report = _sync_installation(source, skill_root, hook_path, apply=True)
+
+            self.assertEqual(report["status"], "updated")
+            self.assertTrue((skill_root / "references" / "operations.md").is_file())
+            self.assertTrue((skill_root / "scripts" / "coordination_state.py").is_file())
+
     def test_duplicate_json_keys_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -960,12 +1052,14 @@ class DoctorTests(unittest.TestCase):
             original_write = doctor._atomic_write
             writes = 0
 
-            def fail_second_write(path: Path, data: bytes) -> None:
+            def fail_second_write(
+                path: Path, data: bytes, assert_safe: object = None
+            ) -> None:
                 nonlocal writes
                 writes += 1
                 if writes == 2:
                     raise OSError("simulated later write failure")
-                original_write(path, data)
+                original_write(path, data, assert_safe)
 
             with mock.patch.object(doctor, "_atomic_write", side_effect=fail_second_write):
                 with self.assertRaises(doctor.RepairFailed) as failure:
@@ -1002,12 +1096,14 @@ class DoctorTests(unittest.TestCase):
             original_write = doctor._atomic_write
             writes = 0
 
-            def fail_update_and_restore(path: Path, data: bytes) -> None:
+            def fail_update_and_restore(
+                path: Path, data: bytes, assert_safe: object = None
+            ) -> None:
                 nonlocal writes
                 writes += 1
                 if writes in {2, 3}:
                     raise OSError("simulated update or restore failure")
-                original_write(path, data)
+                original_write(path, data, assert_safe)
 
             with mock.patch.object(
                 doctor, "_atomic_write", side_effect=fail_update_and_restore
@@ -1020,6 +1116,59 @@ class DoctorTests(unittest.TestCase):
             )
             self.assertFalse(failure.exception.report["rollback"]["lastGoodRestored"])
             self.assertEqual(len(failure.exception.report["rollback"]["errors"]), 1)
+
+    def test_rollback_rejects_new_directory_redirect_without_outside_access(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "source")
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+            _sync_installation(source, skill_root, hook_path, apply=True)
+            state_tool = skill_root / "scripts" / "coordination_state.py"
+            state_tool.write_bytes(b"last-good-local")
+            outside = root / "outside"
+            outside.mkdir()
+            outside_target = outside / "coordination_state.py"
+            outside_target.write_bytes(b"outside-original")
+            saved_scripts = skill_root / "saved-scripts"
+
+            def redirect_before_validation(*args: object, **kwargs: object) -> object:
+                (skill_root / "scripts").rename(saved_scripts)
+                _redirect_directory(skill_root / "scripts", outside)
+                raise doctor.DoctorError("simulated validation failure after redirect")
+
+            outside_reads: list[Path] = []
+            original_read_bytes = Path.read_bytes
+
+            def track_read(path: Path) -> bytes:
+                try:
+                    path.resolve(strict=False).relative_to(outside.resolve())
+                except ValueError:
+                    pass
+                else:
+                    outside_reads.append(path)
+                return original_read_bytes(path)
+
+            with mock.patch.object(
+                doctor, "_validate_installation", side_effect=redirect_before_validation
+            ), mock.patch.object(Path, "read_bytes", track_read):
+                with self.assertRaises(doctor.RepairFailed) as failure:
+                    _sync_installation(source, skill_root, hook_path, apply=True)
+
+            self.assertEqual(
+                failure.exception.report["recoveryState"], "manual_action_required"
+            )
+            self.assertFalse(failure.exception.report["rollback"]["lastGoodRestored"])
+            self.assertIn(
+                "symlink or reparse-point",
+                failure.exception.report["rollback"]["errors"][0],
+            )
+            self.assertEqual(outside_reads, [])
+            self.assertEqual(outside_target.read_bytes(), b"outside-original")
+            self.assertEqual(
+                (saved_scripts / "coordination_state.py").read_bytes(),
+                (source / "skills" / "codex-coordinator" / "scripts" / "coordination_state.py").read_bytes(),
+            )
 
     def test_installed_runtime_failure_rolls_back_the_update(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
