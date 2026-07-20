@@ -1694,11 +1694,11 @@ class DoctorTests(unittest.TestCase):
             hook_path.write_bytes(b"hook")
 
             cases = (
-                ("parent traversal", Path(target.anchor)),
-                ("read", target),
-                ("final parent", target.parent),
+                ("parent traversal", Path(target.anchor), 2),
+                ("read", target, 1),
+                ("final parent", target.parent, 1),
             )
-            for label, selected_target in cases:
+            for label, selected_target, expected_errors in cases:
                 with self.subTest(lifetime=label):
                     access = doctor._InstalledTargetAccess(skill_root, hook_path)
                     original_close = access._windows_close_error
@@ -1723,7 +1723,9 @@ class DoctorTests(unittest.TestCase):
 
                     self.assertIn(label, str(failure.exception))
                     self.assertTrue(failed)
-                    self.assertEqual(len(failure.exception.recovery_errors), 1)
+                    self.assertEqual(
+                        len(failure.exception.recovery_errors), expected_errors
+                    )
 
     @unittest.skipUnless(os.name == "nt", "Windows checked-handle cleanup regression")
     def test_rejected_child_and_unlink_close_failures_are_exact(self) -> None:
@@ -1828,26 +1830,41 @@ class DoctorTests(unittest.TestCase):
             missing_path = skill_root / doctor.CAPABILITY_CONTRACT
             missing_path.unlink()
             original_close = doctor._InstalledTargetAccess._windows_close_error
-            target_closes = 0
+            original_unlink = doctor._InstalledTargetAccess._windows_unlink
+            rolling_back_absence = False
+            close_failed = False
 
-            def fail_second_target_close(
+            def fail_absence_rollback_close(
                 access: object, handle: int, close_target: Path
             ) -> str | None:
-                nonlocal target_closes
+                nonlocal close_failed
                 error = original_close(access, handle, close_target)
-                if Path(close_target) == missing_path:
-                    target_closes += 1
-                    if target_closes == 2:
-                        return (
-                            f"native handle cleanup unproven for {missing_path}: "
-                            "CloseHandle returned 0 (Windows error 6: simulated absence rollback)"
-                        )
+                if rolling_back_absence and Path(close_target).name == missing_path.name:
+                    close_failed = True
+                    return (
+                        f"native handle cleanup unproven for {missing_path}: "
+                        "CloseHandle returned 0 (Windows error 6: simulated absence rollback)"
+                    )
                 return error
+
+            def mark_absence_rollback(
+                access: object, path: Path, *, missing_ok: bool
+            ) -> None:
+                nonlocal rolling_back_absence
+                rolling_back_absence = True
+                try:
+                    original_unlink(access, path, missing_ok=missing_ok)
+                finally:
+                    rolling_back_absence = False
 
             with mock.patch.object(
                 doctor._InstalledTargetAccess,
                 "_windows_close_error",
-                new=fail_second_target_close,
+                new=fail_absence_rollback_close,
+            ), mock.patch.object(
+                doctor._InstalledTargetAccess,
+                "_windows_unlink",
+                new=mark_absence_rollback,
             ), mock.patch.object(
                 doctor,
                 "_validate_installation",
@@ -1857,7 +1874,7 @@ class DoctorTests(unittest.TestCase):
                     _sync_installation(source, skill_root, hook_path, apply=True)
 
             report = failure.exception.report
-            self.assertGreaterEqual(target_closes, 2)
+            self.assertTrue(close_failed)
             self.assertEqual(report["recoveryState"], "manual_action_required")
             self.assertFalse(report["rollback"]["lastGoodRestored"])
             self.assertIn(str(missing_path), report["rollback"]["errors"][0])
