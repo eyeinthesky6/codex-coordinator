@@ -186,6 +186,17 @@ def _source_plugin(root: Path, *, name: str = "codex-coordinator") -> Path:
     (plugin / "scripts" / "codex_coordinator_session_start.py").write_text(
         "import json, sys\njson.load(sys.stdin)\n", encoding="utf-8"
     )
+    (plugin / "mission_control").mkdir()
+    for relative, content in {
+        "mission_control/__main__.py": "raise SystemExit(0)\n",
+        "mission_control/doctor_scan.py": "raise SystemExit(0)\n",
+        "scripts/codex_coordinator_bootstrap.ps1": "# test bootstrap\n",
+        "scripts/codex_coordinator_bootstrap.sh": "#!/bin/sh\nexit 0\n",
+        "scripts/codex_coordinator_doctor.py": "raise SystemExit(0)\n",
+        "scripts/codex_coordinator_uninstall.py": "raise SystemExit(0)\n",
+        "scripts/mission_control_lifecycle.py": "raise SystemExit(0)\n",
+    }.items():
+        (plugin / relative).write_text(content, encoding="utf-8")
     skill = plugin / "skills" / "codex-coordinator"
     (skill / "SKILL.md").write_text(SKILL_TEXT, encoding="utf-8")
     (skill / "references" / "operations.md").write_text(OPERATIONS_TEXT, encoding="utf-8")
@@ -234,6 +245,25 @@ def _source_plugin(root: Path, *, name: str = "codex-coordinator") -> Path:
                 "sourcePath": source.relative_to(plugin).as_posix(),
                 "managedPath": relative.as_posix(),
                 "sha256": doctor._sha256(source.read_bytes()),
+            }
+        )
+    for relative in (
+        "hooks/hooks.json",
+        "mission_control/__main__.py",
+        "mission_control/doctor_scan.py",
+        "scripts/codex_coordinator_bootstrap.ps1",
+        "scripts/codex_coordinator_bootstrap.sh",
+        "scripts/codex_coordinator_doctor.py",
+        "scripts/codex_coordinator_uninstall.py",
+        "scripts/mission_control_lifecycle.py",
+    ):
+        runtime = plugin / relative
+        managed_files.append(
+            {
+                "kind": "runtime",
+                "sourcePath": relative,
+                "managedPath": relative,
+                "sha256": doctor._sha256(runtime.read_bytes()),
             }
         )
     hook = plugin / "scripts" / doctor.HOOK_NAME
@@ -296,6 +326,15 @@ def _sync_installation(
     for key, value in identity.items():
         kwargs.setdefault(key, value)
     return doctor.sync_installation(source, skill_root, hook_path, **kwargs)
+
+
+def _prepare_destinations(source: Path, skill_root: Path, hook_path: Path) -> None:
+    receipt = json.loads((source / "release-receipt.json").read_text(encoding="utf-8"))
+    for entry in receipt["managedFiles"]:
+        if entry["kind"] == "skill":
+            (skill_root / entry["managedPath"]).parent.mkdir(parents=True, exist_ok=True)
+        elif entry["kind"] == "hook":
+            hook_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 def _redirect_directory(path: Path, target: Path) -> None:
@@ -392,6 +431,7 @@ class DoctorTests(unittest.TestCase):
             hook_path = root / "installed" / "hooks" / "session_start.py"
             diagram_path = root / "reports" / "doctor.mmd"
             identity = _release_identity(source)
+            _prepare_destinations(source, skill_root, hook_path)
 
             with mock.patch("builtins.print") as print_output:
                 result = doctor.main(
@@ -426,6 +466,7 @@ class DoctorTests(unittest.TestCase):
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hooks" / "session_start.py"
             identity = _release_identity(source)
+            _prepare_destinations(source, skill_root, hook_path)
 
             with mock.patch("builtins.print") as print_output:
                 result = doctor.main(
@@ -469,7 +510,7 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root)
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hooks" / "session_start.py"
-            skill_root.mkdir(parents=True)
+            _prepare_destinations(source, skill_root, hook_path)
             (skill_root / "SKILL.md").write_text("# Old skill\n", encoding="utf-8")
             (skill_root / "local-note.md").write_text(
                 "preserve me even with [a local broken link](missing-local-file.md)\n",
@@ -527,6 +568,7 @@ class DoctorTests(unittest.TestCase):
             project_state = root / "project" / ".codex" / "coordination" / "CURRENT.md"
             project_state.parent.mkdir(parents=True)
             project_state.write_text("preserve project state\n", encoding="utf-8")
+            _prepare_destinations(source, skill_root, hook_path)
 
             initial = _sync_installation(source, skill_root, hook_path, apply=True)
             self.assertEqual(initial["status"], "updated")
@@ -607,6 +649,7 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root)
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
             _sync_installation(source, skill_root, hook_path, apply=True)
             (skill_root / "references" / "operations.md").unlink()
 
@@ -814,6 +857,7 @@ class DoctorTests(unittest.TestCase):
             _refresh_receipt(source)
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
 
             report = doctor.sync_installation(
                 source,
@@ -1158,172 +1202,91 @@ class DoctorTests(unittest.TestCase):
                 _sync_installation(source, skill_root, hook_path, apply=True)
             self.assertFalse(hook_path.exists())
 
-    @unittest.skipUnless(os.name == "nt", "Windows directory transaction regression")
-    def test_windows_first_install_failure_removes_only_created_directories(self) -> None:
+    def test_missing_destination_directories_fail_before_target_access_or_write(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = _source_plugin(root / "source")
             skill_root = root / "new" / "installed" / "skill"
             hook_path = root / "new" / "installed" / "scripts" / "hook.py"
-            original_write = doctor._InstalledTargetAccess.atomic_write
-            writes = 0
-
-            def fail_second_write(access: object, path: Path, data: bytes) -> None:
-                nonlocal writes
-                writes += 1
-                if writes == 2:
-                    raise RuntimeError("simulated first-install partial failure")
-                original_write(access, path, data)
-
             with mock.patch.object(
-                doctor._InstalledTargetAccess, "atomic_write", new=fail_second_write
-            ):
-                with self.assertRaises(doctor.RepairFailed) as failure:
-                    _sync_installation(source, skill_root, hook_path, apply=True)
+                doctor._InstalledTargetAccess, "read_bytes", autospec=True
+            ) as read, mock.patch.object(
+                doctor._InstalledTargetAccess, "atomic_write", autospec=True
+            ) as write:
+                report = _sync_installation(source, skill_root, hook_path, apply=True)
 
-            self.assertTrue(failure.exception.report["rollback"]["lastGoodRestored"])
+            self.assertEqual(report["recoveryState"], "manual_action_required")
+            self.assertFalse(report["rollback"]["lastGoodRestored"])
+            self.assertFalse(report["rollback"]["attempted"])
+            read.assert_not_called()
+            write.assert_not_called()
             self.assertFalse((root / "new").exists())
 
-            preexisting = root / "preexisting"
-            preexisting.mkdir()
-            skill_root = preexisting / "installed" / "skill"
-            hook_path = preexisting / "installed" / "scripts" / "hook.py"
-            writes = 0
-            with mock.patch.object(
-                doctor._InstalledTargetAccess, "atomic_write", new=fail_second_write
-            ):
-                with self.assertRaises(doctor.RepairFailed):
-                    _sync_installation(source, skill_root, hook_path, apply=True)
-            self.assertTrue(preexisting.is_dir())
-            self.assertEqual(list(preexisting.iterdir()), [])
-
-    @unittest.skipUnless(os.name == "nt", "Windows directory transaction regression")
-    def test_windows_created_directory_nonempty_swap_and_cleanup_are_unproven(self) -> None:
-        cases = ("nonempty", "swap", "cleanup")
-        for case in cases:
-            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                source = _source_plugin(root / "source")
-                skill_root = root / "installed" / "skill"
-                hook_path = root / "installed" / "scripts" / "hook.py"
-                original_write = doctor._InstalledTargetAccess.atomic_write
-                original_rollback = doctor._InstalledTargetAccess.rollback_created_directories
-                writes = 0
-
-                def fail_after_first(access: object, path: Path, data: bytes) -> None:
-                    nonlocal writes
-                    writes += 1
-                    if writes == 2:
-                        scripts = hook_path.parent
-                        if case == "nonempty":
-                            (scripts / "unexpected.txt").write_text(
-                                "preserve", encoding="utf-8"
-                            )
-                        elif case == "swap":
-                            moved = root / "moved-scripts"
-                            scripts.rename(moved)
-                            scripts.mkdir()
-                            (scripts / "replacement.txt").write_text(
-                                "preserve", encoding="utf-8"
-                            )
-                        raise RuntimeError(f"simulated {case} rollback")
-                    original_write(access, path, data)
-
-                def fail_cleanup_identity(access: object) -> list[str]:
-                    if case != "cleanup":
-                        return original_rollback(access)
-                    with mock.patch.object(
-                        access,
-                        "_windows_identity",
-                        side_effect=OSError("simulated directory cleanup failure"),
-                    ):
-                        return original_rollback(access)
-
-                with mock.patch.object(
-                    doctor._InstalledTargetAccess, "atomic_write", new=fail_after_first
-                ), mock.patch.object(
-                    doctor._InstalledTargetAccess,
-                    "rollback_created_directories",
-                    new=fail_cleanup_identity,
-                ):
-                    with self.assertRaises(doctor.RepairFailed) as failure:
-                        _sync_installation(source, skill_root, hook_path, apply=True)
-
-                report = failure.exception.report
-                self.assertEqual(report["recoveryState"], "manual_action_required")
-                self.assertFalse(report["rollback"]["lastGoodRestored"])
-                self.assertTrue(
-                    any("created directory" in error for error in report["rollback"]["errors"])
-                )
-                if case == "nonempty":
-                    self.assertEqual(
-                        (hook_path.parent / "unexpected.txt").read_text(encoding="utf-8"),
-                        "preserve",
-                    )
-                elif case == "swap":
-                    self.assertEqual(
-                        (hook_path.parent / "replacement.txt").read_text(encoding="utf-8"),
-                        "preserve",
-                    )
-
-    @unittest.skipIf(os.name == "nt", "Unix directory transaction regression")
-    def test_unix_created_directory_rollback_preserves_preexisting_boundaries(self) -> None:
+    def test_preexisting_destination_directories_allow_read_only_diagnosis(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            preexisting = root / "preexisting"
-            preexisting.mkdir()
-            skill_root = preexisting / "installed" / "skill"
-            hook_path = preexisting / "hook.py"
-            access = doctor._InstalledTargetAccess(skill_root, hook_path)
-            access.begin_directory_transaction()
-            target = skill_root / "references" / "file.txt"
-            with access._unix_parent(target, create=True):
-                pass
-            self.assertEqual(access.rollback_created_directories(), [])
-            self.assertTrue(preexisting.is_dir())
-            self.assertEqual(list(preexisting.iterdir()), [])
+            source = _source_plugin(root / "source")
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "scripts" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
 
-    @unittest.skipIf(os.name == "nt", "Unix directory transaction regression")
-    def test_unix_created_directory_nonempty_swap_and_cleanup_are_unproven(self) -> None:
-        for case in ("nonempty", "swap", "cleanup"):
-            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                skill_root = root / "installed" / "skill"
-                hook_path = root / "hook.py"
-                access = doctor._InstalledTargetAccess(skill_root, hook_path)
-                access.begin_directory_transaction()
-                created = skill_root / "references"
-                with access._unix_parent(created / "file.txt", create=True):
-                    pass
-                if case == "nonempty":
-                    (created / "unexpected.txt").write_text("preserve", encoding="utf-8")
-                elif case == "swap":
-                    moved = root / "moved-references"
-                    created.rename(moved)
-                    created.mkdir()
-                    (created / "replacement.txt").write_text("preserve", encoding="utf-8")
-                if case == "cleanup":
-                    patch = mock.patch.object(
-                        doctor.os,
-                        "rmdir",
-                        side_effect=OSError("simulated directory cleanup failure"),
-                    )
-                else:
-                    patch = contextlib.nullcontext()
-                with patch:
-                    errors = access.rollback_created_directories()
-                self.assertTrue(errors)
-                self.assertTrue(any("created directory" in error for error in errors))
-                if case == "nonempty":
-                    self.assertEqual(
-                        (created / "unexpected.txt").read_text(encoding="utf-8"),
-                        "preserve",
-                    )
-                elif case == "swap":
-                    self.assertEqual(
-                        (created / "replacement.txt").read_text(encoding="utf-8"),
-                        "preserve",
-                    )
+            report = _sync_installation(source, skill_root, hook_path, apply=False)
+
+            self.assertEqual(report["status"], "drift")
+            self.assertEqual(report["recoveryState"], "trusted_repair_available")
+
+    @unittest.skipUnless(os.name == "nt", "Windows repair requires handle-bound replace")
+    def test_windows_preexisting_destination_directories_repair_normally(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "source")
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "scripts" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
+            unexpected = skill_root / "unexpected.txt"
+            unexpected.write_text("preserve", encoding="utf-8")
+
+            report = _sync_installation(source, skill_root, hook_path, apply=True)
+
+            self.assertEqual(report["status"], "updated")
+            self.assertEqual(unexpected.read_text(encoding="utf-8"), "preserve")
+
+    def test_recreated_destination_after_preflight_is_rejected_without_write(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "source")
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "scripts" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
+            original_validate = doctor._InstalledTargetAccess.validate_parent
+            validation_count = 0
+            target_count = len(doctor._source_files(doctor._validated_source(
+                source,
+                expected_receipt_sha256=_release_identity(source)["expected_receipt_sha256"],
+                expected_package_version="1.0.0",
+            )[3]))
+
+            def recreate_after_preflight(access: object, path: Path) -> None:
+                nonlocal validation_count
+                original_validate(access, path)
+                validation_count += 1
+                if validation_count == target_count:
+                    moved = root / "moved-scripts"
+                    hook_path.parent.rename(moved)
+                    hook_path.parent.mkdir()
+
+            with mock.patch.object(
+                doctor._InstalledTargetAccess,
+                "validate_parent",
+                new=recreate_after_preflight,
+            ), mock.patch.object(
+                doctor._InstalledTargetAccess, "atomic_write", autospec=True
+            ) as write:
+                report = _sync_installation(source, skill_root, hook_path, apply=True)
+
+            self.assertEqual(report["recoveryState"], "manual_action_required")
+            self.assertFalse(report["rollback"]["lastGoodRestored"])
+            write.assert_not_called()
 
     @unittest.skipUnless(os.name == "nt", "Windows junction regression")
     def test_windows_junction_is_rejected_without_outside_read_or_write(self) -> None:
@@ -1350,12 +1313,17 @@ class DoctorTests(unittest.TestCase):
                     outside_reads.append(path)
                 return original_read_bytes(path)
 
-            with mock.patch.object(Path, "read_bytes", track_read):
-                with self.assertRaisesRegex(
-                    doctor.DoctorError, "symlink or reparse-point"
-                ):
-                    _sync_installation(source, skill_root, hook_path, apply=True)
+            with mock.patch.object(Path, "read_bytes", track_read), mock.patch.object(
+                doctor._InstalledTargetAccess, "read_bytes", autospec=True
+            ) as read, mock.patch.object(
+                doctor._InstalledTargetAccess, "atomic_write", autospec=True
+            ) as write:
+                report = _sync_installation(source, skill_root, hook_path, apply=True)
 
+            self.assertEqual(report["recoveryState"], "manual_action_required")
+            self.assertFalse(report["rollback"]["lastGoodRestored"])
+            read.assert_not_called()
+            write.assert_not_called()
             self.assertEqual(outside_reads, [])
             self.assertEqual(outside_target.read_bytes(), b"outside-original")
             self.assertFalse(hook_path.exists())
@@ -1379,12 +1347,17 @@ class DoctorTests(unittest.TestCase):
                     outside_reads.append(path)
                 return original_read_bytes(path)
 
-            with mock.patch.object(Path, "read_bytes", track_read):
-                with self.assertRaisesRegex(
-                    doctor.DoctorError, "symlink or reparse-point"
-                ):
-                    _sync_installation(source, skill_root, hook_path, apply=True)
+            with mock.patch.object(Path, "read_bytes", track_read), mock.patch.object(
+                doctor._InstalledTargetAccess, "read_bytes", autospec=True
+            ) as read, mock.patch.object(
+                doctor._InstalledTargetAccess, "atomic_write", autospec=True
+            ) as write:
+                report = _sync_installation(source, skill_root, hook_path, apply=True)
 
+            self.assertEqual(report["recoveryState"], "manual_action_required")
+            self.assertFalse(report["rollback"]["lastGoodRestored"])
+            read.assert_not_called()
+            write.assert_not_called()
             self.assertEqual(outside_reads, [])
             self.assertEqual(outside_hook.read_bytes(), b"outside-original")
 
@@ -1395,6 +1368,7 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root / "source")
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hooks" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
 
             report = _sync_installation(source, skill_root, hook_path, apply=True)
 
@@ -1585,6 +1559,7 @@ class DoctorTests(unittest.TestCase):
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
             identity = _release_identity(source)
+            _prepare_destinations(source, skill_root, hook_path)
 
             with mock.patch("builtins.print") as output:
                 result = doctor.main(
@@ -1611,7 +1586,7 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(payload["status"], "error")
             self.assertEqual(payload["recoveryState"], "manual_action_required")
             self.assertIn("no handle-bound atomic replacement primitive", payload["error"])
-            self.assertFalse(skill_root.exists())
+            self.assertTrue(skill_root.is_dir())
             self.assertFalse(hook_path.exists())
 
     def test_duplicate_json_keys_are_rejected(self) -> None:
@@ -1671,8 +1646,7 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root)
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hooks" / "session_start.py"
-            (skill_root / "references").mkdir(parents=True)
-            hook_path.parent.mkdir(parents=True)
+            _prepare_destinations(source, skill_root, hook_path)
             (skill_root / "SKILL.md").write_text("# Old skill\n", encoding="utf-8")
             (skill_root / "references" / "operations.md").write_text(
                 "# Old operations\n", encoding="utf-8"
@@ -1718,6 +1692,7 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root)
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
             _sync_installation(source, skill_root, hook_path, apply=True)
             last_good = b"print('last good hook')\n"
             hook_path.write_bytes(last_good)
@@ -1758,6 +1733,7 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root)
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
             _sync_installation(source, skill_root, hook_path, apply=True)
             skill_path = skill_root / "SKILL.md"
             missing_path = skill_root / doctor.CAPABILITY_CONTRACT
@@ -1838,6 +1814,7 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root)
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
             _sync_installation(source, skill_root, hook_path, apply=True)
             skill_path = skill_root / "SKILL.md"
             last_good = b"# Locally modified last-good skill\n"
@@ -2031,6 +2008,7 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root)
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
             _sync_installation(source, skill_root, hook_path, apply=True)
             missing_path = skill_root / doctor.CAPABILITY_CONTRACT
             missing_path.unlink()
@@ -2091,6 +2069,7 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root)
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
             _sync_installation(source, skill_root, hook_path, apply=True)
             skill_path = skill_root / "SKILL.md"
             last_good = b"# Last good before leaked handle\n"
@@ -2150,7 +2129,8 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root)
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
-            (skill_root / "agents").mkdir(parents=True)
+            _prepare_destinations(source, skill_root, hook_path)
+            (skill_root / "agents").mkdir(exist_ok=True)
             (skill_root / "agents" / "openai.yaml").write_text(
                 "old agent metadata\n", encoding="utf-8"
             )
@@ -2190,6 +2170,7 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root / "source")
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
             _sync_installation(source, skill_root, hook_path, apply=True)
             state_tool = skill_root / "scripts" / "coordination_state.py"
             state_tool.write_bytes(b"last-good-local")
@@ -2244,6 +2225,7 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root / "source")
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
             _sync_installation(source, skill_root, hook_path, apply=True)
             scripts = skill_root / "scripts"
             state_tool = scripts / "coordination_state.py"
@@ -2294,6 +2276,7 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root / "source")
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
+            _prepare_destinations(source, skill_root, hook_path)
             _sync_installation(source, skill_root, hook_path, apply=True)
             scripts = skill_root / "scripts"
             state_tool = scripts / "coordination_state.py"
@@ -2364,7 +2347,7 @@ class DoctorTests(unittest.TestCase):
             _refresh_receipt(source)
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
-            (skill_root / "references").mkdir(parents=True)
+            _prepare_destinations(source, skill_root, hook_path)
             (skill_root / "SKILL.md").write_text("# Old skill\n", encoding="utf-8")
             (skill_root / "references" / "operations.md").write_text(
                 "# Old operations\n", encoding="utf-8"
