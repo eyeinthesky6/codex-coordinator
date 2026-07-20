@@ -42,6 +42,8 @@ class PythonBootstrapTests(unittest.TestCase):
                 "--no-install",
             ]
 
+        environment = os.environ.copy()
+        environment["CODEX_COORDINATOR_DISABLE_MISSION_CONTROL_AUTOSTART"] = "1"
         result = subprocess.run(
             command,
             input=payload,
@@ -49,6 +51,7 @@ class PythonBootstrapTests(unittest.TestCase):
             capture_output=True,
             timeout=20,
             check=False,
+            env=environment,
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
