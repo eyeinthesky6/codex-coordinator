@@ -1,5 +1,6 @@
 import json
 import hashlib
+import os
 import shutil
 import sqlite3
 import sys
@@ -777,6 +778,7 @@ class CollectorTests(unittest.TestCase):
             apply_command = run.call_args_list[0].args[0]
             check_command = run.call_args_list[1].args[0]
             self.assertEqual(apply_command[0], sys.executable)
+            self.assertEqual(apply_command[1], "-I")
             self.assertIn("--apply", apply_command)
             self.assertIn("--check", check_command)
             self.assertIn("--skill-root", apply_command)
@@ -824,6 +826,33 @@ class CollectorTests(unittest.TestCase):
             )
             self.assertEqual(state["projectScan"]["status"], "healthy")
             self.assertEqual(state["health"], "review")
+
+    def test_installation_helper_uses_isolated_imports_in_real_package_shape(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plugin = root / "plugin"
+            shutil.copytree(
+                PLUGIN,
+                plugin,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            )
+            marker = root / "shadow-executed.txt"
+            (plugin / "scripts" / "json.py").write_text(
+                "import os\n"
+                "open(os.environ['CODEX_SHADOW_MARKER'], 'w', encoding='utf-8').write(__file__)\n"
+                "raise RuntimeError('shadow json executed')\n",
+                encoding="utf-8",
+            )
+            runner = DoctorRunner(root / "data", plugin, root / "codex-home")
+
+            with mock.patch.dict(
+                os.environ,
+                {"CODEX_SHADOW_MARKER": str(marker), "PYTHONPATH": str(plugin / "scripts")},
+            ):
+                report = runner._run_installation_helper("--check")
+
+            self.assertEqual(report["recoveryState"], "manual_action_required")
+            self.assertFalse(marker.exists())
 
     def test_marketplace_reinstall_result_still_scans_and_never_writes_cache(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -21,15 +21,13 @@ The SessionStart registration first runs the packaged OS-native bootstrap. It ac
 
 If no compatible interpreter exists, the bootstrap writes a plain notice before attempting installation. Prefer an existing user-scoped installer: `winget --scope user` on Windows, then `uv` or Homebrew on supported Unix systems. A system package manager may run only when the current process is already root. Never invoke `sudo`, prompt for an administrator password, permanently edit PATH, or download an unverified standalone binary. If installation is unavailable or fails, return valid SessionStart output explaining that Python 3.10+ is required so the task can continue without a broken hook response.
 
-Once selected, the same interpreter runs the Coordinator hook and its bundled Mission Control lifecycle. A discovered Codex-bundled interpreter is a best-effort fallback; do not hardcode one versioned cache path or describe that internal path as a stable Codex API.
+Once selected, the interpreter runs only the Coordinator hook. A discovered Codex-bundled interpreter is a best-effort fallback; do not hardcode one versioned cache path or describe that internal path as a stable Codex API.
 
 ## Mission Control lifecycle
 
-The first valid SessionStart in any enabled Coordinator repository starts or reuses the bundled localhost Mission Control server. It opens the dashboard only on that first automatic launch. Later sessions reuse the process without opening duplicate tabs.
+SessionStart never launches optional Mission Control child code. The co-located package receipt is not a non-redefinable trust anchor, so automatic startup fails closed before lifecycle or dashboard bytes are parsed or executed. Coordinator startup and project scanning remain available, and explicit lifecycle commands below remain the supported manual interface.
 
-When Coordinator enables a previously unmarked repository during the current task, SessionStart has already passed. After the marker and initial state validate, make the bounded local application-data disclosure required below, then run `scripts/mission_control_lifecycle.py start --automatic --project <primary-worktree>` once. This gives first-time enablement the same behavior without requiring another Codex task or restart.
-
-Mission Control keeps `automatic_start_enabled` and whether the first browser launch occurred in its existing local application-data directory. It never writes that preference into a project, plugin cache, global config, or environment file.
+Mission Control keeps its existing lifecycle preference in the local application-data directory when the user explicitly starts or stops it. It never writes that preference into a project, plugin cache, global config, or environment file.
 
 When the user asks in chat to **Start Mission Control**, disclose that the action writes the lifecycle preference in the operating system's local Codex Coordinator application-data directory and starts a localhost process, then run the packaged `scripts/mission_control_lifecycle.py start --project <primary-worktree> --open`. This explicit request authorises that bounded preference write and process start. Report the returned status and URL.
 
@@ -93,7 +91,7 @@ Run this procedure only when the main skill's Project enablement trigger selects
 12. Initialise `CURRENT.md` as a short `ATTENTION_NEEDED` bootstrap transition with shared goal `none`, Coordinator `NONE / UNREGISTERED / accepts=false`, and empty required tables including `Excluded tasks`.
 13. Apply the main skill's Coordinator creation authority immediately: create one complete native Coordinator task, bind its exact identity, pin it, register it as `IDLE / accepts=true`, switch mode to `MANAGING`, and verify one repository heartbeat. Do not claim enablement complete until all of these receipts exist.
 14. Create `tasks/`, `inbox/`, or `suggestions/` only when writing the first real record of that kind. Do not add placeholders.
-15. After the enabled marker and registered state pass validation, run the packaged Mission Control lifecycle helper in automatic mode as described above. Re-enabling a repository must respect an existing user-disabled Mission Control preference; automatic mode never overrides it.
+15. After the enabled marker and registered state pass validation, leave Mission Control stopped unless the user explicitly requests **Start Mission Control**. Enablement never executes the optional lifecycle child.
 
 ## Enabled marker with missing local state
 
@@ -139,7 +137,7 @@ When the user says `Turn Codex Coordinator off for this repository`, treat that 
 5. Preserve the disabled marker, `CURRENT.md`, task and inbox history, ignore block, `.codex/config.toml`, Codex tasks and transcripts, Mission Control data, application files, Git history, and environment.
 6. Validate the disabled marker and byte preservation. Report the current mode as disabled and active exclusions as none because the repository is no longer managed.
 
-Reactivation uses the same preflight and the dry-run-first command `project reactivate --project-root <primary-worktree>`. After `--apply`, reload the installed skill, reconcile preserved state, create or recover one pinned accepting Coordinator, and restore exactly one repository heartbeat. Automatic Mission Control startup continues to respect the user's existing local preference.
+Reactivation uses the same preflight and the dry-run-first command `project reactivate --project-root <primary-worktree>`. After `--apply`, reload the installed skill, reconcile preserved state, create or recover one pinned accepting Coordinator, and restore exactly one repository heartbeat. Reactivation does not start Mission Control; the user may request the explicit manual start separately.
 
 Project purge is not opt-out. It requires a separate direct request, the exact project ID through `--confirm-project-id`, and the maintenance lane's destructive-action checks.
 

@@ -53,17 +53,13 @@ class PackageContractTests(unittest.TestCase):
         actual.add("scripts/codex_coordinator_session_start.py")
         actual.update(
             {
-                "assets/logo.png",
-                "mission_control/__init__.py",
+                "hooks/hooks.json",
                 "mission_control/__main__.py",
-                "mission_control/collector.py",
                 "mission_control/doctor_scan.py",
-                "mission_control/lifecycle.py",
-                "mission_control/server.py",
-                "mission_control/static/app.js",
-                "mission_control/static/index.html",
-                "mission_control/static/styles.css",
+                "scripts/codex_coordinator_bootstrap.ps1",
+                "scripts/codex_coordinator_bootstrap.sh",
                 "scripts/codex_coordinator_doctor.py",
+                "scripts/codex_coordinator_uninstall.py",
                 "scripts/mission_control_lifecycle.py",
             }
         )
@@ -77,20 +73,43 @@ class PackageContractTests(unittest.TestCase):
         self.assertEqual(
             runtime,
             {
-                "assets/logo.png",
-                "mission_control/__init__.py",
+                "hooks/hooks.json",
                 "mission_control/__main__.py",
-                "mission_control/collector.py",
                 "mission_control/doctor_scan.py",
-                "mission_control/lifecycle.py",
-                "mission_control/server.py",
-                "mission_control/static/app.js",
-                "mission_control/static/index.html",
-                "mission_control/static/styles.css",
+                "scripts/codex_coordinator_bootstrap.ps1",
+                "scripts/codex_coordinator_bootstrap.sh",
                 "scripts/codex_coordinator_doctor.py",
+                "scripts/codex_coordinator_uninstall.py",
                 "scripts/mission_control_lifecycle.py",
             },
         )
+
+        executable_entrypoints = {
+            "hooks/hooks.json",
+            "mission_control/__main__.py",
+            "mission_control/doctor_scan.py",
+            "scripts/codex_coordinator_bootstrap.ps1",
+            "scripts/codex_coordinator_bootstrap.sh",
+            "scripts/codex_coordinator_doctor.py",
+            "scripts/codex_coordinator_session_start.py",
+            "scripts/codex_coordinator_uninstall.py",
+            "scripts/mission_control_lifecycle.py",
+            "skills/codex-coordinator/scripts/coordination_state.py",
+        }
+        discovered_entrypoints = {
+            path.relative_to(PLUGIN).as_posix()
+            for path in PLUGIN.rglob("*")
+            if path.is_file()
+            and (
+                path.read_bytes().startswith(b"#!")
+                or b'if __name__ == "__main__"' in path.read_bytes()
+            )
+        }
+        discovered_entrypoints.update(
+            {"hooks/hooks.json", "scripts/codex_coordinator_bootstrap.ps1"}
+        )
+        self.assertEqual(executable_entrypoints, discovered_entrypoints)
+        self.assertTrue(executable_entrypoints <= declared)
 
     def test_marketplace_resolves_to_matching_plugin(self) -> None:
         manifest = json.loads(
@@ -194,8 +213,8 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("The bundled Mission Control companion", installation)
         self.assertIn("Start Mission Control", installation)
         self.assertIn("Stop Mission Control", installation)
-        self.assertIn("start --automatic --project <primary-worktree>", installation)
-        self.assertIn("automatic mode never overrides it", installation)
+        self.assertIn("SessionStart never launches optional Mission Control child code", installation)
+        self.assertNotIn("start --automatic --project <primary-worktree>", installation)
         self.assertTrue((REPOSITORY / "tests" / "test_mission_control.py").is_file())
 
     def test_skill_markdown_references_resolve_inside_the_skill(self) -> None:

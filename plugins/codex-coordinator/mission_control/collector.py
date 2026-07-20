@@ -1127,6 +1127,7 @@ class DoctorRunner:
         script = self.plugin_root / "scripts" / "codex_coordinator_doctor.py"
         command = [
             sys.executable,
+            "-I",
             str(script),
             "--source-plugin",
             str(self.plugin_root),

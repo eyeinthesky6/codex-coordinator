@@ -217,12 +217,11 @@ class _InstalledTargetAccess:
         self.skill_root = _absolute_path(skill_root)
         self.hook_path = _absolute_path(hook_path)
         self._windows = os.name == "nt"
-        self._created_directories: list[dict[str, Any]] | None = None
+        self._verified_parents: dict[Path, tuple[int, int]] = {}
         if self._windows:
             self._configure_windows_api()
         elif not (
             os.open in os.supports_dir_fd
-            and os.mkdir in os.supports_dir_fd
             and os.rename in os.supports_dir_fd
             and os.unlink in os.supports_dir_fd
             and hasattr(os, "O_NOFOLLOW")
@@ -263,47 +262,17 @@ class _InstalledTargetAccess:
         else:
             self._unix_atomic_write(target, data)
 
-    def require_atomic_replace(self) -> None:
-        if not self._windows:
-            raise DoctorError(
-                "This platform has no handle-bound atomic replacement primitive; "
-                "manual action is required before installed-target modification"
-            )
-
-    def unlink(self, path: Path, *, missing_ok: bool = False) -> None:
+    def validate_parent(self, path: Path) -> None:
         target = self._authorised_path(path)
         if self._windows:
-            self._windows_unlink(target, missing_ok=missing_ok)
-        else:
-            self._unix_unlink(target, missing_ok=missing_ok)
+            with self._windows_parent(target, create=False) as (parent, _):
+                self._verified_parents[target.parent] = self._windows_identity(parent)
+            return
+        with self._unix_parent(target, create=False) as (parent, _):
+            self._verified_parents[target.parent] = self._unix_identity(parent)
 
-    def begin_directory_transaction(self) -> None:
-        if self._created_directories is not None:
-            raise DoctorError("Installed-target directory transaction is already active")
-        self._created_directories = []
-
-    def _record_created_directory(
-        self,
-        path: Path,
-        handle: int,
-        identity: tuple[int, int],
-        *,
-        parent_handle: int | None = None,
-    ) -> None:
-        if self._created_directories is None:
-            raise DoctorError(
-                f"Installed target directory was created outside a repair transaction: {path}"
-            )
-        self._created_directories.append(
-            {
-                "path": _absolute_path(path),
-                "handle": handle,
-                "parentHandle": parent_handle,
-                "identity": identity,
-            }
-        )
-
-    def _unix_identity(self, descriptor: int) -> tuple[int, int]:
+    @staticmethod
+    def _unix_identity(descriptor: int) -> tuple[int, int]:
         metadata = os.fstat(descriptor)
         return int(metadata.st_dev), int(metadata.st_ino)
 
@@ -318,91 +287,19 @@ class _InstalledTargetAccess:
         )
         return int(information.dwVolumeSerialNumber), file_index
 
-    def _close_created_directory(self, record: dict[str, Any]) -> str | None:
-        handle = record.get("handle")
-        path = Path(record["path"])
+    def require_atomic_replace(self) -> None:
+        if not self._windows:
+            raise DoctorError(
+                "This platform has no handle-bound atomic replacement primitive; "
+                "manual action is required before installed-target modification"
+            )
+
+    def unlink(self, path: Path, *, missing_ok: bool = False) -> None:
+        target = self._authorised_path(path)
         if self._windows:
-            if handle is None:
-                return None
-            error = self._windows_close_error(int(handle), path)
-            if error is None:
-                record["handle"] = None
-            return error
-        errors: list[str] = []
-        if handle is not None:
-            try:
-                os.close(int(handle))
-                record["handle"] = None
-            except OSError as error:
-                errors.append(f"native directory cleanup unproven for {path}: {error}")
-        parent_handle = record.get("parentHandle")
-        if parent_handle is not None:
-            try:
-                os.close(int(parent_handle))
-                record["parentHandle"] = None
-            except OSError as error:
-                errors.append(
-                    f"native parent-directory cleanup unproven for {path.parent}: {error}"
-                )
-        return "; ".join(errors) if errors else None
-
-    def release_created_directories(self) -> list[str]:
-        if self._created_directories is None:
-            return []
-        errors: list[str] = []
-        for record in reversed(self._created_directories):
-            error = self._close_created_directory(record)
-            if error is not None:
-                errors.append(error)
-        if not errors:
-            self._created_directories = None
-        return errors
-
-    def rollback_created_directories(self) -> list[str]:
-        records = self._created_directories or []
-        errors: list[str] = []
-        for record in reversed(records):
-            path = Path(record["path"])
-            handle = record.get("handle")
-            try:
-                if handle is None:
-                    raise DoctorError("held directory identity is unavailable")
-                if self._windows:
-                    self._windows_validate_handle(int(handle), path, directory=True)
-                    if self._windows_identity(int(handle)) != record["identity"]:
-                        raise DoctorError("created directory identity changed")
-                    disposition = self._DispositionInformation(1)
-                    if not self._kernel32.SetFileInformationByHandle(
-                        int(handle),
-                        4,
-                        ctypes.byref(disposition),
-                        ctypes.sizeof(disposition),
-                    ):
-                        raise ctypes.WinError(ctypes.get_last_error())
-                else:
-                    if self._unix_identity(int(handle)) != record["identity"]:
-                        raise DoctorError("created directory identity changed")
-                    parent = record.get("parentHandle")
-                    if parent is None:
-                        raise DoctorError("held parent-directory identity is unavailable")
-                    current = os.open(
-                        path.name,
-                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
-                        dir_fd=int(parent),
-                    )
-                    try:
-                        if self._unix_identity(current) != record["identity"]:
-                            raise DoctorError("created directory path was replaced")
-                    finally:
-                        os.close(current)
-                    os.rmdir(path.name, dir_fd=int(parent))
-            except Exception as error:
-                errors.append(f"created directory {path}: {error}")
-            close_error = self._close_created_directory(record)
-            if close_error is not None:
-                errors.append(close_error)
-        self._created_directories = None
-        return errors
+            self._windows_unlink(target, missing_ok=missing_ok)
+        else:
+            self._unix_unlink(target, missing_ok=missing_ok)
 
     @contextlib.contextmanager
     def _unix_parent(self, path: Path, *, create: bool) -> Any:
@@ -418,45 +315,10 @@ class _InstalledTargetAccess:
                 current /= part
                 try:
                     child = os.open(part, flags, dir_fd=descriptor)
-                except FileNotFoundError:
-                    if not create:
-                        raise
-                    if self._created_directories is None:
-                        raise DoctorError(
-                            "Installed-target directory creation requires an active repair transaction"
-                        )
-                    os.mkdir(part, mode=0o755, dir_fd=descriptor)
-                    child = os.open(part, flags, dir_fd=descriptor)
-                    held_child: int | None = None
-                    held_parent: int | None = None
-                    try:
-                        held_child = os.dup(child)
-                        held_parent = os.dup(descriptor)
-                        self._record_created_directory(
-                            current,
-                            held_child,
-                            self._unix_identity(child),
-                            parent_handle=held_parent,
-                        )
-                    except Exception as error:
-                        cleanup_errors = [
-                            f"created directory {current}: identity capture failed: {error}"
-                        ]
-                        for held, label in (
-                            (held_child, "directory"),
-                            (held_parent, "parent-directory"),
-                        ):
-                            if held is None:
-                                continue
-                            try:
-                                os.close(held)
-                            except OSError as close_error:
-                                cleanup_errors.append(
-                                    f"native {label} cleanup unproven for {current}: {close_error}"
-                                )
-                        raise _InstalledMutationError(
-                            "; ".join(cleanup_errors), cleanup_errors
-                        ) from error
+                except FileNotFoundError as error:
+                    raise DoctorError(
+                        f"Required installed-target directory is missing: {current}"
+                    ) from error
                 metadata = os.fstat(child)
                 if not stat.S_ISDIR(metadata.st_mode):
                     os.close(child)
@@ -465,6 +327,11 @@ class _InstalledTargetAccess:
                     )
                 os.close(descriptor)
                 descriptor = child
+            expected = self._verified_parents.get(absolute.parent)
+            if expected is not None and self._unix_identity(descriptor) != expected:
+                raise DoctorError(
+                    f"Required installed-target directory was replaced: {absolute.parent}"
+                )
             yield descriptor, absolute.name
         finally:
             os.close(descriptor)
@@ -814,60 +681,18 @@ class _InstalledTargetAccess:
                 current /= part
                 final_parent = index == len(remaining) - 1
                 try:
-                    created = False
                     child = self._windows_open_relative(
                         handle,
                         part,
                         directory=True,
                         write=create and final_parent,
                     )
-                except FileNotFoundError:
-                    if not create:
-                        raise
-                    if self._created_directories is None:
-                        raise DoctorError(
-                            "Installed-target directory creation requires an active repair transaction"
-                        )
-                    child = self._windows_open_relative(
-                        handle,
-                        part,
-                        directory=True,
-                        create=True,
-                        write=True,
-                    )
-                    created = True
+                except FileNotFoundError as error:
+                    raise DoctorError(
+                        f"Required installed-target directory is missing: {current}"
+                    ) from error
                 try:
                     self._windows_validate_handle(child, current, directory=True)
-                    if created:
-                        tracking = self._windows_open_relative(
-                            handle,
-                            part,
-                            directory=True,
-                            write=True,
-                            delete=True,
-                        )
-                        try:
-                            self._windows_validate_handle(
-                                tracking, current, directory=True
-                            )
-                            self._record_created_directory(
-                                current,
-                                tracking,
-                                self._windows_identity(tracking),
-                            )
-                        except BaseException as tracking_error:
-                            close_error = self._windows_close_error(tracking, current)
-                            errors = [
-                                f"created directory {current}: identity capture failed: "
-                                f"{tracking_error}"
-                            ]
-                            if close_error is not None:
-                                errors.append(close_error)
-                            self._windows_raise_cleanup_errors(
-                                errors,
-                                active_error=tracking_error,
-                            )
-                            raise
                 except BaseException as error:
                     close_error = self._windows_close_error(child, current)
                     self._windows_raise_cleanup_errors(
@@ -883,6 +708,11 @@ class _InstalledTargetAccess:
                         errors.append(child_close_error)
                     self._windows_raise_cleanup_errors(errors)
                 handle = child
+            expected = self._verified_parents.get(absolute.parent)
+            if expected is not None and self._windows_identity(handle) != expected:
+                raise DoctorError(
+                    f"Required installed-target directory was replaced: {absolute.parent}"
+                )
             yield handle, absolute.name
         except BaseException as error:
             active_error = error
@@ -1356,29 +1186,16 @@ def _validated_source(
         and path.suffix.lower() not in {".pyc", ".pyo"}
     }
     actual_sources.add(hook_source.relative_to(source_plugin).as_posix())
-    runtime_sources: set[str] = set()
-    for relative in (
-        "scripts/mission_control_lifecycle.py",
+    runtime_sources = {
+        "hooks/hooks.json",
+        "mission_control/__main__.py",
+        "mission_control/doctor_scan.py",
+        "scripts/codex_coordinator_bootstrap.ps1",
+        "scripts/codex_coordinator_bootstrap.sh",
         "scripts/codex_coordinator_doctor.py",
-        "assets/logo.png",
-    ):
-        candidate = source_plugin / relative
-        if candidate.is_file():
-            runtime_sources.add(relative)
-    mission_control = source_plugin / "mission_control"
-    if mission_control.is_dir():
-        runtime_sources.update(
-            path.relative_to(source_plugin).as_posix()
-            for path in mission_control.rglob("*.py")
-            if path.is_file() and "__pycache__" not in path.relative_to(mission_control).parts
-        )
-        static_root = mission_control / "static"
-        if static_root.is_dir():
-            runtime_sources.update(
-                path.relative_to(source_plugin).as_posix()
-                for path in static_root.rglob("*")
-                if path.is_file()
-            )
+        "scripts/codex_coordinator_uninstall.py",
+        "scripts/mission_control_lifecycle.py",
+    }
     actual_sources.update(runtime_sources)
     if actual_sources != seen_sources:
         missing = sorted(actual_sources - seen_sources)
@@ -1806,9 +1623,35 @@ def _rollback_report(
         "error": str(error),
         "repairScope": "declared managed files only",
         "note": (
-            "The attempted manual repair failed; all touched managed files were restored and transaction-created empty directories were removed."
+            "The attempted manual repair failed; all touched managed files were restored."
             if restored
             else "The attempted manual repair and last-good restore both failed; manual action is required."
+        ),
+    }
+
+
+def _destination_unavailable_report(
+    *, receipt: dict[str, Any], error: Exception
+) -> dict[str, Any]:
+    return {
+        "status": "error",
+        "integrityState": "unknown",
+        "recoveryState": "manual_action_required",
+        "installationKind": "manual",
+        "changedFiles": 0,
+        "files": [],
+        "installationChecks": [],
+        "trustedReceipt": receipt,
+        "rollback": {
+            "attempted": False,
+            "lastGoodRestored": False,
+            "errors": [str(error)],
+        },
+        "error": str(error),
+        "repairScope": "none; required destination directories must already exist",
+        "note": (
+            "Manual action is required before target access or repair: every managed "
+            "destination directory must already exist as a verified directory."
         ),
     }
 
@@ -1857,8 +1700,13 @@ def sync_installation(
         expected_receipt_sha256=expected_receipt_sha256,
         expected_package_version=expected_package_version,
     )
-    canonical_skill_root = _canonical_destination(skill_root)
-    canonical_hook_path = _canonical_destination(hook_path)
+    try:
+        canonical_skill_root = _canonical_destination(skill_root)
+        canonical_hook_path = _canonical_destination(hook_path)
+    except DoctorError as error:
+        if "symlink or reparse-point" in str(error) or "Cannot inspect" in str(error):
+            return _destination_unavailable_report(receipt=trusted_receipt, error=error)
+        raise
 
     def assert_skill_target(path: Path) -> Path:
         return _assert_installed_target(
@@ -1911,7 +1759,23 @@ def sync_installation(
     changed = 0
     installation_checks: list[dict[str, str]] = []
 
-    for source_entry in _source_files(source_entries):
+    source_files = _source_files(source_entries)
+    try:
+        required_targets: list[Path] = []
+        for source_entry in source_files:
+            file_kind = source_entry["kind"]
+            relative = source_entry["relative"]
+            target = skill_root / relative if file_kind == "skill" else hook_path
+            assert_target = (
+                assert_skill_target if file_kind == "skill" else assert_hook_target
+            )
+            required_targets.append(assert_target(target))
+        for target in required_targets:
+            installed.validate_parent(target)
+    except Exception as error:
+        return _destination_unavailable_report(receipt=trusted_receipt, error=error)
+
+    for source_entry in source_files:
         file_kind = source_entry["kind"]
         source = source_entry["source"]
         relative = source_entry["relative"]
@@ -1924,6 +1788,8 @@ def sync_installation(
             target_bytes = installed.read_bytes(target)
         except FileNotFoundError:
             target_bytes = None
+        except DoctorError as error:
+            return _destination_unavailable_report(receipt=trusted_receipt, error=error)
         except OSError as error:
             raise DoctorError(f"Cannot read installation target {target}: {error}") from error
 
@@ -1989,7 +1855,6 @@ def sync_installation(
         # intent or touching any installed target. Read-only diagnosis remains
         # available on Unix hosts that cannot replace by an open handle.
         installed.require_atomic_replace()
-        installed.begin_directory_transaction()
         applied: list[dict[str, Any]] = []
         try:
             for item in planned:
@@ -2013,11 +1878,6 @@ def sync_installation(
                 read_skill_target,
                 read_hook_target,
             )
-            directory_release_errors = installed.release_created_directories()
-            if directory_release_errors:
-                raise _InstalledMutationError(
-                    "; ".join(directory_release_errors), directory_release_errors
-                )
         except Exception as error:
             # A helper can fail after its replacement committed. Catch every
             # ordinary exception here, but deliberately leave BaseException
@@ -2048,7 +1908,6 @@ def sync_installation(
                     rollback_errors.append(
                         f"{item['relative'].as_posix()} -> {item['target']}: {rollback_error}"
                     )
-            rollback_errors.extend(installed.rollback_created_directories())
             report = _rollback_report(
                 files=files,
                 receipt=trusted_receipt,
