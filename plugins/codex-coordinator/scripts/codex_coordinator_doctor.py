@@ -251,10 +251,18 @@ class _InstalledTargetAccess:
 
     def atomic_write(self, path: Path, data: bytes) -> None:
         target = self._authorised_path(path)
+        self.require_atomic_replace()
         if self._windows:
             self._windows_atomic_write(target, data)
         else:
             self._unix_atomic_write(target, data)
+
+    def require_atomic_replace(self) -> None:
+        if not self._windows:
+            raise DoctorError(
+                "This platform has no handle-bound atomic replacement primitive; "
+                "manual action is required before installed-target modification"
+            )
 
     def unlink(self, path: Path, *, missing_ok: bool = False) -> None:
         target = self._authorised_path(path)
@@ -311,33 +319,14 @@ class _InstalledTargetAccess:
                 os.close(descriptor)
 
     def _unix_atomic_write(self, path: Path, data: bytes) -> None:
-        with self._unix_parent(path, create=True) as (parent, name):
-            temporary = f".{name}.{secrets.token_hex(12)}.tmp"
-            descriptor = -1
-            try:
-                descriptor = os.open(
-                    temporary,
-                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                    0o600,
-                    dir_fd=parent,
-                )
-                view = memoryview(data)
-                while view:
-                    written = os.write(descriptor, view)
-                    if written <= 0:
-                        raise OSError("Installed-target temporary write made no progress")
-                    view = view[written:]
-                os.fsync(descriptor)
-                os.close(descriptor)
-                descriptor = -1
-                os.rename(temporary, name, src_dir_fd=parent, dst_dir_fd=parent)
-            finally:
-                if descriptor >= 0:
-                    os.close(descriptor)
-                try:
-                    os.unlink(temporary, dir_fd=parent)
-                except FileNotFoundError:
-                    pass
+        # POSIX rename accepts a pathname, not an already validated file
+        # descriptor. A same-user process can therefore replace a named temp
+        # entry between its final validation/close and rename. Until the host
+        # exposes a handle-bound replace primitive, fail before creating or
+        # touching any temporary entry instead of briefly installing bytes
+        # that were not written through our descriptor. Windows uses the
+        # handle-bound rename implementation below.
+        self.require_atomic_replace()
 
     def _unix_unlink(self, path: Path, *, missing_ok: bool) -> None:
         try:
@@ -1451,20 +1440,27 @@ def _looks_marketplace_managed(path: Path) -> bool:
     )
 
 
+def _marketplace_owns_installation(
+    source_plugin: Path, skill_root: Path, hook_path: Path
+) -> bool:
+    return (
+        _path_in_plugin_cache(source_plugin)
+        or _path_lexically_in_plugin_cache(source_plugin)
+        or _looks_marketplace_managed(skill_root)
+        or _looks_marketplace_managed(hook_path)
+        or _path_lexically_in_plugin_cache(skill_root)
+        or _path_lexically_in_plugin_cache(hook_path)
+    )
+
+
 def _installation_kind(
     source_plugin: Path, skill_root: Path, hook_path: Path, requested: str
 ) -> str:
     if requested not in INSTALLATION_KINDS:
         raise DoctorError(f"Unsupported installation kind: {requested!r}")
-    if requested != "auto":
-        return requested
-    if (
-        _path_in_plugin_cache(source_plugin)
-        or _looks_marketplace_managed(skill_root)
-        or _looks_marketplace_managed(hook_path)
-    ):
+    if _marketplace_owns_installation(source_plugin, skill_root, hook_path):
         return "marketplace"
-    return "manual"
+    return "marketplace" if requested == "marketplace" else "manual"
 
 
 def _rollback_report(
@@ -1515,13 +1511,8 @@ def sync_installation(
 ) -> dict[str, Any]:
     if installation_kind not in INSTALLATION_KINDS:
         raise DoctorError(f"Unsupported installation kind: {installation_kind!r}")
-    known_marketplace = installation_kind == "marketplace" or (
-        installation_kind == "auto"
-        and (
-            _path_in_plugin_cache(source_plugin)
-            or _path_lexically_in_plugin_cache(skill_root)
-            or _path_lexically_in_plugin_cache(hook_path)
-        )
+    known_marketplace = installation_kind == "marketplace" or _marketplace_owns_installation(
+        source_plugin, skill_root, hook_path
     )
     expected_receipt_sha256, expected_package_version = _validate_expected_release(
         expected_receipt_sha256,
@@ -1680,6 +1671,10 @@ def sync_installation(
         }
 
     if apply and changed:
+        # Establish the platform mutation guarantee before recording recovery
+        # intent or touching any installed target. Read-only diagnosis remains
+        # available on Unix hosts that cannot replace by an open handle.
+        installed.require_atomic_replace()
         applied: list[dict[str, Any]] = []
         try:
             for item in planned:

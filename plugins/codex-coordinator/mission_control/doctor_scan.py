@@ -180,7 +180,10 @@ def resolve_plugin_root(source: Path) -> Path:
         resolved = Path(source).resolve(strict=False)
     except (OSError, RuntimeError, ValueError) as error:
         raise RuntimeError(f"COORDINATOR_PACKAGE_IDENTITY_ERROR: invalid source path: {error}") from error
-    start = resolved.parent if resolved.suffix else resolved
+    # A package root may itself have a dotted version name such as ``0.1.2``.
+    # Use the filesystem shape, not a filename suffix heuristic, to decide
+    # whether traversal starts at the supplied path or its parent.
+    start = resolved.parent if resolved.is_file() else resolved
     candidates: list[Path] = []
     for current in (start, *list(start.parents)[:6]):
         candidates.extend((current, current / "plugins" / "codex-coordinator"))

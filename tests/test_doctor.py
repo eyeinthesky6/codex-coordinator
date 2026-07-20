@@ -428,6 +428,7 @@ class DoctorTests(unittest.TestCase):
             )
             self.assertNotIn(str(root), raw)
 
+    @unittest.skipUnless(os.name == "nt", "manual repair requires handle-bound replace")
     def test_check_apply_and_repeat_are_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -480,6 +481,7 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(current["integrityState"], "healthy")
             self.assertEqual(current["changedFiles"], 0)
 
+    @unittest.skipUnless(os.name == "nt", "manual repair requires handle-bound replace")
     def test_stale_policy_installation_is_repaired_without_project_or_unmanaged_writes(
         self,
     ) -> None:
@@ -564,6 +566,7 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(current["status"], "current")
             self.assertEqual(current["changedFiles"], 0)
 
+    @unittest.skipUnless(os.name == "nt", "manual repair setup requires handle-bound replace")
     def test_missing_managed_file_is_detected_from_the_trusted_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -782,15 +785,19 @@ class DoctorTests(unittest.TestCase):
                 source,
                 skill_root,
                 hook_path,
-                apply=True,
+                apply=os.name == "nt",
                 installation_kind="manual",
                 **_release_identity(source),
             )
 
-            self.assertEqual(report["status"], "updated")
-            self.assertEqual(
-                (skill_root / "SKILL.md").read_bytes(), skill.read_bytes()
-            )
+            if os.name == "nt":
+                self.assertEqual(report["status"], "updated")
+                self.assertEqual(
+                    (skill_root / "SKILL.md").read_bytes(), skill.read_bytes()
+                )
+            else:
+                self.assertEqual(report["status"], "drift")
+                self.assertEqual(report["recoveryState"], "trusted_repair_available")
 
     def test_development_package_is_not_a_manual_repair_source(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -850,6 +857,7 @@ class DoctorTests(unittest.TestCase):
                 skill_root,
                 hook_path,
                 apply=True,
+                installation_kind="manual",
             )
 
             self.assertEqual(report["status"], "drift")
@@ -858,6 +866,40 @@ class DoctorTests(unittest.TestCase):
             self.assertFalse(skill_root.exists())
             self.assertFalse(hook_path.exists())
             self.assertIn("plugin update or reinstall", report["note"])
+
+    def test_explicit_manual_kind_cannot_override_marketplace_cache_ownership(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "source")
+            plugin_cache = root / "codex-home" / "plugins" / "cache" / "coordinator"
+            cases = (
+                (
+                    source,
+                    plugin_cache / "skills" / "codex-coordinator",
+                    plugin_cache / "scripts" / doctor.HOOK_NAME,
+                ),
+                (
+                    _source_plugin(root / "source-cache" / "plugins" / "cache"),
+                    root / "manual" / "skill",
+                    root / "manual" / "hook.py",
+                ),
+            )
+
+            for package, skill_root, hook_path in cases:
+                with self.subTest(package=package, skill_root=skill_root):
+                    report = doctor.sync_installation(
+                        package,
+                        skill_root,
+                        hook_path,
+                        apply=True,
+                        installation_kind="manual",
+                    )
+
+                    self.assertEqual(report["status"], "drift")
+                    self.assertEqual(report["recoveryState"], "reinstall_required")
+                    self.assertEqual(report["installationKind"], "marketplace")
+                    self.assertFalse(skill_root.exists())
+                    self.assertFalse(hook_path.exists())
 
     def test_modified_marketplace_package_fails_closed_to_reinstall(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -875,6 +917,7 @@ class DoctorTests(unittest.TestCase):
                 skill_root,
                 hook_path,
                 apply=True,
+                installation_kind="manual",
             )
 
             self.assertEqual(report["status"], "error")
@@ -980,6 +1023,7 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(outside_reads, [])
             self.assertEqual(outside_hook.read_bytes(), b"outside-original")
 
+    @unittest.skipUnless(os.name == "nt", "manual repair requires handle-bound replace")
     def test_safe_nested_skill_directories_remain_supported(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1115,7 +1159,7 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(list(scripts.glob(".*.tmp")), [])
 
     @unittest.skipUnless(os.name != "nt", "Unix descriptor-race regression")
-    def test_unix_held_parent_keeps_read_write_and_cleanup_off_redirect(self) -> None:
+    def test_unix_read_stays_on_held_parent_but_apply_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             skill_root = root / "installed" / "skill"
@@ -1150,45 +1194,57 @@ class DoctorTests(unittest.TestCase):
             scripts.unlink()
             saved_scripts = skill_root / "saved-scripts"
             saved_scripts.rename(scripts)
-            redirected = False
-            original_write = os.write
+            with mock.patch.object(os, "open") as open_file, mock.patch.object(
+                os, "rename"
+            ) as rename:
+                with self.assertRaisesRegex(
+                    doctor.DoctorError,
+                    "no handle-bound atomic replacement primitive",
+                ):
+                    access.atomic_write(target, b"updated-local")
 
-            def swap_during_temp_write(descriptor: int, data: object) -> int:
-                nonlocal redirected
-                if not redirected:
-                    scripts.rename(saved_scripts)
-                    scripts.symlink_to(outside, target_is_directory=True)
-                    redirected = True
-                return original_write(descriptor, data)
-
-            with mock.patch.object(os, "write", side_effect=swap_during_temp_write):
-                access.atomic_write(target, b"updated-local")
-
-            self.assertEqual((saved_scripts / target.name).read_bytes(), b"updated-local")
+            open_file.assert_not_called()
+            rename.assert_not_called()
+            self.assertEqual(target.read_bytes(), b"installed-local")
             self.assertEqual(outside_target.read_bytes(), b"outside-secret")
-            self.assertEqual(list(saved_scripts.glob(".*.tmp")), [])
+            self.assertEqual(list(scripts.glob(".*.tmp")), [])
 
-            scripts.unlink()
-            saved_scripts.rename(scripts)
-            redirected = False
+    @unittest.skipUnless(os.name != "nt", "Unix handle-bound replace regression")
+    def test_unix_manual_apply_reports_manual_action_before_target_write(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "source")
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+            identity = _release_identity(source)
 
-            def swap_during_failed_temp_write(descriptor: int, data: object) -> int:
-                nonlocal redirected
-                if not redirected:
-                    scripts.rename(saved_scripts)
-                    scripts.symlink_to(outside, target_is_directory=True)
-                    redirected = True
-                raise OSError("simulated Unix temporary-write failure")
+            with mock.patch("builtins.print") as output:
+                result = doctor.main(
+                    [
+                        "--source-plugin",
+                        str(source),
+                        "--skill-root",
+                        str(skill_root),
+                        "--hook-path",
+                        str(hook_path),
+                        "--installation-kind",
+                        "manual",
+                        "--expected-package-version",
+                        identity["expected_package_version"],
+                        "--expected-receipt-sha256",
+                        identity["expected_receipt_sha256"],
+                        "--apply",
+                        "--compact",
+                    ]
+                )
 
-            with mock.patch.object(
-                os, "write", side_effect=swap_during_failed_temp_write
-            ):
-                with self.assertRaisesRegex(OSError, "temporary-write failure"):
-                    access.atomic_write(target, b"rollback-bytes")
-
-            self.assertEqual((saved_scripts / target.name).read_bytes(), b"updated-local")
-            self.assertEqual(outside_target.read_bytes(), b"outside-secret")
-            self.assertEqual(list(saved_scripts.glob(".*.tmp")), [])
+            payload = json.loads(output.call_args.args[0])
+            self.assertEqual(result, 1)
+            self.assertEqual(payload["status"], "error")
+            self.assertEqual(payload["recoveryState"], "manual_action_required")
+            self.assertIn("no handle-bound atomic replacement primitive", payload["error"])
+            self.assertFalse(skill_root.exists())
+            self.assertFalse(hook_path.exists())
 
     def test_duplicate_json_keys_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1240,6 +1296,7 @@ class DoctorTests(unittest.TestCase):
                     apply=True,
                 )
 
+    @unittest.skipUnless(os.name == "nt", "manual rollback requires handle-bound replace")
     def test_later_write_failure_restores_every_earlier_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1286,6 +1343,7 @@ class DoctorTests(unittest.TestCase):
             )
             self.assertEqual(hook_path.read_text(encoding="utf-8"), "print('old hook')\n")
 
+    @unittest.skipUnless(os.name == "nt", "manual rollback requires handle-bound replace")
     def test_failed_last_good_restore_requires_manual_action(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1325,6 +1383,7 @@ class DoctorTests(unittest.TestCase):
             self.assertFalse(failure.exception.report["rollback"]["lastGoodRestored"])
             self.assertEqual(len(failure.exception.report["rollback"]["errors"]), 1)
 
+    @unittest.skipUnless(os.name == "nt", "manual rollback requires handle-bound replace")
     def test_rollback_rejects_new_directory_redirect_without_outside_access(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1378,6 +1437,7 @@ class DoctorTests(unittest.TestCase):
                 (source / "skills" / "codex-coordinator" / "scripts" / "coordination_state.py").read_bytes(),
             )
 
+    @unittest.skipUnless(os.name == "nt", "manual rollback requires handle-bound replace")
     def test_post_replace_directory_swap_restores_last_good_at_safe_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1427,6 +1487,7 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(state_tool.read_bytes(), b"last-good-local")
             self.assertEqual(outside_target.read_bytes(), b"outside-original")
 
+    @unittest.skipUnless(os.name == "nt", "manual rollback requires handle-bound replace")
     def test_post_replace_directory_swap_never_claims_unproven_restore(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1492,6 +1553,7 @@ class DoctorTests(unittest.TestCase):
                 b"last-good-local",
             )
 
+    @unittest.skipUnless(os.name == "nt", "manual rollback requires handle-bound replace")
     def test_installed_runtime_failure_rolls_back_the_update(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
