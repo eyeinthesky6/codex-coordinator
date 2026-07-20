@@ -21,7 +21,7 @@
       "kind": "skill",
       "sourcePath": "skills/codex-coordinator/references/doctor.md",
       "managedPath": "references/doctor.md",
-      "sha256": "74706804be6c861fda316c77db34a464ff23458e38e40546b05d47c01be2048e"
+      "sha256": "65da025362c04dba7a490fcdf532d2b7384caeab61db5f7019526a854369204d"
     },
     {
       "kind": "skill",
@@ -78,10 +78,82 @@
       "sha256": "ca59402fd4c97b64700703e0d41fcadc0b67d80a69b1068179753c91b45f8c6a"
     },
     {
+      "kind": "runtime",
+      "sourcePath": "assets/logo.png",
+      "managedPath": "assets/logo.png",
+      "sha256": "ef2b0349121311cfdf5fee16e4d1c08a21726bd6c0d69415adc9e9e5cb6aeec4"
+    },
+    {
+      "kind": "runtime",
+      "sourcePath": "mission_control/__init__.py",
+      "managedPath": "mission_control/__init__.py",
+      "sha256": "5b18d5fd3b27f95eb71e61759f5e465db4039f3068292b277a8ebf07149ca085"
+    },
+    {
+      "kind": "runtime",
+      "sourcePath": "mission_control/__main__.py",
+      "managedPath": "mission_control/__main__.py",
+      "sha256": "0d56a8285f3d7898c7d24b53f2ce08e7ccc9dbd01a93f334952b101125e17903"
+    },
+    {
+      "kind": "runtime",
+      "sourcePath": "mission_control/collector.py",
+      "managedPath": "mission_control/collector.py",
+      "sha256": "919eaefbcdf75a132a32b2de1523a2e1076b567f55b7a49bcf0d6d58be66514a"
+    },
+    {
+      "kind": "runtime",
+      "sourcePath": "mission_control/doctor_scan.py",
+      "managedPath": "mission_control/doctor_scan.py",
+      "sha256": "af8b40dbc6af2d89eb4a56c55ada6ce8b911610dfab5632b78f3e6fd169de437"
+    },
+    {
+      "kind": "runtime",
+      "sourcePath": "mission_control/lifecycle.py",
+      "managedPath": "mission_control/lifecycle.py",
+      "sha256": "1fd57f4d221355232c4b49bcc933f5ab313b36648e0772abe8a8298583d75840"
+    },
+    {
+      "kind": "runtime",
+      "sourcePath": "mission_control/server.py",
+      "managedPath": "mission_control/server.py",
+      "sha256": "65db58da8d1b622977d7f8a54babc1642295396965f80ec6f52536f94892eded"
+    },
+    {
+      "kind": "runtime",
+      "sourcePath": "mission_control/static/app.js",
+      "managedPath": "mission_control/static/app.js",
+      "sha256": "7b8e1fec3f0ad5d56cfccd5fe85eddcba99202e3c446f07cb69368cf173361e2"
+    },
+    {
+      "kind": "runtime",
+      "sourcePath": "mission_control/static/index.html",
+      "managedPath": "mission_control/static/index.html",
+      "sha256": "1b4887f62964f4cc3b44b4df8286dcee7aa904c318edcb6eae9150176245d614"
+    },
+    {
+      "kind": "runtime",
+      "sourcePath": "mission_control/static/styles.css",
+      "managedPath": "mission_control/static/styles.css",
+      "sha256": "74dbbfd3269252d2b1437547f003ed1f8662f2798761159d8377a757fb77411c"
+    },
+    {
+      "kind": "runtime",
+      "sourcePath": "scripts/codex_coordinator_doctor.py",
+      "managedPath": "scripts/codex_coordinator_doctor.py",
+      "sha256": "e91d7a5512ad3d14e1169d1510e732a78f0674712a4c7e00031581c2d9fedf9b"
+    },
+    {
+      "kind": "runtime",
+      "sourcePath": "scripts/mission_control_lifecycle.py",
+      "managedPath": "scripts/mission_control_lifecycle.py",
+      "sha256": "5e926247929cb91897e3a5ea7eadfc973594a5f37658fedd0813bdf6af02a270"
+    },
+    {
       "kind": "hook",
       "sourcePath": "scripts/codex_coordinator_session_start.py",
       "managedPath": "codex_coordinator_session_start.py",
-      "sha256": "31ac91ba1a5d3af0b662117d02363fc61b4e598d220b9d3754afed8ab6121183"
+      "sha256": "5c47204705baaab3e7f01ca3b775645aff8488f9a15a13954e7788edea97b6da"
     }
   ]
 }

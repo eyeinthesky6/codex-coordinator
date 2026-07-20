@@ -51,7 +51,46 @@ class PackageContractTests(unittest.TestCase):
             and path.suffix.lower() not in {".pyc", ".pyo"}
         }
         actual.add("scripts/codex_coordinator_session_start.py")
+        actual.update(
+            {
+                "assets/logo.png",
+                "mission_control/__init__.py",
+                "mission_control/__main__.py",
+                "mission_control/collector.py",
+                "mission_control/doctor_scan.py",
+                "mission_control/lifecycle.py",
+                "mission_control/server.py",
+                "mission_control/static/app.js",
+                "mission_control/static/index.html",
+                "mission_control/static/styles.css",
+                "scripts/codex_coordinator_doctor.py",
+                "scripts/mission_control_lifecycle.py",
+            }
+        )
         self.assertEqual(declared, actual)
+
+        runtime = {
+            item["sourcePath"]
+            for item in receipt["managedFiles"]
+            if item["kind"] == "runtime"
+        }
+        self.assertEqual(
+            runtime,
+            {
+                "assets/logo.png",
+                "mission_control/__init__.py",
+                "mission_control/__main__.py",
+                "mission_control/collector.py",
+                "mission_control/doctor_scan.py",
+                "mission_control/lifecycle.py",
+                "mission_control/server.py",
+                "mission_control/static/app.js",
+                "mission_control/static/index.html",
+                "mission_control/static/styles.css",
+                "scripts/codex_coordinator_doctor.py",
+                "scripts/mission_control_lifecycle.py",
+            },
+        )
 
     def test_marketplace_resolves_to_matching_plugin(self) -> None:
         manifest = json.loads(

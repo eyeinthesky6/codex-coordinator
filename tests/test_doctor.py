@@ -4,6 +4,7 @@ import contextlib
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -454,6 +455,7 @@ class DoctorTests(unittest.TestCase):
                     "status",
                     "integrityState",
                     "recoveryState",
+                    "installationKind",
                     "changedFiles",
                     "checksPassed",
                 },
@@ -1089,6 +1091,39 @@ class DoctorTests(unittest.TestCase):
                 f"+contract{doctor.CAPABILITY_CONTRACT_VERSION}",
             )
 
+    def test_runtime_receipt_rows_are_validated_but_never_install_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "plugin"
+            shutil.copytree(
+                REPOSITORY / "plugins" / "codex-coordinator",
+                source,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            )
+            manifest = json.loads(
+                (source / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+            )
+            receipt_path = source / "release-receipt.json"
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            receipt["packageState"] = "release"
+            receipt["packageVersion"] = manifest["version"]
+            receipt["packageId"] = (
+                f"{doctor.PLUGIN_NAME}-package@{manifest['version']}"
+                f"+contract{doctor.CAPABILITY_CONTRACT_VERSION}"
+            )
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            identity = _release_identity(source)
+
+            _skill, _hook, _summary, entries = doctor._validated_source(
+                source,
+                expected_receipt_sha256=identity["expected_receipt_sha256"],
+                expected_package_version=identity["expected_package_version"],
+            )
+
+            self.assertTrue(any(item["kind"] == "runtime" for item in entries))
+            self.assertTrue(
+                all(item["kind"] in {"skill", "hook"} for item in doctor._source_files(entries))
+            )
+
     def test_wrong_plugin_source_is_rejected_without_writes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1122,6 +1157,173 @@ class DoctorTests(unittest.TestCase):
             with self.assertRaisesRegex(doctor.DoctorError, "overlap"):
                 _sync_installation(source, skill_root, hook_path, apply=True)
             self.assertFalse(hook_path.exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows directory transaction regression")
+    def test_windows_first_install_failure_removes_only_created_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "source")
+            skill_root = root / "new" / "installed" / "skill"
+            hook_path = root / "new" / "installed" / "scripts" / "hook.py"
+            original_write = doctor._InstalledTargetAccess.atomic_write
+            writes = 0
+
+            def fail_second_write(access: object, path: Path, data: bytes) -> None:
+                nonlocal writes
+                writes += 1
+                if writes == 2:
+                    raise RuntimeError("simulated first-install partial failure")
+                original_write(access, path, data)
+
+            with mock.patch.object(
+                doctor._InstalledTargetAccess, "atomic_write", new=fail_second_write
+            ):
+                with self.assertRaises(doctor.RepairFailed) as failure:
+                    _sync_installation(source, skill_root, hook_path, apply=True)
+
+            self.assertTrue(failure.exception.report["rollback"]["lastGoodRestored"])
+            self.assertFalse((root / "new").exists())
+
+            preexisting = root / "preexisting"
+            preexisting.mkdir()
+            skill_root = preexisting / "installed" / "skill"
+            hook_path = preexisting / "installed" / "scripts" / "hook.py"
+            writes = 0
+            with mock.patch.object(
+                doctor._InstalledTargetAccess, "atomic_write", new=fail_second_write
+            ):
+                with self.assertRaises(doctor.RepairFailed):
+                    _sync_installation(source, skill_root, hook_path, apply=True)
+            self.assertTrue(preexisting.is_dir())
+            self.assertEqual(list(preexisting.iterdir()), [])
+
+    @unittest.skipUnless(os.name == "nt", "Windows directory transaction regression")
+    def test_windows_created_directory_nonempty_swap_and_cleanup_are_unproven(self) -> None:
+        cases = ("nonempty", "swap", "cleanup")
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = _source_plugin(root / "source")
+                skill_root = root / "installed" / "skill"
+                hook_path = root / "installed" / "scripts" / "hook.py"
+                original_write = doctor._InstalledTargetAccess.atomic_write
+                original_rollback = doctor._InstalledTargetAccess.rollback_created_directories
+                writes = 0
+
+                def fail_after_first(access: object, path: Path, data: bytes) -> None:
+                    nonlocal writes
+                    writes += 1
+                    if writes == 2:
+                        scripts = hook_path.parent
+                        if case == "nonempty":
+                            (scripts / "unexpected.txt").write_text(
+                                "preserve", encoding="utf-8"
+                            )
+                        elif case == "swap":
+                            moved = root / "moved-scripts"
+                            scripts.rename(moved)
+                            scripts.mkdir()
+                            (scripts / "replacement.txt").write_text(
+                                "preserve", encoding="utf-8"
+                            )
+                        raise RuntimeError(f"simulated {case} rollback")
+                    original_write(access, path, data)
+
+                def fail_cleanup_identity(access: object) -> list[str]:
+                    if case != "cleanup":
+                        return original_rollback(access)
+                    with mock.patch.object(
+                        access,
+                        "_windows_identity",
+                        side_effect=OSError("simulated directory cleanup failure"),
+                    ):
+                        return original_rollback(access)
+
+                with mock.patch.object(
+                    doctor._InstalledTargetAccess, "atomic_write", new=fail_after_first
+                ), mock.patch.object(
+                    doctor._InstalledTargetAccess,
+                    "rollback_created_directories",
+                    new=fail_cleanup_identity,
+                ):
+                    with self.assertRaises(doctor.RepairFailed) as failure:
+                        _sync_installation(source, skill_root, hook_path, apply=True)
+
+                report = failure.exception.report
+                self.assertEqual(report["recoveryState"], "manual_action_required")
+                self.assertFalse(report["rollback"]["lastGoodRestored"])
+                self.assertTrue(
+                    any("created directory" in error for error in report["rollback"]["errors"])
+                )
+                if case == "nonempty":
+                    self.assertEqual(
+                        (hook_path.parent / "unexpected.txt").read_text(encoding="utf-8"),
+                        "preserve",
+                    )
+                elif case == "swap":
+                    self.assertEqual(
+                        (hook_path.parent / "replacement.txt").read_text(encoding="utf-8"),
+                        "preserve",
+                    )
+
+    @unittest.skipIf(os.name == "nt", "Unix directory transaction regression")
+    def test_unix_created_directory_rollback_preserves_preexisting_boundaries(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            preexisting = root / "preexisting"
+            preexisting.mkdir()
+            skill_root = preexisting / "installed" / "skill"
+            hook_path = preexisting / "hook.py"
+            access = doctor._InstalledTargetAccess(skill_root, hook_path)
+            access.begin_directory_transaction()
+            target = skill_root / "references" / "file.txt"
+            with access._unix_parent(target, create=True):
+                pass
+            self.assertEqual(access.rollback_created_directories(), [])
+            self.assertTrue(preexisting.is_dir())
+            self.assertEqual(list(preexisting.iterdir()), [])
+
+    @unittest.skipIf(os.name == "nt", "Unix directory transaction regression")
+    def test_unix_created_directory_nonempty_swap_and_cleanup_are_unproven(self) -> None:
+        for case in ("nonempty", "swap", "cleanup"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                skill_root = root / "installed" / "skill"
+                hook_path = root / "hook.py"
+                access = doctor._InstalledTargetAccess(skill_root, hook_path)
+                access.begin_directory_transaction()
+                created = skill_root / "references"
+                with access._unix_parent(created / "file.txt", create=True):
+                    pass
+                if case == "nonempty":
+                    (created / "unexpected.txt").write_text("preserve", encoding="utf-8")
+                elif case == "swap":
+                    moved = root / "moved-references"
+                    created.rename(moved)
+                    created.mkdir()
+                    (created / "replacement.txt").write_text("preserve", encoding="utf-8")
+                if case == "cleanup":
+                    patch = mock.patch.object(
+                        doctor.os,
+                        "rmdir",
+                        side_effect=OSError("simulated directory cleanup failure"),
+                    )
+                else:
+                    patch = contextlib.nullcontext()
+                with patch:
+                    errors = access.rollback_created_directories()
+                self.assertTrue(errors)
+                self.assertTrue(any("created directory" in error for error in errors))
+                if case == "nonempty":
+                    self.assertEqual(
+                        (created / "unexpected.txt").read_text(encoding="utf-8"),
+                        "preserve",
+                    )
+                elif case == "swap":
+                    self.assertEqual(
+                        (created / "replacement.txt").read_text(encoding="utf-8"),
+                        "preserve",
+                    )
 
     @unittest.skipUnless(os.name == "nt", "Windows junction regression")
     def test_windows_junction_is_rejected_without_outside_read_or_write(self) -> None:
@@ -1226,7 +1428,7 @@ class DoctorTests(unittest.TestCase):
             read_bytes.assert_not_called()
 
     @unittest.skipUnless(os.name == "nt", "Windows handle-race regression")
-    def test_windows_held_parent_blocks_read_component_swap(self) -> None:
+    def test_windows_held_parent_detects_read_component_swap(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             skill_root = root / "installed" / "skill"
@@ -1261,9 +1463,12 @@ class DoctorTests(unittest.TestCase):
                 return handle
 
             with mock.patch.object(access, "_windows_open_relative", side_effect=attempt_swap):
-                self.assertEqual(access.read_bytes(target), b"installed-local")
+                with self.assertRaisesRegex(
+                    doctor.DoctorError, "does not match its authorised path"
+                ):
+                    access.read_bytes(target)
 
-            self.assertEqual(blocked_swaps, {"parent", "file"})
+            self.assertEqual(blocked_swaps, {"parent"})
             self.assertEqual((outside / target.name).read_bytes(), b"outside-secret")
 
     @unittest.skipUnless(os.name == "nt", "Windows handle-race regression")

@@ -1,4 +1,6 @@
 import json
+import hashlib
+import shutil
 import sqlite3
 import sys
 import tempfile
@@ -784,6 +786,91 @@ class CollectorTests(unittest.TestCase):
             self.assertNotIn("--mission-control-root", apply_command)
             self.assertNotIn("--project-health-in", apply_command)
             self.assertNotIn("--mermaid-out", apply_command)
+
+    def test_manual_missing_pin_still_runs_project_scan_without_target_writes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "home"
+            codex_home = root / "codex-home"
+            home.mkdir()
+            codex_home.mkdir()
+            runner = DoctorRunner(root / "data", PLUGIN, codex_home)
+            snapshot = {
+                "projects": [
+                    {"id": "sample", "path": str(root / "sample"), "enabled": True}
+                ]
+            }
+            with (
+                mock.patch("mission_control.collector.Path.home", return_value=home),
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
+            ):
+                scanner.return_value.scan.return_value = {
+                    "status": "healthy",
+                    "projectsChecked": 1,
+                    "findingCount": 0,
+                    "findingsWritten": 0,
+                }
+                self.assertTrue(runner.run(snapshot))
+
+            scanner.return_value.scan.assert_called_once_with(
+                [root / "sample"], write_findings=True
+            )
+            self.assertFalse((home / ".agents" / "skills" / "codex-coordinator").exists())
+            self.assertFalse((codex_home / "hooks").exists())
+            state = runner.read_state()
+            self.assertEqual(state["installation"]["status"], "error")
+            self.assertEqual(
+                state["installation"]["recoveryState"], "manual_action_required"
+            )
+            self.assertEqual(state["projectScan"]["status"], "healthy")
+            self.assertEqual(state["health"], "review")
+
+    def test_marketplace_reinstall_result_still_scans_and_never_writes_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache = root / ".codex" / "plugins" / "cache" / "market" / "0.3.0"
+            shutil.copytree(PLUGIN, cache, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+            before = {
+                path.relative_to(cache).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in cache.rglob("*")
+                if path.is_file()
+            }
+            home = root / "home"
+            codex_home = root / "codex-home"
+            home.mkdir()
+            codex_home.mkdir()
+            runner = DoctorRunner(root / "data", cache, codex_home)
+            snapshot = {
+                "projects": [
+                    {"id": "sample", "path": str(root / "sample"), "enabled": True}
+                ]
+            }
+            with (
+                mock.patch("mission_control.collector.Path.home", return_value=home),
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
+            ):
+                scanner.return_value.scan.return_value = {
+                    "status": "review",
+                    "projectsChecked": 1,
+                    "findingCount": 1,
+                    "findingsWritten": 0,
+                }
+                self.assertTrue(runner.run(snapshot))
+
+            after = {
+                path.relative_to(cache).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in cache.rglob("*")
+                if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
+            }
+            self.assertEqual(after, before)
+            scanner.return_value.scan.assert_called_once()
+            state = runner.read_state()
+            self.assertEqual(
+                state["installation"]["recoveryState"], "reinstall_required"
+            )
+            self.assertEqual(state["installation"]["installationKind"], "marketplace")
+            self.assertEqual(state["projectScan"]["status"], "review")
+            self.assertIn("update or reinstall", state["bullets"][0])
 
     def test_manual_doctor_reports_healthy_without_spawning_a_model(self):
         with tempfile.TemporaryDirectory() as directory:
