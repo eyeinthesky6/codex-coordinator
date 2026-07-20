@@ -18,7 +18,7 @@ function Test-Python([string]$Candidate) {
         $process = New-Object System.Diagnostics.Process
         $process.StartInfo = New-Object System.Diagnostics.ProcessStartInfo
         $process.StartInfo.FileName = $resolved
-        $process.StartInfo.Arguments = '-c "import sys; print(str(sys.version_info[0]) + ''.'' + str(sys.version_info[1]))"'
+        $process.StartInfo.Arguments = '-I -c "import sys; print(str(sys.version_info[0]) + ''.'' + str(sys.version_info[1]))"'
         $process.StartInfo.UseShellExecute = $false
         $process.StartInfo.RedirectStandardOutput = $true
         $process.StartInfo.RedirectStandardError = $true
@@ -118,7 +118,7 @@ $payload = [Console]::In.ReadToEnd()
 $process = New-Object System.Diagnostics.Process
 $process.StartInfo = New-Object System.Diagnostics.ProcessStartInfo
 $process.StartInfo.FileName = $python
-$process.StartInfo.Arguments = '"' + $HookPath.Replace('"', '\"') + '"'
+$process.StartInfo.Arguments = '-I "' + $HookPath.Replace('"', '\"') + '"'
 $process.StartInfo.UseShellExecute = $false
 $process.StartInfo.RedirectStandardInput = $true
 $process.StartInfo.RedirectStandardOutput = $true

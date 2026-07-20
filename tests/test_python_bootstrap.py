@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -69,6 +71,72 @@ class PythonBootstrapTests(unittest.TestCase):
         self.assertTrue(output["continue"])
         self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "SessionStart")
 
+    def test_installed_shape_ignores_script_cwd_and_environment_json_shadows(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scripts = root / "plugin" / "scripts"
+            working = root / "working"
+            scripts.mkdir(parents=True)
+            working.mkdir()
+            shutil.copy2(HOOK, scripts / HOOK.name)
+            shadow = (
+                "import os\n"
+                "open(os.environ['CODEX_SHADOW_MARKER'], 'w', encoding='utf-8').write(__file__)\n"
+                "raise RuntimeError('shadow json executed')\n"
+            )
+            (scripts / "json.py").write_text(shadow, encoding="utf-8")
+            (working / "json.py").write_text(shadow, encoding="utf-8")
+            marker = root / "shadow-executed.txt"
+            payload = json.dumps(
+                {
+                    "cwd": str(REPOSITORY),
+                    "session_id": "00000000-0000-0000-0000-000000000000",
+                }
+            )
+            if os.name == "nt":
+                bootstrap = scripts / "codex_coordinator_bootstrap.ps1"
+                shutil.copy2(SCRIPTS / bootstrap.name, bootstrap)
+                command = [
+                    "powershell",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(bootstrap),
+                    "-HookPath",
+                    str(scripts / HOOK.name),
+                    "-NoInstall",
+                ]
+            else:
+                bootstrap = scripts / "codex_coordinator_bootstrap.sh"
+                shutil.copy2(SCRIPTS / bootstrap.name, bootstrap)
+                command = ["sh", str(bootstrap), str(scripts / HOOK.name), "--no-install"]
+
+            environment = os.environ.copy()
+            environment["CODEX_COORDINATOR_DISABLE_MISSION_CONTROL_AUTOSTART"] = "1"
+            environment["CODEX_SHADOW_MARKER"] = str(marker)
+            environment["PYTHONPATH"] = str(working)
+            result = subprocess.run(
+                command,
+                cwd=working,
+                input=payload,
+                text=True,
+                capture_output=True,
+                timeout=20,
+                check=False,
+                env=environment,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(marker.exists(), result.stderr)
+            if result.stdout.strip():
+                output = json.loads(result.stdout)
+                self.assertTrue(output["continue"])
+                self.assertEqual(
+                    output["hookSpecificOutput"]["hookEventName"], "SessionStart"
+                )
+
     def test_discovery_is_bounded_and_install_is_informed(self) -> None:
         powershell = (SCRIPTS / "codex_coordinator_bootstrap.ps1").read_text(encoding="utf-8")
         shell = (SCRIPTS / "codex_coordinator_bootstrap.sh").read_text(encoding="utf-8")
@@ -82,6 +150,8 @@ class PythonBootstrapTests(unittest.TestCase):
         self.assertNotIn("Get-ChildItem C:\\\\", powershell)
         self.assertNotIn("find / ", shell)
         self.assertNotIn("sudo", shell)
+        self.assertIn('exec "$python_bin" -I "$hook_path"', shell)
+        self.assertIn("$process.StartInfo.Arguments = '-I", powershell)
 
 
 if __name__ == "__main__":

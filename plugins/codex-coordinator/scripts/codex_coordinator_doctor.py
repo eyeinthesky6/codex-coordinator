@@ -22,7 +22,6 @@ HOOK_NAME = "codex_coordinator_session_start.py"
 CAPABILITY_CONTRACT = "capabilities.json"
 CAPABILITY_CONTRACT_VERSION = 21
 RECEIPT_SCHEMA_VERSION = 2
-RECEIPT_MANIFEST_KEY = "integrityReceipt"
 PACKAGE_STATE_KEY = "packageState"
 RELEASE_PACKAGE_STATE = "release"
 INSTALLATION_KINDS = {"auto", "manual", "marketplace"}
@@ -203,6 +202,12 @@ class RepairFailed(DoctorError):
     def __init__(self, message: str, report: dict[str, Any]):
         super().__init__(message)
         self.report = report
+
+
+class _InstalledMutationError(DoctorError):
+    def __init__(self, message: str, recovery_errors: list[str]):
+        super().__init__(message)
+        self.recovery_errors = recovery_errors
 
 
 class _InstalledTargetAccess:
@@ -705,22 +710,50 @@ class _InstalledTargetAccess:
     def _windows_atomic_write(self, path: Path, data: bytes) -> None:
         with self._windows_parent(path, create=True) as (parent, name):
             temporary = f".{name}.{secrets.token_hex(12)}.tmp"
+            temporary_path = path.parent / temporary
             handle = self._windows_open_relative(
                 parent, temporary, directory=False, create=True, write=True, delete=True
             )
             renamed = False
+            ordinary_error: Exception | None = None
+            propagating_base_exception = False
             try:
-                self._windows_validate_handle(handle, path.parent / temporary, directory=False)
+                self._windows_validate_handle(handle, temporary_path, directory=False)
                 self._windows_write_handle(handle, data)
                 self._windows_rename(handle, parent, name)
                 renamed = True
+            except BaseException as error:
+                if isinstance(error, Exception):
+                    ordinary_error = error
+                else:
+                    propagating_base_exception = True
+                raise
             finally:
+                cleanup_errors: list[str] = []
                 if not renamed:
                     disposition = self._DispositionInformation(1)
-                    self._kernel32.SetFileInformationByHandle(
+                    if not self._kernel32.SetFileInformationByHandle(
                         handle, 4, ctypes.byref(disposition), ctypes.sizeof(disposition)
+                    ):
+                        error_code = ctypes.get_last_error()
+                        cleanup_errors.append(
+                            f"residual temporary target {temporary_path}: "
+                            "SetFileInformationByHandle returned 0 "
+                            f"(Windows error {error_code}: {ctypes.FormatError(error_code).strip()})"
+                        )
+                if not self._kernel32.CloseHandle(handle):
+                    error_code = ctypes.get_last_error()
+                    cleanup_target = temporary_path if not renamed else path
+                    cleanup_errors.append(
+                        f"native handle cleanup unproven for {cleanup_target}: "
+                        f"CloseHandle returned 0 (Windows error {error_code}: "
+                        f"{ctypes.FormatError(error_code).strip()})"
                     )
-                self._kernel32.CloseHandle(handle)
+                if cleanup_errors and not propagating_base_exception:
+                    message = "; ".join(cleanup_errors)
+                    if ordinary_error is not None:
+                        message = f"{ordinary_error}; {message}"
+                    raise _InstalledMutationError(message, cleanup_errors) from ordinary_error
 
     def _windows_unlink(self, path: Path, *, missing_ok: bool) -> None:
         try:
@@ -951,10 +984,7 @@ def _validated_source(
         raise DoctorError(
             f"Expected plugin name {PLUGIN_NAME!r}, found {manifest.get('name')!r}"
         )
-    receipt_name = manifest.get(RECEIPT_MANIFEST_KEY)
-    receipt_path = _safe_package_path(
-        source_plugin, receipt_name, field=RECEIPT_MANIFEST_KEY
-    )
+    receipt_path = source_plugin / "release-receipt.json"
     try:
         receipt_bytes = receipt_path.read_bytes()
     except OSError as error:
@@ -973,8 +1003,6 @@ def _validated_source(
         )
     if receipt.get("pluginName") != PLUGIN_NAME:
         raise DoctorError("Trusted package receipt has the wrong plugin identity")
-    if manifest.get(PACKAGE_STATE_KEY) != RELEASE_PACKAGE_STATE:
-        raise DoctorError("Trusted package metadata is not a release package")
     if receipt.get(PACKAGE_STATE_KEY) != RELEASE_PACKAGE_STATE:
         raise DoctorError("Trusted package receipt is not a release receipt")
     if receipt.get("packageVersion") != manifest.get("version"):
@@ -1236,7 +1264,7 @@ def _validate_installed_hook(
             verified_hook = Path(directory) / HOOK_NAME
             verified_hook.write_bytes(hook_bytes)
             completed = subprocess.run(
-                [sys.executable, str(verified_hook)],
+                [sys.executable, "-I", str(verified_hook)],
                 input=json.dumps({"cwd": directory, "session_id": "doctor-smoke"}),
                 text=True,
                 encoding="utf-8",
@@ -1514,12 +1542,12 @@ def sync_installation(
     known_marketplace = installation_kind == "marketplace" or _marketplace_owns_installation(
         source_plugin, skill_root, hook_path
     )
-    expected_receipt_sha256, expected_package_version = _validate_expected_release(
-        expected_receipt_sha256,
-        expected_package_version,
-        required=not known_marketplace,
-    )
     try:
+        expected_receipt_sha256, expected_package_version = _validate_expected_release(
+            expected_receipt_sha256,
+            expected_package_version,
+            required=True,
+        )
         skill_source, hook_source, trusted_receipt, source_entries = _validated_source(
             source_plugin,
             expected_receipt_sha256=expected_receipt_sha256,
@@ -1702,7 +1730,7 @@ def sync_installation(
             # A helper can fail after its replacement committed. Catch every
             # ordinary exception here, but deliberately leave BaseException
             # signals alone.
-            rollback_errors: list[str] = []
+            rollback_errors = list(getattr(error, "recovery_errors", ()))
             for item in reversed(applied):
                 try:
                     item["assertTarget"](item["target"])
@@ -1809,15 +1837,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--expected-package-version",
         help=(
-            "Exact manual-package version from separately published release metadata; "
-            "required with --expected-receipt-sha256 for non-marketplace packages."
+            "Exact package version from separately published release metadata; required "
+            "with --expected-receipt-sha256 for trusted health or repair checks."
         ),
     )
     parser.add_argument(
         "--expected-receipt-sha256",
         help=(
             "Exact release-receipt.json SHA-256 from separately published release metadata; "
-            "required with --expected-package-version for non-marketplace packages."
+            "required with --expected-package-version for trusted health or repair checks."
         ),
     )
     parser.add_argument(
