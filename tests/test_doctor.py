@@ -1344,6 +1344,126 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(hook_path.read_text(encoding="utf-8"), "print('old hook')\n")
 
     @unittest.skipUnless(os.name == "nt", "manual rollback requires handle-bound replace")
+    def test_runtime_error_after_first_replacement_restores_last_good_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+            _sync_installation(source, skill_root, hook_path, apply=True)
+            last_good = b"print('last good hook')\n"
+            hook_path.write_bytes(last_good)
+            original_write = doctor._InstalledTargetAccess.atomic_write
+            replaced = False
+
+            def fail_after_first_replace(
+                access: object, path: Path, data: bytes
+            ) -> None:
+                nonlocal replaced
+                original_write(access, path, data)
+                if Path(path) == hook_path and not replaced:
+                    replaced = True
+                    raise RuntimeError("simulated post-replace runtime failure")
+
+            with mock.patch.object(
+                doctor._InstalledTargetAccess,
+                "atomic_write",
+                new=fail_after_first_replace,
+            ):
+                with self.assertRaises(doctor.RepairFailed) as failure:
+                    _sync_installation(source, skill_root, hook_path, apply=True)
+
+            report = failure.exception.report
+            self.assertTrue(replaced)
+            self.assertEqual(report["status"], "error")
+            self.assertEqual(report["recoveryState"], "repair_failed_last_good_restored")
+            self.assertTrue(report["rollback"]["attempted"])
+            self.assertTrue(report["rollback"]["lastGoodRestored"])
+            self.assertEqual(report["rollback"]["errors"], [])
+            self.assertIn("post-replace runtime failure", report["error"])
+            self.assertEqual(hook_path.read_bytes(), last_good)
+
+    @unittest.skipUnless(os.name == "nt", "manual rollback requires handle-bound replace")
+    def test_ordinary_rollback_and_cleanup_errors_are_complete_and_truthful(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+            _sync_installation(source, skill_root, hook_path, apply=True)
+            skill_path = skill_root / "SKILL.md"
+            missing_path = skill_root / doctor.CAPABILITY_CONTRACT
+            hook_last_good = b"print('last good hook')\n"
+            skill_last_good = b"# Last good skill\n"
+            hook_path.write_bytes(hook_last_good)
+            skill_path.write_bytes(skill_last_good)
+            missing_path.unlink()
+            source_skill = (source / "skills" / "codex-coordinator" / "SKILL.md").read_bytes()
+            original_write = doctor._InstalledTargetAccess.atomic_write
+            original_unlink = doctor._InstalledTargetAccess.unlink
+            transaction_failed = False
+            rollback_attempts: list[Path] = []
+
+            def fail_transaction_and_one_restore(
+                access: object, path: Path, data: bytes
+            ) -> None:
+                nonlocal transaction_failed
+                target = Path(path)
+                if transaction_failed:
+                    rollback_attempts.append(target)
+                    if target == skill_path:
+                        raise RuntimeError("simulated rollback runtime failure")
+                    original_write(access, path, data)
+                    return
+                original_write(access, path, data)
+                if target == missing_path:
+                    transaction_failed = True
+                    raise RuntimeError("simulated transaction runtime failure")
+
+            def fail_after_cleanup(
+                access: object, path: Path, *, missing_ok: bool = False
+            ) -> None:
+                rollback_attempts.append(Path(path))
+                original_unlink(access, path, missing_ok=missing_ok)
+                raise RuntimeError("simulated rollback cleanup failure")
+
+            with mock.patch.object(
+                doctor._InstalledTargetAccess,
+                "atomic_write",
+                new=fail_transaction_and_one_restore,
+            ), mock.patch.object(
+                doctor._InstalledTargetAccess,
+                "unlink",
+                new=fail_after_cleanup,
+            ):
+                with self.assertRaises(doctor.RepairFailed) as failure:
+                    _sync_installation(source, skill_root, hook_path, apply=True)
+
+            report = failure.exception.report
+            self.assertTrue(transaction_failed)
+            self.assertEqual(
+                rollback_attempts,
+                [missing_path, skill_path, hook_path],
+            )
+            self.assertEqual(report["status"], "error")
+            self.assertEqual(report["recoveryState"], "manual_action_required")
+            self.assertTrue(report["rollback"]["attempted"])
+            self.assertFalse(report["rollback"]["lastGoodRestored"])
+            self.assertEqual(len(report["rollback"]["errors"]), 2)
+            self.assertIn(
+                f"{doctor.CAPABILITY_CONTRACT} -> {missing_path}: simulated rollback cleanup failure",
+                report["rollback"]["errors"],
+            )
+            self.assertIn(
+                f"SKILL.md -> {skill_path}: simulated rollback runtime failure",
+                report["rollback"]["errors"],
+            )
+            self.assertIn("transaction runtime failure", report["error"])
+            self.assertEqual(hook_path.read_bytes(), hook_last_good)
+            self.assertEqual(skill_path.read_bytes(), source_skill)
+            self.assertFalse(missing_path.exists())
+
+    @unittest.skipUnless(os.name == "nt", "manual rollback requires handle-bound replace")
     def test_failed_last_good_restore_requires_manual_action(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -1698,7 +1698,10 @@ def sync_installation(
                 read_skill_target,
                 read_hook_target,
             )
-        except (DoctorError, OSError) as error:
+        except Exception as error:
+            # A helper can fail after its replacement committed. Catch every
+            # ordinary exception here, but deliberately leave BaseException
+            # signals alone.
             rollback_errors: list[str] = []
             for item in reversed(applied):
                 try:
@@ -1719,7 +1722,9 @@ def sync_installation(
                             raise DoctorError(
                                 f"Last-good bytes were not restored at {item['target']}"
                             )
-                except (DoctorError, OSError) as rollback_error:
+                except Exception as rollback_error:
+                    # One unproven restore must not prevent attempts for the
+                    # remaining registered targets.
                     rollback_errors.append(
                         f"{item['relative'].as_posix()} -> {item['target']}: {rollback_error}"
                     )
