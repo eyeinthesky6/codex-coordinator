@@ -230,13 +230,15 @@ A terminal task with nothing left to do stays closed. Review waits until there i
 
 You should not have to act as the message bus. Agents keep ordinary findings and progress with their own work. Coordinator gathers what changed, carries forward anything unfinished, and stays quiet when nothing changed.
 
+Coordinator also reconciles the outside surfaces that can change the delivery result. When access is available, it reads goal-related GitHub pull requests, checks, reviews, merge state, unresolved conversations, and relevant issues at goal start, after material Git changes, and before closure. It inventories project-related automations, heartbeats, changed run results, and repository schedules at the same safe boundaries. Unrelated or paused scheduled work stays untouched. Read-only monitoring does not need repeated approval; exact current permission is required before a provider write or a major schedule, purpose, scope, target, permission, external-write, or ownership change.
+
 After Coordinator is enabled for a repository, one pinned Coordinator remains active and every task in that repository is managed by default. Only you can exclude a specific task. You can also pause management: Coordinator then stays in report-only mode, continues to observe and summarize, and performs no assignment, redirection, wake, stop, resume, or ownership action. Every Coordinator update and Mission Control project view shows the current mode and exclusions. Installing the plugin globally does not enable this behavior in unmarked repositories.
 
 The operating guide is split by action, so an agent loads only the execution, reconciliation, or messaging rules it needs. A small local hash checkpoint lets the active Coordinator skip inbox records it has already reconciled. It stores no task content and never caches codebase reads or Codex task history; Codex remains responsible for those native reads and cursors.
 
 Task registration, acceptance, ownership, and “you may continue” confirmations stay in the private project records instead of appearing as new chat messages. A visible task message is reserved for a real pause, stop, resume, or urgent scope correction that requires the receiving agent to act.
 
-Before it ends any coordinating turn, Coordinator checks what is completed, still active, waiting, blocked, or needs your decision and verifies that its one quiet repository heartbeat exists. If the host cannot provide that return path, Coordinator marks the project as needing attention and tells you plainly. Its final update is the single project view: mode, exclusions, completed, active, queued, blocked, and decisions needed.
+Before every user-visible final update, Coordinator reconciles the complete goal ledger, changed task turns, local handoffs, ownership, acceptance evidence, GitHub state, scheduled work, and retained decisions. It verifies that its one quiet repository heartbeat exists, then reports done work, pending work, blockers or decisions, next actions, and the full-goal verdict, using `None` for an empty section. If the host cannot provide that return path, Coordinator marks the project as needing attention and tells you plainly. A heartbeat with no material change stays quiet and preserves pending work instead of treating silence as completion. Its final update is the single project view: mode, exclusions, completed, active, queued, blocked, and decisions needed.
 
 ### Scheduled follow-up across native Codex tasks
 
@@ -311,6 +313,8 @@ codex plugin add codex-coordinator@codex-coordinator
 ```
 
 An update replaces only plugin-managed files. It does not rewrite project coordination state. Review and trust the changed hook, then start a new Codex task so the updated skill is loaded. Existing tasks keep their current titles; the one-time generic-title cleanup applies when Coordinator next creates or deliberately continues a generated task for the same coherent area. If you need to roll back, repeat the same sequence with the previous known-good tag, such as `v0.2.1`. When migrating from a manual install, verify the plugin first, then remove the legacy copy so both hooks do not run.
+
+The provider-consent, complete delivery-summary, and scheduled-task reconciliation upgrade is currently unreleased source work. The pinned `v0.3.0` marketplace does not contain it. It will reach tagged installations only after a separate tag and release are authorised; existing users then follow the same marketplace replacement and plugin reinstall steps above. No project marker or local coordination-state migration is required because these are global behavior and Doctor-contract changes.
 
 ## Frequently asked questions
 

@@ -53,6 +53,10 @@ Before the first intentional write in a turn outside the current Git common repo
 Deactivation and normal uninstall are dry-run-first and preserve project history.
 Mark unclear relevance or authority `AWAITING_USER_DECISION`.
 In the update, count material historical items closed, continued, deferred or not needed.
+At goal start, after material Git changes, and before closure, inspect provider state.
+Any provider mutation requires exact current user consent.
+At goal start, after material task or automation changes, and before closure, inspect scheduled work.
+Before every user-visible Coordinator final response, reconcile the complete goal ledger.
 """
 
 OPERATIONS_TEXT = """# Source operations
@@ -87,6 +91,11 @@ codex_app__set_thread_archived, codex_app__fork_thread, and
 codex_app__handoff_thread.
 Never send task registration, acceptance, task-ID assignment, ownership confirmation, or permission-to-continue messages.
 Apply the End-of-turn continuation gate before the Coordinator final answer.
+Apply GitHub monitoring and provider consent.
+Require exact current user consent and return the exact provider receipt.
+Apply Project-related scheduled-task reconciliation.
+Record a direct user decision before any major scheduled-task change.
+Before every user-visible Coordinator final response, report done work, pending work, blockers or decisions, next actions, and the full-goal verdict.
 """
 
 MESSAGING_TEXT = """# Source messaging
@@ -337,6 +346,90 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(current["status"], "current")
             self.assertEqual(current["changedFiles"], 0)
 
+    def test_stale_policy_installation_is_repaired_without_project_or_unmanaged_writes(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hooks" / "session_start.py"
+            project_state = root / "project" / ".codex" / "coordination" / "CURRENT.md"
+            project_state.parent.mkdir(parents=True)
+            project_state.write_text("preserve project state\n", encoding="utf-8")
+
+            initial = doctor.sync_installation(source, skill_root, hook_path, apply=True)
+            self.assertEqual(initial["status"], "updated")
+            hook_before = hook_path.read_bytes()
+            unmanaged = skill_root / "local-note.md"
+            unmanaged.write_text("preserve unmanaged file\n", encoding="utf-8")
+
+            contract_path = skill_root / doctor.CAPABILITY_CONTRACT
+            contract = json.loads(contract_path.read_text(encoding="utf-8"))
+            contract["contractVersion"] = doctor.CAPABILITY_CONTRACT_VERSION - 1
+            for name in (
+                "deliverySummary",
+                "providerMonitoring",
+                "providerMutationConsent",
+                "scheduledTaskReconciliation",
+            ):
+                contract["capabilities"].pop(name)
+            contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+            skill_path = skill_root / "SKILL.md"
+            skill_path.write_text(
+                skill_path.read_text(encoding="utf-8").replace(
+                    "Any provider mutation requires exact current user consent.",
+                    "Provider changes follow local convention.",
+                ),
+                encoding="utf-8",
+            )
+            reconciliation_path = skill_root / "references" / "reconciliation.md"
+            reconciliation_path.write_text(
+                reconciliation_path.read_text(encoding="utf-8").replace(
+                    "Record a direct user decision before any major scheduled-task change.",
+                    "Scheduled tasks may be changed when useful.",
+                ),
+                encoding="utf-8",
+            )
+
+            check = doctor.sync_installation(source, skill_root, hook_path, apply=False)
+            self.assertEqual(check["status"], "drift")
+            self.assertEqual(check["changedFiles"], 3)
+            self.assertEqual(check["installationChecks"], [])
+            self.assertEqual(
+                project_state.read_text(encoding="utf-8"), "preserve project state\n"
+            )
+            self.assertEqual(unmanaged.read_text(encoding="utf-8"), "preserve unmanaged file\n")
+            self.assertEqual(hook_path.read_bytes(), hook_before)
+
+            applied = doctor.sync_installation(source, skill_root, hook_path, apply=True)
+            self.assertEqual(applied["status"], "updated")
+            self.assertEqual(applied["changedFiles"], 3)
+            self.assertEqual(
+                {
+                    item["managedPath"]
+                    for item in applied["files"]
+                    if item["state"] == "updated"
+                },
+                {"SKILL.md", "capabilities.json", "references/reconciliation.md"},
+            )
+            self.assertEqual(
+                project_state.read_text(encoding="utf-8"), "preserve project state\n"
+            )
+            self.assertEqual(unmanaged.read_text(encoding="utf-8"), "preserve unmanaged file\n")
+            self.assertEqual(hook_path.read_bytes(), hook_before)
+            repaired_contract = json.loads(contract_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                repaired_contract["contractVersion"], doctor.CAPABILITY_CONTRACT_VERSION
+            )
+            for name, expected in doctor.REQUIRED_CAPABILITIES.items():
+                self.assertEqual(repaired_contract["capabilities"][name], expected)
+
+            current = doctor.sync_installation(source, skill_root, hook_path, apply=False)
+            self.assertEqual(current["status"], "current")
+            self.assertEqual(current["changedFiles"], 0)
+
     def test_wrong_plugin_source_is_rejected_without_writes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -497,6 +590,88 @@ class DoctorTests(unittest.TestCase):
                     root / "installed" / "hook.py",
                     apply=True,
                 )
+
+    def test_provider_delivery_and_scheduled_capabilities_are_required_before_installation(
+        self,
+    ) -> None:
+        for name in (
+            "deliverySummary",
+            "providerMonitoring",
+            "providerMutationConsent",
+            "scheduledTaskReconciliation",
+        ):
+            with self.subTest(capability=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = _source_plugin(root)
+                contract = (
+                    source
+                    / "skills"
+                    / "codex-coordinator"
+                    / doctor.CAPABILITY_CONTRACT
+                )
+                value = json.loads(contract.read_text(encoding="utf-8"))
+                value["capabilities"].pop(name)
+                contract.write_text(json.dumps(value), encoding="utf-8")
+
+                with self.assertRaisesRegex(doctor.DoctorError, rf"{name}.*stale"):
+                    doctor.sync_installation(
+                        source,
+                        root / "installed" / "skill",
+                        root / "installed" / "hook.py",
+                        apply=True,
+                    )
+
+    def test_provider_delivery_and_scheduled_guidance_markers_are_required(self) -> None:
+        cases = (
+            ("SKILL.md", "At goal start, after material Git changes, and before closure"),
+            ("SKILL.md", "Any provider mutation requires exact current user consent."),
+            (
+                "SKILL.md",
+                "At goal start, after material task or automation changes, and before closure",
+            ),
+            ("SKILL.md", "Before every user-visible Coordinator final response"),
+            (
+                "references/reconciliation.md",
+                "GitHub monitoring and provider consent",
+            ),
+            ("references/reconciliation.md", "exact current user consent"),
+            ("references/reconciliation.md", "return the exact provider receipt"),
+            (
+                "references/reconciliation.md",
+                "Project-related scheduled-task reconciliation",
+            ),
+            (
+                "references/reconciliation.md",
+                "Record a direct user decision before any major scheduled-task change.",
+            ),
+            (
+                "references/reconciliation.md",
+                "Before every user-visible Coordinator final response",
+            ),
+            (
+                "references/reconciliation.md",
+                "done work, pending work, blockers or decisions, next actions, and the full-goal verdict",
+            ),
+        )
+        for relative, marker in cases:
+            with self.subTest(
+                relative=relative, marker=marker
+            ), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = _source_plugin(root)
+                guidance = source / "skills" / "codex-coordinator" / relative
+                guidance.write_text(
+                    guidance.read_text(encoding="utf-8").replace(marker, "stale guidance"),
+                    encoding="utf-8",
+                )
+
+                with self.assertRaisesRegex(doctor.DoctorError, "guidance is stale"):
+                    doctor.sync_installation(
+                        source,
+                        root / "installed" / "skill",
+                        root / "installed" / "hook.py",
+                        apply=False,
+                    )
 
     def test_inherited_reasoning_default_is_rejected_before_installation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

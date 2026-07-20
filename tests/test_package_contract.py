@@ -448,6 +448,70 @@ class PackageContractTests(unittest.TestCase):
         ):
             self.assertIn(tool, operations)
 
+    def test_provider_delivery_and_scheduled_task_policy_is_fail_closed(self) -> None:
+        skill_root = PLUGIN / "skills" / "codex-coordinator"
+        skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+        reconciliation = (skill_root / "references" / "reconciliation.md").read_text(
+            encoding="utf-8"
+        )
+        operating_guide = (REPOSITORY / "docs" / "OPERATING_GUIDE.md").read_text(
+            encoding="utf-8"
+        )
+        readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
+        changelog = (REPOSITORY / "CHANGELOG.md").read_text(encoding="utf-8")
+        doctor = (PLUGIN / "scripts" / "codex_coordinator_doctor.py").read_text(
+            encoding="utf-8"
+        )
+        contract = json.loads((skill_root / "capabilities.json").read_text(encoding="utf-8"))
+
+        self.assertIn("At goal start, after material Git changes, and before closure", skill)
+        self.assertIn("GitHub monitoring and provider consent", reconciliation)
+        self.assertIn("immutable head", reconciliation)
+        self.assertIn("exact current user consent", reconciliation)
+        self.assertIn("record the exact gap", reconciliation)
+        self.assertIn("unresolved conversations, intended merge method", reconciliation)
+        self.assertIn("stacked-work effect", reconciliation)
+        self.assertIn("return the exact provider receipt", reconciliation)
+        self.assertIn("Project-related scheduled-task reconciliation", reconciliation)
+        self.assertIn("native automations, Coordinator heartbeats", reconciliation)
+        self.assertIn("exact project identity, working directory, target", reconciliation)
+        self.assertIn("purpose, status, cadence, current authority", reconciliation)
+        self.assertIn("latest material result", reconciliation)
+        self.assertIn("Record a direct user decision before any major", reconciliation)
+        self.assertIn("HTTP success, green run, or completed status", reconciliation)
+        self.assertIn("Before every user-visible Coordinator final response", reconciliation)
+        self.assertIn("verify one real continuation or return path", reconciliation)
+        self.assertIn("done work, pending work, blockers or decisions, next actions", reconciliation)
+        self.assertIn("Write `None` for an empty section", reconciliation)
+        self.assertIn("quiet no-change heartbeat remains silent", reconciliation)
+        self.assertIn("Monitor GitHub safely", operating_guide)
+        self.assertIn("Reconcile scheduled work", operating_guide)
+        self.assertIn("Before every user-visible final update", readme)
+        self.assertIn("currently unreleased source work", readme)
+        self.assertIn("separately authorised tag and release", operating_guide)
+        self.assertIn("capability contract to version 19", changelog)
+        self.assertIn("CAPABILITY_CONTRACT_VERSION = 19", doctor)
+        self.assertIn("GitHub monitoring and provider consent", doctor)
+        self.assertIn("Project-related scheduled-task reconciliation", doctor)
+        self.assertIn("Before every user-visible Coordinator final response", doctor)
+        self.assertEqual(contract["contractVersion"], 19)
+        self.assertEqual(
+            contract["capabilities"]["deliverySummary"],
+            "complete-ledger-sections-every-user-visible-final",
+        )
+        self.assertEqual(
+            contract["capabilities"]["providerMonitoring"],
+            "bounded-read-reconcile-at-start-change-closure",
+        )
+        self.assertEqual(
+            contract["capabilities"]["providerMutationConsent"],
+            "exact-current-consent-immutable-target-revalidation",
+        )
+        self.assertEqual(
+            contract["capabilities"]["scheduledTaskReconciliation"],
+            "exact-project-binding-major-change-direct-decision",
+        )
+
     def test_coordinator_cannot_claim_user_authority(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
@@ -546,7 +610,7 @@ class PackageContractTests(unittest.TestCase):
             (PLUGIN / "scripts" / "codex_coordinator_doctor.py").is_file()
         )
         contract = json.loads((skill_root / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 18)
+        self.assertEqual(contract["contractVersion"], 19)
         self.assertEqual(
             contract["capabilities"]["missionControlLifecycle"],
             "bundled-autostart-user-disable-chat-control",

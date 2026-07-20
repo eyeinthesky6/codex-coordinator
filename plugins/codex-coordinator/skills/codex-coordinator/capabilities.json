@@ -1,5 +1,5 @@
 {
-  "contractVersion": 18,
+  "contractVersion": 19,
   "capabilities": {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
@@ -13,6 +13,10 @@
     "pauseBehavior": "report-only-no-control-actions",
     "idleBehavior": "retain-pinned-accepting-coordinator",
     "userStateReporting": "mode-and-exclusions-always-visible",
+    "deliverySummary": "complete-ledger-sections-every-user-visible-final",
+    "providerMonitoring": "bounded-read-reconcile-at-start-change-closure",
+    "providerMutationConsent": "exact-current-consent-immutable-target-revalidation",
+    "scheduledTaskReconciliation": "exact-project-binding-major-change-direct-decision",
     "modelDefault": "inherit-unless-user-overrides",
     "reasoningDefault": "low-or-medium",
     "registrationDelivery": "document-only-no-ack",

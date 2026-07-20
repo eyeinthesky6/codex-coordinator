@@ -4,6 +4,8 @@ Notable changes to Codex Coordinator will be recorded here.
 
 ## Unreleased
 
+- Advanced the installed capability contract to version 19 for provider monitoring and mutation consent, complete every-turn delivery summaries, and project-related scheduled-task reconciliation. Doctor now rejects a trusted package that omits any required capability or operating marker and repairs stale managed installations through its existing atomic, rollback-validated update path.
+- Kept this behavior in the global plugin package rather than project state. The currently published `v0.3.0` marketplace remains pinned and does not receive these unreleased bytes until a separate tag/release is authorised; existing installations then use the documented marketplace replacement and plugin reinstall flow.
 - Added dry-run-first project deactivation, reactivation, verified global-uninstall planning, history-preserving defaults, and a separately confirmed project purge with isolated tests.
 - Allowed Coordinator to select bounded worktrees for independent writers when isolation shortens the critical path while one primary canonical-state owner and one Git integration owner remain explicit.
 - Made Mission Control derive Waiting only from recorded dependencies, pauses, commands, decisions, or ownership conflicts; native idle, notLoaded, and unstarted messages remain historical or idle.
