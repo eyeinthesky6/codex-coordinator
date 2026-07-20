@@ -177,7 +177,7 @@ class CollectorTests(unittest.TestCase):
         )
         self.assertEqual(_codex_token_usage(receipt, ""), 120)
 
-    def test_user_message_stays_queued_until_agent_work_begins(self):
+    def test_user_message_is_not_waiting_without_a_recorded_dependency(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = MissionControlFixture(Path(directory))
             rollout = fixture.codex_home / "one.jsonl"
@@ -204,12 +204,12 @@ class CollectorTests(unittest.TestCase):
             self.assertTrue(receipt["pendingUserMessage"])
 
             rows = CodexThreadReader(fixture.codex_home).read()
-            self.assertEqual(next(row for row in rows if row["threadId"] == THREAD_ONE)["status"], "queued")
+            self.assertEqual(next(row for row in rows if row["threadId"] == THREAD_ONE)["status"], "idle")
             snapshot = Collector([fixture.project], codex_home=fixture.codex_home).collect()
-            queued = next(task for task in snapshot["tasks"] if task["openUrl"].endswith(THREAD_ONE))
-            self.assertEqual(queued["status"], "queued")
+            assigned = next(task for task in snapshot["tasks"] if task["openUrl"].endswith(THREAD_ONE))
+            self.assertEqual(assigned["status"], "assigned")
             self.assertEqual(snapshot["metrics"]["active"], 2)
-            self.assertEqual(snapshot["conflicts"], [])
+            self.assertEqual(snapshot["conflicts"][0]["title"], "Declared scopes collide")
 
             with rollout.open("a", encoding="utf-8") as handle:
                 handle.write(
@@ -226,6 +226,38 @@ class CollectorTests(unittest.TestCase):
             self.assertFalse(receipt["pendingUserMessage"])
             rows = CodexThreadReader(fixture.codex_home).read()
             self.assertEqual(next(row for row in rows if row["threadId"] == THREAD_ONE)["status"], "active")
+
+    def test_recorded_coordination_command_marks_a_task_waiting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = MissionControlFixture(Path(directory))
+            current = fixture.coordination / "CURRENT.md"
+            text = current.read_text(encoding="utf-8")
+            header = (
+                "| Task ID | Message ID | Recipient thread ID | Message type | Status |\n"
+                "|---|---|---|---|---|\n"
+            )
+            text = text.replace(
+                header,
+                header + f"| MC-001 | msg-1 | {THREAD_ONE} | PAUSE | PENDING |\n",
+            )
+            current.write_text(text, encoding="utf-8")
+
+            snapshot = Collector([fixture.project], codex_home=fixture.codex_home).collect()
+            waiting = next(task for task in snapshot["tasks"] if task["openUrl"].endswith(THREAD_ONE))
+            self.assertEqual(waiting["status"], "queued")
+            self.assertIn("recorded coordination command", waiting["attention"])
+
+            current.write_text(
+                current.read_text(encoding="utf-8").replace(
+                    f"| MC-001 | msg-1 | {THREAD_ONE} | PAUSE | PENDING |",
+                    f"| MC-001 | msg-1 | {THREAD_ONE} | PAUSE | COMPLETE |",
+                ),
+                encoding="utf-8",
+            )
+            snapshot = Collector([fixture.project], codex_home=fixture.codex_home).collect()
+            released = next(task for task in snapshot["tasks"] if task["openUrl"].endswith(THREAD_ONE))
+            self.assertNotEqual(released["status"], "queued")
+            self.assertEqual(released["attention"], "")
 
     def test_invalid_local_timestamps_and_receipt_rows_fail_safe(self):
         epoch = datetime.fromtimestamp(0, timezone.utc)

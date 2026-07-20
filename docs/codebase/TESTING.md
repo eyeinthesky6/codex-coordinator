@@ -41,6 +41,14 @@ The suite has no third-party Python dependency.
 - stale capability declarations or operating guidance fail before installation.
 - optional Mermaid output reflects Doctor's verified states without exposing machine-specific paths or replacing JSON and exit-code authority.
 
+`tests/test_uninstall.py` checks that:
+
+- project deactivation is a dry run by default and reversible application preserves local coordination history and unrelated bytes;
+- malformed or altered discovery state stops before mutation;
+- purge requires the exact project ID and removes neither unrelated `.codex` configuration nor unrelated instructions and ignore entries;
+- an interrupted multi-file change rolls back and a verified known-project index never becomes authority without rechecking each live marker;
+- global planning performs no drive scan, native Codex command, or unrelated automation mutation.
+
 `tests/test_coordination_state.py` checks that:
 
 - harmless idle sentinels are recognized and normalized without weakening ownership validation;
@@ -83,6 +91,7 @@ pre-commit run --all-files
 - `tests/test_package_contract.py`
 - `tests/test_session_start.py`
 - `tests/test_doctor.py`
+- `tests/test_uninstall.py`
 - `tests/test_coordination_state.py`
 - `tests/test_public_site.py`
 - `tests/test_mission_control.py`

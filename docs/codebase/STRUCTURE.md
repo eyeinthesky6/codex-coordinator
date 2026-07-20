@@ -29,6 +29,7 @@
 - `plugins/codex-coordinator/hooks/hooks.json`: SessionStart registration.
 - `plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`: bounded restart-context hook and Mission Control lifecycle dispatch.
 - `plugins/codex-coordinator/scripts/mission_control_lifecycle.py`: idempotent local start, stop, status, and persisted user opt-out.
+- `plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py`: dry-run-first project deactivation/reactivation, verified known-project global planning, and separately confirmed purge.
 - `plugins/codex-coordinator/mission_control/`: bundled localhost dashboard runtime.
 - `plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`: atomic repair plus installed skill and hook validation for the configured Coordinator runtime, with optional Mermaid diagnostic output.
 - `plugins/codex-coordinator/LICENSE`: license included with the distributed plugin.
@@ -39,6 +40,7 @@
 - `tests/test_package_contract.py`: manifest, license, asset, hook, and skill-link checks.
 - `tests/test_session_start.py`: behavioral and safety checks for restart parsing, table semantics, duplicate ownership, and fail-closed transitions.
 - `tests/test_doctor.py`: update-package identity, unambiguous JSON, non-overlapping destinations, atomic installed-runtime repair, rollback, preservation, runtime validation, idempotency, and Mermaid-projection checks.
+- `tests/test_uninstall.py`: isolated temporary-repository lifecycle planning, application, rollback, preservation, verified indexing, and purge checks.
 - `tests/test_coordination_state.py`: state metadata and row validation, safe taskless normalization, reconciliation routing and ledger validation, non-overwriting file creation, and fail-safe inbox checkpoint behavior.
 - `tests/test_public_site.py`: public metadata, route, asset-assembly, and discovery-file checks.
 - `tests/test_mission_control.py`: public companion behavior and server-boundary checks.

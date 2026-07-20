@@ -1,5 +1,5 @@
 {
-  "contractVersion": 17,
+  "contractVersion": 18,
   "capabilities": {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
@@ -30,6 +30,12 @@
     "missionControlLifecycle": "bundled-autostart-user-disable-chat-control",
     "subagentDispatch": "one-to-three-for-two-independent-lanes",
     "pythonRuntimeBootstrap": "bounded-machine-discovery-informed-install",
+    "lifecycleCleanup": "dry-run-first-history-preserving",
+    "globalUninstall": "verified-project-index-no-drive-scan",
+    "worktreeSelection": "coordinator-selected-bounded-when-beneficial",
+    "waitingClassification": "canonical-evidence-only",
+    "delegationDecision": "reuse-first-recorded",
+    "taskTitlePolicy": "rename-generic-once-preserve-user-title",
     "taskLifecycle": [
       "pin-coordinator",
       "rename-worker",

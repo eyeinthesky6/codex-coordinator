@@ -4,6 +4,10 @@ Notable changes to Codex Coordinator will be recorded here.
 
 ## Unreleased
 
+- Added dry-run-first project deactivation, reactivation, verified global-uninstall planning, history-preserving defaults, and a separately confirmed project purge with isolated tests.
+- Allowed Coordinator to select bounded worktrees for independent writers when isolation shortens the critical path while one primary canonical-state owner and one Git integration owner remain explicit.
+- Made Mission Control derive Waiting only from recorded dependencies, pauses, commands, decisions, or ownership conflicts; native idle, notLoaded, and unstarted messages remain historical or idle.
+- Made reuse-first delegation decisions and one-time generated-title cleanup explicit while preserving meaningful user-written task titles and the existing worker ceilings.
 - Replaced Doctor's model-backed signal summary with a deterministic structured-state scanner that reads no application code, parses no transcript bodies, emits compact JSON, writes deduplicated findings, and uses zero model tokens for project diagnosis.
 - Added a separate user-triggered Mission Control Deep Review for the two semantic checks deterministic Doctor defers. It uses the configured model at Low reasoning over a capped allowlisted packet, records actual token use, and can return candidates but cannot write Doctor findings or coordination state.
 

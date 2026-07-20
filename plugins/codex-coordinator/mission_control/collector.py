@@ -554,7 +554,10 @@ class CodexThreadReader:
             if receipt["complete"]:
                 status = "ready"
             elif receipt["pendingUserMessage"]:
-                status = "queued"
+                # A submitted message proves only that Codex has not started the
+                # next turn yet. It does not prove a coordination dependency.
+                # Canonical Coordinator records decide whether work is waiting.
+                status = "idle"
             elif receipt["turnEnded"] or age_seconds > 30 * 60:
                 status = "idle"
             else:
@@ -630,10 +633,35 @@ class CoordinationReader:
                 continue
             sessions = _parse_markdown_table(current_text, "Registered sessions")
             active_rows = _parse_markdown_table(current_text, "Active tasks")
+            pending_rows = _parse_markdown_table(current_text, "Pending commands")
             paused_rows = _parse_markdown_table(current_text, "Paused work")
+            resume_rows = _parse_markdown_table(current_text, "Resume queue")
             blocked_rows = _parse_markdown_table(current_text, "Blocked decisions")
             session_by_task = {row.get("Task ID", ""): row for row in sessions if row.get("Task ID")}
-            blocked_ids = {row.get("Task ID", "") for row in blocked_rows}
+            terminal_states = {
+                "ACKNOWLEDGED",
+                "CANCELLED",
+                "COMPLETE",
+                "COMPLETED",
+                "REJECTED",
+                "RESOLVED",
+                "TERMINAL",
+            }
+            blocked_ids = {
+                row.get("Task ID", "")
+                for row in blocked_rows
+                if row.get("Status", "").strip().upper() not in terminal_states
+            }
+            pending_ids = {
+                row.get("Task ID", "")
+                for row in pending_rows
+                if row.get("Status", "").strip().upper() not in terminal_states
+            }
+            resume_ids = {
+                row.get("Task ID", "")
+                for row in resume_rows
+                if row.get("Status", "").strip().upper() not in terminal_states
+            }
 
             for row in active_rows + paused_rows:
                 task_id = row.get("Task ID", "")
@@ -643,10 +671,12 @@ class CoordinationReader:
                 session = session_by_task.get(task_id, {})
                 thread_id = session.get("Thread ID", "")
                 status = (row.get("Status") or session.get("Status") or "assigned").strip().lower()
-                if row in paused_rows:
+                if row in paused_rows or task_id in resume_ids or "paus" in status:
                     status = "paused"
-                if task_id in blocked_ids or "block" in status:
+                elif task_id in blocked_ids or "block" in status or "conflict" in status:
                     status = "blocked"
+                elif task_id in pending_ids or "wait" in status or "queue" in status:
+                    status = "queued"
                 tasks.append(
                     {
                         "taskId": task_id,
@@ -739,9 +769,13 @@ class Collector:
                 owner = task["owner"] or owner
                 role = task["role"] or role
                 owned_paths = task["ownedPaths"]
-                if task["status"] in {"blocked", "paused"}:
+                if task["status"] in {"blocked", "paused", "queued"}:
                     status = task["status"]
-                    attention = task.get("reason") or f"This work is {status}."
+                    attention = task.get("reason") or {
+                        "blocked": "A recorded decision or ownership conflict blocks this work.",
+                        "paused": "This work has a recorded pause or resume condition.",
+                        "queued": "A recorded coordination command or dependency is pending.",
+                    }[status]
                 elif status in {"ready", "idle"} and task["status"] not in {"complete", "completed", "terminal"}:
                     status = "assigned"
             display.append(
@@ -786,7 +820,11 @@ class Collector:
                     "ownedPaths": task["ownedPaths"],
                     "observedPaths": [],
                     "openUrl": f"codex://threads/{task['threadId']}" if task.get("threadId") else "",
-                    "attention": task.get("reason", "") if task["status"] in {"blocked", "paused"} else "",
+                    "attention": (
+                        task.get("reason", "")
+                        if task["status"] in {"blocked", "paused", "queued"}
+                        else ""
+                    ),
                     "coordinated": True,
                     "receiptComplete": False,
                 }

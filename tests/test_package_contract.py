@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import re
 import unittest
@@ -56,6 +57,35 @@ class PackageContractTests(unittest.TestCase):
         self.assertTrue((PLUGIN / "scripts" / "codex_coordinator_bootstrap.sh").is_file())
         self.assertTrue((PLUGIN / "scripts" / "codex_coordinator_bootstrap.ps1").is_file())
         self.assertTrue((PLUGIN / "scripts" / "mission_control_lifecycle.py").is_file())
+        self.assertTrue((PLUGIN / "scripts" / "codex_coordinator_uninstall.py").is_file())
+
+    def test_uninstall_helper_matches_the_packaged_discovery_contract(self) -> None:
+        installation = (
+            PLUGIN / "skills" / "codex-coordinator" / "references" / "installation.md"
+        ).read_text(encoding="utf-8")
+        match = re.search(
+            r"Use this exact block:\n\n```markdown\n(## Codex Coordinator\n.*?\n)```",
+            installation,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        expected = match.group(1).rstrip("\n")
+
+        script = (PLUGIN / "scripts" / "codex_coordinator_uninstall.py").read_text(
+            encoding="utf-8"
+        )
+        module = ast.parse(script)
+        assignment = next(
+            node
+            for node in module.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "DISCOVERY_BLOCK" for target in node.targets)
+        )
+        self.assertEqual(ast.literal_eval(assignment.value), expected)
+
+        readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
+        self.assertIn("Deactivate or uninstall safely", readme)
+        self.assertIn("codex_coordinator_uninstall.py", readme)
 
     def test_manifest_brand_assets_exist_inside_the_plugin(self) -> None:
         manifest = json.loads(
@@ -174,11 +204,17 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Do not create a project task", operations)
         self.assertIn("Assigned, working, blocked, and paused workers count", operations)
         self.assertIn("search for an existing same-area owner", operations)
+        self.assertIn("Record the delegation decision before ordinary implementation starts", operations)
+        self.assertIn("`REUSE`", operations)
+        self.assertIn("`RETAIN`", operations)
+        self.assertIn("`DELEGATE`", operations)
+        self.assertIn("`CREATE`", operations)
         self.assertIn("keep the distinct work undispatched", operations)
         self.assertIn("Never evade the gate or ceiling", operations)
         self.assertIn("Fewer, durable worker tasks", readme)
         self.assertIn("normally targets one to three active workers", readme)
         self.assertIn("Those helpers do not become new project tasks", readme)
+        self.assertIn("records a reuse-first decision", readme)
 
     def test_worker_identity_and_status_come_from_native_tools(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
@@ -192,6 +228,8 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("use only its exact returned task ID", operations)
         self.assertIn("Do not ask the worker what it is doing", operations)
         self.assertIn("Immediately bind the returned native identity", operations)
+        self.assertIn("Rename a generated generic title once", operations)
+        self.assertIn("preserve a meaningful user-written title", operations)
         self.assertIn("Do not request a separate identity", operations)
         self.assertNotIn("non-executable holding prompt", operations)
         self.assertNotIn("non-executable holding turn", readme)
@@ -500,7 +538,7 @@ class PackageContractTests(unittest.TestCase):
             (PLUGIN / "scripts" / "codex_coordinator_doctor.py").is_file()
         )
         contract = json.loads((skill_root / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 17)
+        self.assertEqual(contract["contractVersion"], 18)
         self.assertEqual(
             contract["capabilities"]["missionControlLifecycle"],
             "bundled-autostart-user-disable-chat-control",
@@ -566,6 +604,30 @@ class PackageContractTests(unittest.TestCase):
         self.assertEqual(
             contract["capabilities"]["pythonRuntimeBootstrap"],
             "bounded-machine-discovery-informed-install",
+        )
+        self.assertEqual(
+            contract["capabilities"]["lifecycleCleanup"],
+            "dry-run-first-history-preserving",
+        )
+        self.assertEqual(
+            contract["capabilities"]["globalUninstall"],
+            "verified-project-index-no-drive-scan",
+        )
+        self.assertEqual(
+            contract["capabilities"]["worktreeSelection"],
+            "coordinator-selected-bounded-when-beneficial",
+        )
+        self.assertEqual(
+            contract["capabilities"]["waitingClassification"],
+            "canonical-evidence-only",
+        )
+        self.assertEqual(
+            contract["capabilities"]["delegationDecision"],
+            "reuse-first-recorded",
+        )
+        self.assertEqual(
+            contract["capabilities"]["taskTitlePolicy"],
+            "rename-generic-once-preserve-user-title",
         )
         self.assertTrue((skill_root / "scripts" / "coordination_state.py").is_file())
 

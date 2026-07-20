@@ -15,6 +15,9 @@ Mission Control, Doctor, and the test suite for every change: they answer differ
 | Prove the source package still behaves correctly | Repository tests | Run the full Python test suite. |
 | Prove installation on a new machine | Fresh-machine UAT | Follow the stable install instructions in the README on a clean supported machine. |
 | Install or update the plugin | Marketplace install/update | Follow the pinned stable-release instructions in the README. |
+| Turn Coordinator off for one repository | Reversible project deactivation | Ask Codex to turn it off; inspect the dry run before exact project and native lifecycle changes are applied. |
+| Remove Coordinator globally | Verified global uninstall | Plan from explicitly known or indexed repositories, deactivate each safely, stop Mission Control, then remove the plugin. |
+| Delete saved Coordinator history | Explicit purge | Name the exact project or global application-data boundary and accept that recovery history will be lost. |
 
 ## The normal daily flow
 
@@ -34,7 +37,10 @@ Keep the public API stable, do not publish anything, and give me one consolidate
 
 Coordinator decides whether the work is large enough to need durable worker tasks. It should keep
 routine tests, lookups, and mechanical documentation inside the current owner instead of creating a
-new task for every command.
+new task for every command. It records whether it reused a same-area owner, retained a microtask,
+delegated substantial independent work, or created a task for a genuinely new area. It may choose a
+bounded linked worktree when an independent writer would otherwise wait, while the primary worktree
+keeps canonical coordination state and one integration owner remains named.
 
 Coordinator-generated tasks inherit the user's configured model. They use Low reasoning for
 deterministic work or Medium for normal work unless managed policy or the user explicitly overrides
@@ -148,6 +154,41 @@ state; an update must not reset its work or ownership.
 First success is a real bounded goal that is easier to follow because Coordinator kept ownership and
 status clear. Installation alone, an empty demo, a green Doctor result, or an open dashboard is not
 user success.
+
+## Deactivation and uninstall
+
+These are different operations:
+
+| Operation | Default result |
+|---|---|
+| Pause management | Repository remains enabled in report-only mode; Coordinator observes and reports but performs no control actions. |
+| Deactivate project | Marker is disabled, exact discovery block and repository heartbeat are removed, history and configuration are preserved. |
+| Uninstall globally | Every verified intended project is deactivated independently, Mission Control is stopped, exact Coordinator heartbeats and plugin are removed, history is preserved. |
+| Purge | Exact saved project or global Coordinator data is removed only under separate explicit confirmation. |
+
+From chat, prefer:
+
+```text
+Turn Codex Coordinator off for this repository.
+Uninstall Coordinator globally but preserve project history.
+```
+
+For development or recovery, run the packaged helper without `--apply` first:
+
+```powershell
+python plugins\codex-coordinator\scripts\codex_coordinator_uninstall.py `
+  project deactivate --project-root C:\Projects\example
+
+python plugins\codex-coordinator\scripts\codex_coordinator_uninstall.py `
+  global-plan --codex-home $env:CODEX_HOME `
+  --project-root C:\Projects\example
+```
+
+The helper changes only verified project files when explicitly applied. It reports, but does not
+pretend to perform, native task archival/pinning, automation deletion, Mission Control shutdown, or
+plugin removal. Global planning never scans a drive. See the
+[uninstall and deactivation contract](codebase/UNINSTALL_AND_DEACTIVATION.md) for preservation,
+retry, purge, and disposable-VM testing boundaries.
 
 ## Which document is authoritative?
 

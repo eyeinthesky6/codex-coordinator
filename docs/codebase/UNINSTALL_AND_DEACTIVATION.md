@@ -26,14 +26,16 @@ Deactivation proceeds in this order:
 3. Produce a dry-run receipt listing every file and native Codex action that would change.
 4. Remove exactly the repository heartbeat targeting the registered Coordinator, then archive and
    unpin that Coordinator task when its work has reached a safe boundary.
-5. Change only the marker value from `true` to `false` and remove only the exact Coordinator
-   discovery block from the root `AGENTS.md`.
+5. Change only the marker value from `true` to `false` and remove only the exact current Coordinator
+   discovery block or an explicitly allowlisted exact legacy version from the root `AGENTS.md`.
 6. Preserve `.codex/coordination/`, its marker, task history, inbox, `.gitignore` rules, project
    configuration, Codex tasks, transcripts, and application files.
 7. Validate that the marker is disabled and unrelated bytes are unchanged.
 
-Reactivation reverses only the marker and discovery-block changes, reloads the installed skill,
-reconciles the preserved state, and creates or recovers one pinned Coordinator plus its heartbeat.
+Reactivation reverses only the marker and discovery-block changes, normalizes an allowlisted legacy
+block to the current packaged block, reloads the installed skill, reconciles the preserved state, and
+creates or recovers one pinned Coordinator plus its heartbeat. An arbitrary lookalike block fails
+before mutation.
 
 ## Global uninstall
 

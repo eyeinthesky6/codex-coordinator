@@ -16,7 +16,7 @@ from typing import Any
 PLUGIN_NAME = "codex-coordinator"
 HOOK_NAME = "codex_coordinator_session_start.py"
 CAPABILITY_CONTRACT = "capabilities.json"
-CAPABILITY_CONTRACT_VERSION = 17
+CAPABILITY_CONTRACT_VERSION = 18
 REQUIRED_CAPABILITIES: dict[str, Any] = {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
@@ -46,6 +46,12 @@ REQUIRED_CAPABILITIES: dict[str, Any] = {
     "externalWriteDisclosure": "prewrite-notice-and-scope-authority",
     "subagentDispatch": "one-to-three-for-two-independent-lanes",
     "pythonRuntimeBootstrap": "bounded-machine-discovery-informed-install",
+    "lifecycleCleanup": "dry-run-first-history-preserving",
+    "globalUninstall": "verified-project-index-no-drive-scan",
+    "worktreeSelection": "coordinator-selected-bounded-when-beneficial",
+    "waitingClassification": "canonical-evidence-only",
+    "delegationDecision": "reuse-first-recorded",
+    "taskTitlePolicy": "rename-generic-once-preserve-user-title",
 }
 REQUIRED_TASK_LIFECYCLE = {
     "pin-coordinator",
@@ -75,6 +81,9 @@ REQUIRED_GUIDANCE = {
         "The original direct user request supplies this creation authority",
         "Full filesystem access is capability, not user authority",
         "Before the first intentional write in a turn outside the current Git common repository",
+        "record the reuse-first choice",
+        "one rename of a generated generic task title",
+        "dry-run-first and preserve project history",
     ),
     "references/operations.md": (
         "[execution.md](execution.md)",
@@ -90,6 +99,9 @@ REQUIRED_GUIDANCE = {
         "Routine microtasks stay inside the current owner",
         "Use one to three parent-owned subagents when at least two independent, bounded lanes",
         "coordination cost exceeds its value",
+        "Record the delegation decision before ordinary implementation starts",
+        "Rename a generated generic title once",
+        "Coordinator may place an independent writer in a bounded linked worktree",
     ),
     "references/reconciliation.md": (
         "scan-inbox",
@@ -128,6 +140,15 @@ REQUIRED_GUIDANCE = {
         "Before an installation, repair, or Doctor `--apply` writes outside the current repository",
         "A user-approved recurring Doctor may reuse the bounded project inbox targets",
         "Newly discovered projects or external destinations require a fresh notice and approval",
+        "Deactivation, uninstall, and purge",
+        "global-plan --codex-home <codex-home>",
+        "never scans an entire drive",
+    ),
+    "references/installation.md": (
+        "Project deactivation and reactivation",
+        "project deactivate --project-root <primary-worktree>",
+        "project reactivate --project-root <primary-worktree>",
+        "Project purge is not opt-out",
     ),
 }
 FORBIDDEN_GUIDANCE = (

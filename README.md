@@ -171,6 +171,33 @@ python -m apps.mission_control
 
 On Windows, `./apps/mission_control/start-background.ps1 -Open` starts or reuses one hidden local process without opening duplicate browser tabs. See the [Mission Control guide](apps/mission_control/README.md) for project selection, settings, Doctor behavior, token use, and stopping the background process.
 
+### Deactivate or uninstall safely
+
+Turning Coordinator off for one repository is reversible. Ask Codex:
+
+```text
+Turn Codex Coordinator off for this repository.
+```
+
+Coordinator first reconciles active work, shows a dry-run receipt, removes only that repository's heartbeat and pinned Coordinator at a safe boundary, disables the marker, and removes the exact discovery block. It preserves `.codex/coordination/`, task history, ignore rules, project configuration, Codex tasks, and Mission Control data so reactivation can recover the project.
+
+For a developer dry run from a trusted source checkout:
+
+```powershell
+python plugins\codex-coordinator\scripts\codex_coordinator_uninstall.py `
+  project deactivate --project-root C:\Projects\example
+```
+
+Add `--apply` only after the listed native task and heartbeat actions have verified receipts. Use `project reactivate` to reverse the project-file changes. `project purge` is a separate destructive command and requires `--confirm-project-id <exact-id>`.
+
+Global uninstall never scans a drive. It plans from explicitly supplied roots and a small non-authoritative index, revalidates every repository marker, deactivates verified projects independently, stops Mission Control, removes only proven Coordinator heartbeats, and then uses:
+
+```powershell
+codex plugin remove codex-coordinator@codex-coordinator
+```
+
+Project history and local Mission Control receipts remain by default. See the [full preservation and test contract](docs/codebase/UNINSTALL_AND_DEACTIVATION.md).
+
 Not sure whether you need Coordinator, Mission Control, Doctor, tests, or a fresh-machine check? Use
 the [operating guide](docs/OPERATING_GUIDE.md) to choose the smallest tool that proves the outcome.
 
@@ -180,7 +207,7 @@ the [operating guide](docs/OPERATING_GUIDE.md) to choose the smallest tool that 
 |---|---|
 | Turning one outcome into a few clear jobs | What outcome you actually want |
 | Keeping agents from claiming the same work | Whether code and results are good enough |
-| Remembering handoffs when tasks restart | Git commits, branches, worktrees, and history |
+| Remembering handoffs and choosing a bounded worktree when isolation helps | Git and Codex still create branches, worktrees, commits, and history through their normal tools |
 | Bringing progress, blockers, and results into one update | Publishing, deployment, database, and other important approvals |
 
 The optional local Mission Control observes the same native tasks and canonical records. It is an observer, not another coordination authority.
@@ -193,11 +220,11 @@ The shipped plugin stays small by design. Beyond Codex, Git, and Python 3.10+, t
 
 ### Fewer, durable worker tasks
 
-One agent stays with each substantial, coherent part of the job through investigation, changes, tests, documentation, and follow-up. A new visible task is for work that benefits from durable independent context: a multi-step quality lane, one feature or path group, a broad audit, or review of a stable result. Coordinator normally targets one to three active workers and treats five as the default ceiling.
+One agent stays with each substantial, coherent part of the job through investigation, changes, tests, documentation, and follow-up. Coordinator records a reuse-first decision: reuse the same-area owner; keep only a microtask or tightly coupled integration step locally; delegate substantial independent work; or create a new task only for a substantial unrelated area with no reusable owner. It normally targets one to three active workers and treats five as the default ceiling.
 
 Short standard work stays inside its owning task. That task may use parent-owned subagents for one lint or test run, a narrow inspection, or a low-risk one-or-two-file fix, then validate and report the result itself. Those helpers do not become new project tasks or sidebar windows.
 
-A terminal task with nothing left to do stays closed. Review waits until there is one stable result to inspect. Coordinator does not quietly turn an old worker into the owner of an unrelated job, but the user may deliberately repurpose the task they are directly addressing after live ownership is checked.
+A terminal task with nothing left to do stays closed. Review waits until there is one stable result to inspect. Coordinator does not quietly turn an old worker into the owner of an unrelated job, but the user may deliberately repurpose the task they are directly addressing after live ownership is checked. Generated generic titles may be renamed once to a short, stable work-area name after scope is known; meaningful user-written titles are preserved.
 
 ### Quiet, document-first coordination
 
@@ -265,6 +292,7 @@ The plugin does not copy its operating manual into user projects and does not ch
 - [`plugins/codex-coordinator/hooks/hooks.json`](plugins/codex-coordinator/hooks/hooks.json): SessionStart registration;
 - [`plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`](plugins/codex-coordinator/scripts/codex_coordinator_session_start.py): bounded restart context and Mission Control lifecycle dispatch;
 - [`plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`](plugins/codex-coordinator/scripts/codex_coordinator_doctor.py): installed-package repair and validation;
+- [`plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py`](plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py): dry-run-first project deactivation, reactivation, verified global planning, and separately confirmed purge;
 - [`plugins/codex-coordinator/mission_control/`](plugins/codex-coordinator/mission_control/): bundled localhost dashboard and standard-library collector;
 - [`apps/mission_control/`](apps/mission_control/): source-checkout compatibility launchers and guide;
 - [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json): marketplace entry.
@@ -282,7 +310,7 @@ codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.3.0
 codex plugin add codex-coordinator@codex-coordinator
 ```
 
-An update replaces only plugin-managed files. It does not rewrite project coordination state. Review and trust the changed hook, then start a new Codex task so the updated skill is loaded. If you need to roll back, repeat the same sequence with the previous known-good tag, such as `v0.2.1`. When migrating from a manual install, verify the plugin first, then remove the legacy copy so both hooks do not run.
+An update replaces only plugin-managed files. It does not rewrite project coordination state. Review and trust the changed hook, then start a new Codex task so the updated skill is loaded. Existing tasks keep their current titles; the one-time generic-title cleanup applies when Coordinator next creates or deliberately continues a generated task for the same coherent area. If you need to roll back, repeat the same sequence with the previous known-good tag, such as `v0.2.1`. When migrating from a manual install, verify the plugin first, then remove the legacy copy so both hooks do not run.
 
 ## Frequently asked questions
 
@@ -292,7 +320,7 @@ Install Coordinator, give it one repository outcome, and let it assign a few dur
 
 ### Does Codex Coordinator replace Git worktrees?
 
-No. Worktrees isolate branches and files. Coordinator tracks task ownership, status, handoffs, recovery, and the final consolidated result. Use both when the work needs both kinds of separation.
+No. Worktrees isolate branches and files. Coordinator may choose a bounded worktree for an independent writer when that avoids an unnecessary wait, but Codex and Git still create and maintain it. Coordinator tracks the owner, integration path, status, handoff, recovery, and final consolidated result.
 
 ### Do I need Ultra to delegate work?
 

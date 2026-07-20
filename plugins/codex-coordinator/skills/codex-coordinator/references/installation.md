@@ -126,7 +126,22 @@ access:
   cross_project_state_changes: false
 ```
 
-Treat `true` as enabled and `false` as an explicit project opt-out. Marker absence means not yet initialised, not opted out. On an explicit opt-out, set the existing marker to `false`, remove only the exact Coordinator discovery block from the root `AGENTS.md`, and preserve identity, state, tasks, ignore rules, and project config. On re-enable, set it to `true`, restore the exact discovery block, reload the global skill, and reconcile existing state without resetting it.
+Treat `true` as enabled and `false` as an explicit project opt-out. Marker absence means not yet initialised, not opted out. Use the ordered procedure below for deactivation or reactivation; do not implement opt-out as an isolated marker edit.
+
+## Project deactivation and reactivation
+
+When the user says `Turn Codex Coordinator off for this repository`, treat that direct request as authority for reversible project deactivation, not data purge:
+
+1. Reconcile active tasks to a safe boundary and preserve every working-tree change.
+2. Run `scripts/codex_coordinator_uninstall.py project deactivate --project-root <primary-worktree>` from the installed plugin to get the dry-run receipt. Dry-run is the default.
+3. Verify and perform the reported native actions through their owning surfaces: remove exactly the repository heartbeat targeting the registered Coordinator, then archive and unpin that Coordinator only after its work is safe.
+4. Run the same command with `--apply` to set only the existing marker to `false` and remove only the exact packaged discovery block.
+5. Preserve the disabled marker, `CURRENT.md`, task and inbox history, ignore block, `.codex/config.toml`, Codex tasks and transcripts, Mission Control data, application files, Git history, and environment.
+6. Validate the disabled marker and byte preservation. Report the current mode as disabled and active exclusions as none because the repository is no longer managed.
+
+Reactivation uses the same preflight and the dry-run-first command `project reactivate --project-root <primary-worktree>`. After `--apply`, reload the installed skill, reconcile preserved state, create or recover one pinned accepting Coordinator, and restore exactly one repository heartbeat. Automatic Mission Control startup continues to respect the user's existing local preference.
+
+Project purge is not opt-out. It requires a separate direct request, the exact project ID through `--confirm-project-id`, and the maintenance lane's destructive-action checks.
 
 ## Root AGENTS.md discovery block
 
