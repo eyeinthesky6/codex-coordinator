@@ -55,7 +55,17 @@ class PythonBootstrapTests(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        output = json.loads(result.stdout)
+        self.assertTrue(
+            result.stdout.strip(),
+            f"bootstrap produced no stdout; stderr={result.stderr!r}",
+        )
+        try:
+            output = json.loads(result.stdout)
+        except json.JSONDecodeError as error:
+            self.fail(
+                f"bootstrap stdout was not JSON: {result.stdout!r}; "
+                f"stderr={result.stderr!r}; error={error}"
+            )
         self.assertTrue(output["continue"])
         self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "SessionStart")
 
