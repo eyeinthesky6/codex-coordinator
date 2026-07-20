@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -30,6 +33,55 @@ def _load_lifecycle():
 
 
 class MissionControlLifecycleTests(unittest.TestCase):
+    def test_spawn_uses_exact_isolated_package_and_ignores_json_shadows(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plugin = root / "plugin"
+            scripts = plugin / "scripts"
+            scripts.mkdir(parents=True)
+            shutil.copy2(LIFECYCLE, scripts / LIFECYCLE.name)
+            shutil.copytree(
+                REPOSITORY / "plugins" / "codex-coordinator" / "mission_control",
+                plugin / "mission_control",
+            )
+            marker = root / "shadow-executed.txt"
+            shadow = (
+                "import os\n"
+                "open(os.environ['CODEX_SHADOW_MARKER'], 'w', encoding='utf-8').write(__file__)\n"
+                "raise RuntimeError('shadow json executed')\n"
+            )
+            (scripts / "json.py").write_text(shadow, encoding="utf-8")
+            (plugin / "json.py").write_text(shadow, encoding="utf-8")
+            spec = importlib.util.spec_from_file_location(
+                "isolated_lifecycle_fixture", scripts / LIFECYCLE.name
+            )
+            assert spec and spec.loader
+            lifecycle = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(lifecycle)
+
+            with mock.patch.object(lifecycle.subprocess, "Popen") as popen:
+                lifecycle._spawn(REPOSITORY, 4317, open_browser=False)
+
+            command = popen.call_args.args[0]
+            self.assertEqual(command[:3], [sys.executable, "-I", "-c"])
+            self.assertEqual(Path(command[4]), (plugin / "mission_control").resolve())
+            self.assertEqual(command[-1], "--no-open")
+            environment = os.environ.copy()
+            environment["CODEX_SHADOW_MARKER"] = str(marker)
+            environment["PYTHONPATH"] = str(plugin)
+            completed = subprocess.run(
+                [*command[:5], "--help"],
+                cwd=plugin,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=20,
+                env=environment,
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertFalse(marker.exists(), completed.stderr)
+
     def setUp(self) -> None:
         self.lifecycle = _load_lifecycle()
         self.temporary = tempfile.TemporaryDirectory()

@@ -599,6 +599,26 @@ class _InstalledTargetAccess:
                 f"Opened installed target does not match its authorised path: {expected} -> {actual}"
             )
 
+    def _windows_close_error(self, handle: int, target: Path) -> str | None:
+        if self._kernel32.CloseHandle(handle):
+            return None
+        error_code = ctypes.get_last_error()
+        return (
+            f"native handle cleanup unproven for {target}: CloseHandle returned 0 "
+            f"(Windows error {error_code}: {ctypes.FormatError(error_code).strip()})"
+        )
+
+    def _windows_raise_cleanup_errors(self, errors: list[str]) -> None:
+        if not errors:
+            return
+        active_error = sys.exception()
+        if active_error is not None and not isinstance(active_error, Exception):
+            return
+        message = "; ".join(errors)
+        if isinstance(active_error, Exception):
+            message = f"{active_error}; {message}"
+        raise _InstalledMutationError(message, errors) from active_error
+
     @contextlib.contextmanager
     def _windows_parent(self, path: Path, *, create: bool) -> Any:
         absolute = self._authorised_path(path)
@@ -642,14 +662,26 @@ class _InstalledTargetAccess:
                     )
                 try:
                     self._windows_validate_handle(child, current, directory=True)
-                except Exception:
-                    self._kernel32.CloseHandle(child)
+                except BaseException:
+                    close_error = self._windows_close_error(child, current)
+                    self._windows_raise_cleanup_errors(
+                        [close_error] if close_error is not None else []
+                    )
                     raise
-                self._kernel32.CloseHandle(handle)
+                close_error = self._windows_close_error(handle, current.parent)
+                if close_error is not None:
+                    child_close_error = self._windows_close_error(child, current)
+                    errors = [close_error]
+                    if child_close_error is not None:
+                        errors.append(child_close_error)
+                    self._windows_raise_cleanup_errors(errors)
                 handle = child
             yield handle, absolute.name
         finally:
-            self._kernel32.CloseHandle(handle)
+            close_error = self._windows_close_error(handle, absolute.parent)
+            self._windows_raise_cleanup_errors(
+                [close_error] if close_error is not None else []
+            )
 
     def _windows_read_handle(self, handle: int) -> bytes:
         chunks: list[bytes] = []
@@ -669,7 +701,10 @@ class _InstalledTargetAccess:
                 self._windows_validate_handle(handle, path, directory=False)
                 return self._windows_read_handle(handle)
             finally:
-                self._kernel32.CloseHandle(handle)
+                close_error = self._windows_close_error(handle, path)
+                self._windows_raise_cleanup_errors(
+                    [close_error] if close_error is not None else []
+                )
 
     def _windows_write_handle(self, handle: int, data: bytes) -> None:
         offset = 0
@@ -741,14 +776,10 @@ class _InstalledTargetAccess:
                             "SetFileInformationByHandle returned 0 "
                             f"(Windows error {error_code}: {ctypes.FormatError(error_code).strip()})"
                         )
-                if not self._kernel32.CloseHandle(handle):
-                    error_code = ctypes.get_last_error()
-                    cleanup_target = temporary_path if not renamed else path
-                    cleanup_errors.append(
-                        f"native handle cleanup unproven for {cleanup_target}: "
-                        f"CloseHandle returned 0 (Windows error {error_code}: "
-                        f"{ctypes.FormatError(error_code).strip()})"
-                    )
+                cleanup_target = temporary_path if not renamed else path
+                close_error = self._windows_close_error(handle, cleanup_target)
+                if close_error is not None:
+                    cleanup_errors.append(close_error)
                 if cleanup_errors and not propagating_base_exception:
                     message = "; ".join(cleanup_errors)
                     if ordinary_error is not None:
@@ -769,7 +800,10 @@ class _InstalledTargetAccess:
                     ):
                         raise ctypes.WinError(ctypes.get_last_error())
                 finally:
-                    self._kernel32.CloseHandle(handle)
+                    close_error = self._windows_close_error(handle, path)
+                    self._windows_raise_cleanup_errors(
+                        [close_error] if close_error is not None else []
+                    )
         except FileNotFoundError:
             if not missing_ok:
                 raise
@@ -1542,35 +1576,35 @@ def sync_installation(
     known_marketplace = installation_kind == "marketplace" or _marketplace_owns_installation(
         source_plugin, skill_root, hook_path
     )
-    try:
-        expected_receipt_sha256, expected_package_version = _validate_expected_release(
-            expected_receipt_sha256,
-            expected_package_version,
-            required=True,
-        )
-        skill_source, hook_source, trusted_receipt, source_entries = _validated_source(
-            source_plugin,
-            expected_receipt_sha256=expected_receipt_sha256,
-            expected_package_version=expected_package_version,
-        )
-    except DoctorError as error:
-        if not known_marketplace:
-            raise
+    if known_marketplace:
         return {
             "status": "error",
-            "integrityState": "local_modification_detected",
+            "integrityState": "unknown",
             "recoveryState": "reinstall_required",
             "installationKind": "marketplace",
             "changedFiles": 0,
             "files": [],
             "installationChecks": [],
-            "error": str(error),
+            "error": (
+                "Marketplace package integrity cannot be independently verified from "
+                "plugin-manager metadata."
+            ),
             "repairScope": "none; marketplace-managed files are read-only to Doctor",
             "note": (
                 "Use the supported Codex plugin update or reinstall path. "
                 "Doctor never rewrites marketplace-managed cache files directly."
             ),
         }
+    expected_receipt_sha256, expected_package_version = _validate_expected_release(
+        expected_receipt_sha256,
+        expected_package_version,
+        required=True,
+    )
+    skill_source, hook_source, trusted_receipt, source_entries = _validated_source(
+        source_plugin,
+        expected_receipt_sha256=expected_receipt_sha256,
+        expected_package_version=expected_package_version,
+    )
     canonical_skill_root = _canonical_destination(skill_root)
     canonical_hook_path = _canonical_destination(hook_path)
 
@@ -1837,15 +1871,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--expected-package-version",
         help=(
-            "Exact package version from separately published release metadata; required "
-            "with --expected-receipt-sha256 for trusted health or repair checks."
+            "Exact manual-package version from separately published release metadata; "
+            "required with --expected-receipt-sha256 for manual health or repair checks."
         ),
     )
     parser.add_argument(
         "--expected-receipt-sha256",
         help=(
             "Exact release-receipt.json SHA-256 from separately published release metadata; "
-            "required with --expected-package-version for trusted health or repair checks."
+            "required with --expected-package-version for manual health or repair checks."
         ),
     )
     parser.add_argument(
