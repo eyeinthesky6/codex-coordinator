@@ -78,6 +78,7 @@ class PythonBootstrapTests(unittest.TestCase):
         self.assertIn("Python 3.10+ was not found", powershell)
         self.assertIn("Python 3.10+ was not found", shell)
         self.assertIn("--scope user", powershell)
+        self.assertIn("The SessionStart hook returned no output", powershell)
         self.assertNotIn("Get-ChildItem C:\\\\", powershell)
         self.assertNotIn("find / ", shell)
         self.assertNotIn("sudo", shell)

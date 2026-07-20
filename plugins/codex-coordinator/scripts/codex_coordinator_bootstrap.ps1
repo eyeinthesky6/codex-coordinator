@@ -133,6 +133,16 @@ $process.StandardInput.Close()
 $stdout = $process.StandardOutput.ReadToEnd()
 $stderr = $process.StandardError.ReadToEnd()
 $process.WaitForExit()
+if ([string]::IsNullOrWhiteSpace($stdout)) {
+    Write-Notice "The SessionStart hook returned no output; continuing without coordination context."
+    $stdout = @{
+        continue = $true
+        hookSpecificOutput = @{
+            hookEventName = "SessionStart"
+            additionalContext = "Codex Coordinator could not load SessionStart context because the hook returned no output. Start a new Codex task to retry; no environment setting was changed."
+        }
+    } | ConvertTo-Json -Compress -Depth 4
+}
 Write-Output -NoEnumerate $stdout
 [Console]::Error.Write($stderr)
 exit $process.ExitCode
