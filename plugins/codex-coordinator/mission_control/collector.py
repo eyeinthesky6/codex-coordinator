@@ -1060,6 +1060,8 @@ class DoctorRunner:
             health = "idle"
         elif value.get("health") in {"healthy", "review"}:
             health = str(value["health"])
+        installation_value = value.get("installation")
+        project_scan_value = value.get("projectScan")
         return {
             "running": running,
             "lastRunAt": _safe_text(value.get("lastRunAt"), 50),
@@ -1071,6 +1073,16 @@ class DoctorRunner:
             "tokensUsed": int(value.get("tokensUsed") or 0),
             "model": _safe_text(value.get("model"), 80) or DOCTOR_MODEL,
             "reasoning": DOCTOR_REASONING,
+            "installation": (
+                self._installation_receipt(installation_value)
+                if isinstance(installation_value, dict)
+                else {}
+            ),
+            "projectScan": (
+                self._project_scan_receipt(project_scan_value)
+                if isinstance(project_scan_value, dict)
+                else {}
+            ),
         }
 
     def _record_run(
@@ -1083,6 +1095,8 @@ class DoctorRunner:
         error: str = "",
         tokens_used: int = 0,
         model: str = DOCTOR_MODEL,
+        installation: dict[str, Any] | None = None,
+        project_scan: dict[str, Any] | None = None,
     ) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         state: dict[str, Any] = {
@@ -1101,6 +1115,10 @@ class DoctorRunner:
             state["lastError"] = _safe_text(error, 300)
         if tokens_used:
             state["tokensUsed"] = tokens_used
+        if installation is not None:
+            state["installation"] = installation
+        if project_scan is not None:
+            state["projectScan"] = project_scan
         temporary = self.state_path.with_suffix(".tmp")
         temporary.write_text(json.dumps(state, indent=2), encoding="utf-8")
         temporary.replace(self.state_path)
@@ -1134,26 +1152,95 @@ class DoctorRunner:
             raise ValueError(_process_error(completed.stderr, completed.stdout)) from error
         if not isinstance(report, dict):
             raise ValueError("Installed Coordinator Doctor returned an invalid result.")
-        if completed.returncode != 0 or report.get("status") == "error":
-            detail = report.get("error") or _process_error(completed.stderr, completed.stdout)
-            raise ValueError(_safe_text(detail, 300))
+        if completed.returncode != 0 and report.get("status") != "error":
+            return {
+                "status": "error",
+                "integrityState": "unknown",
+                "recoveryState": "manual_action_required",
+                "error": _safe_text(
+                    _process_error(completed.stderr, completed.stdout), 300
+                ),
+            }
         return report
 
     def _repair_installed_runtime(self) -> dict[str, Any]:
         applied = self._run_installation_helper("--apply")
+        if applied.get("recoveryState") in {
+            "manual_action_required",
+            "reinstall_required",
+        }:
+            return applied
         if applied.get("status") not in {"current", "updated"}:
-            raise ValueError("Installed Coordinator repair did not reach a verified state.")
+            return applied
         checked = self._run_installation_helper("--check")
         if checked.get("status") != "current":
-            raise ValueError("Installed Coordinator remains out of date after repair.")
+            return checked
+        checked = dict(checked)
+        checked["installationAction"] = (
+            "repaired" if applied.get("status") == "updated" else "verified"
+        )
         return checked
+
+    @staticmethod
+    def _installation_bullet(report: dict[str, Any]) -> tuple[str, bool]:
+        if report.get("status") == "current":
+            if report.get("installationAction") == "repaired":
+                return "Installed Coordinator repaired and verified current.", True
+            return "Installed Coordinator verified current.", True
+        if report.get("recoveryState") == "reinstall_required":
+            return "Installed Coordinator requires plugin update or reinstall.", False
+        if report.get("recoveryState") == "manual_action_required":
+            return "Installed Coordinator integrity requires manual action.", False
+        return "Installed Coordinator integrity could not be verified.", False
+
+    @staticmethod
+    def _installation_receipt(report: dict[str, Any]) -> dict[str, Any]:
+        status = _safe_text(report.get("status"), 40) or "error"
+        changed = report.get("changedFiles")
+        return {
+            "status": status,
+            "recoveryState": _safe_text(report.get("recoveryState"), 60)
+            or ("not_needed" if status == "current" else "manual_action_required"),
+            "installationKind": _safe_text(report.get("installationKind"), 30)
+            or "unknown",
+            "changedFiles": (
+                changed
+                if isinstance(changed, int) and not isinstance(changed, bool) and changed >= 0
+                else 0
+            ),
+            "error": _safe_text(report.get("error"), 300),
+        }
+
+    @staticmethod
+    def _project_scan_receipt(report: dict[str, Any]) -> dict[str, Any]:
+        def count(name: str) -> int:
+            value = report.get(name)
+            return (
+                value
+                if isinstance(value, int) and not isinstance(value, bool) and value >= 0
+                else 0
+            )
+
+        return {
+            "status": _safe_text(report.get("status"), 40) or "review",
+            "projectsChecked": count("projectsChecked"),
+            "findingCount": count("findingCount"),
+            "findingsWritten": count("findingsWritten"),
+        }
 
     def run(self, snapshot: dict[str, Any]) -> bool:
         if not self._lock.acquire(blocking=False):
             return False
         try:
             self._record_run("running")
-            self._repair_installed_runtime()
+            try:
+                installation = self._repair_installed_runtime()
+            except (OSError, RuntimeError, ValueError, json.JSONDecodeError, subprocess.SubprocessError) as error:
+                installation = {
+                    "status": "error",
+                    "recoveryState": "manual_action_required",
+                    "error": _safe_text(error, 300),
+                }
             roots = [
                 Path(str(project.get("path", "")))
                 for project in snapshot.get("projects", [])
@@ -1163,8 +1250,11 @@ class DoctorRunner:
                 roots,
                 write_findings=True,
             )
+            installation_bullet, installation_healthy = self._installation_bullet(
+                installation
+            )
             bullets = [
-                "Installed Coordinator repaired and verified current.",
+                installation_bullet,
                 f"{report['projectsChecked']} enabled projects checked deterministically.",
                 (
                     f"{report['findingCount']} verified findings; {report['findingsWritten']} new records written."
@@ -1175,10 +1265,16 @@ class DoctorRunner:
             self._record_run(
                 "success",
                 summary=" ".join(bullets),
-                health=str(report["status"]),
+                health=(
+                    "healthy"
+                    if installation_healthy and report["status"] == "healthy"
+                    else "review"
+                ),
                 bullets=bullets,
                 tokens_used=0,
                 model=DOCTOR_MODEL,
+                installation=self._installation_receipt(installation),
+                project_scan=self._project_scan_receipt(report),
             )
             return True
         except (OSError, RuntimeError, ValueError, json.JSONDecodeError, subprocess.SubprocessError) as error:

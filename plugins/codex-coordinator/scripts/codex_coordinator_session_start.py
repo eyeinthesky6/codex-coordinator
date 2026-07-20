@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import codecs
+import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import unicodedata
@@ -18,6 +20,41 @@ from pathlib import Path
 MARKER_LIMIT = 16_384
 CURRENT_LIMIT = 32_768
 GIT_TIMEOUT_SECONDS = 2.5
+RECEIPT_SCHEMA_VERSION = 2
+CAPABILITY_CONTRACT_VERSION = 21
+MISSION_CONTROL_RUNTIME_PATHS = (
+    "assets/logo.png",
+    "mission_control/__init__.py",
+    "mission_control/__main__.py",
+    "mission_control/collector.py",
+    "mission_control/doctor_scan.py",
+    "mission_control/lifecycle.py",
+    "mission_control/server.py",
+    "mission_control/static/app.js",
+    "mission_control/static/index.html",
+    "mission_control/static/styles.css",
+    "scripts/codex_coordinator_doctor.py",
+    "scripts/mission_control_lifecycle.py",
+)
+COORDINATOR_SKILL_PATHS = (
+    "skills/codex-coordinator/agents/openai.yaml",
+    "skills/codex-coordinator/capabilities.json",
+    "skills/codex-coordinator/references/doctor.md",
+    "skills/codex-coordinator/references/execution.md",
+    "skills/codex-coordinator/references/installation.md",
+    "skills/codex-coordinator/references/maintenance.md",
+    "skills/codex-coordinator/references/messaging.md",
+    "skills/codex-coordinator/references/operations.md",
+    "skills/codex-coordinator/references/reconciliation.md",
+    "skills/codex-coordinator/references/recovery.md",
+    "skills/codex-coordinator/scripts/coordination_state.py",
+    "skills/codex-coordinator/SKILL.md",
+)
+PACKAGE_IDENTITY_PATHS = (
+    *COORDINATOR_SKILL_PATHS,
+    *MISSION_CONTROL_RUNTIME_PATHS,
+    "scripts/codex_coordinator_session_start.py",
+)
 
 TOKEN = re.compile(r"[A-Z0-9][A-Z0-9_-]{0,63}")
 PROJECT = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
@@ -376,11 +413,108 @@ def _emit(context: str) -> None:
     )
 
 
+def _package_file(plugin_root: Path, relative: str) -> Path:
+    candidate = plugin_root.joinpath(*Path(relative).parts)
+    candidate.relative_to(plugin_root)
+    current = plugin_root
+    for part in Path(relative).parts:
+        current /= part
+        metadata = os.lstat(current)
+        attributes = int(getattr(metadata, "st_file_attributes", 0))
+        if stat.S_ISLNK(metadata.st_mode) or attributes & 0x400:
+            raise OSError(f"Package path redirects outside its declared identity: {relative}")
+    if not stat.S_ISREG(os.lstat(candidate).st_mode):
+        raise OSError(f"Package identity path is not a regular file: {relative}")
+    resolved_root = plugin_root.resolve(strict=True)
+    candidate.resolve(strict=True).relative_to(resolved_root)
+    return candidate
+
+
+def _verified_mission_control_lifecycle() -> Path | None:
+    try:
+        script = Path(__file__).absolute()
+        plugin_root = script.parent.parent
+        root_metadata = os.lstat(plugin_root)
+        root_attributes = int(getattr(root_metadata, "st_file_attributes", 0))
+        if (
+            not stat.S_ISDIR(root_metadata.st_mode)
+            or stat.S_ISLNK(root_metadata.st_mode)
+            or root_attributes & 0x400
+        ):
+            return None
+        if script != plugin_root / "scripts" / script.name:
+            return None
+        receipt_path = _package_file(plugin_root, "release-receipt.json")
+        manifest_path = _package_file(plugin_root, ".codex-plugin/plugin.json")
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        version = manifest.get("version")
+        if (
+            receipt.get("schemaVersion") != RECEIPT_SCHEMA_VERSION
+            or receipt.get("pluginName") != "codex-coordinator"
+            or manifest.get("name") != "codex-coordinator"
+            or receipt.get("packageState") != "release"
+            or not isinstance(version, str)
+            or receipt.get("packageVersion") != version
+            or receipt.get("packageId")
+            != f"codex-coordinator-package@{version}+contract{CAPABILITY_CONTRACT_VERSION}"
+        ):
+            return None
+        entries = receipt.get("managedFiles")
+        if not isinstance(entries, list) or not entries:
+            return None
+        seen: set[str] = set()
+        runtime_paths: set[str] = set()
+        hook_verified = False
+        for entry in entries:
+            if not isinstance(entry, dict):
+                return None
+            relative = entry.get("sourcePath")
+            digest = entry.get("sha256")
+            kind = entry.get("kind")
+            if (
+                not isinstance(relative, str)
+                or relative in seen
+                or not isinstance(digest, str)
+                or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+                or Path(relative).is_absolute()
+                or ".." in Path(relative).parts
+            ):
+                return None
+            source = _package_file(plugin_root, relative)
+            if hashlib.sha256(source.read_bytes()).hexdigest() != digest:
+                return None
+            seen.add(relative)
+            if kind == "runtime":
+                if entry.get("managedPath") != relative:
+                    return None
+                runtime_paths.add(relative)
+            elif kind == "hook" and relative == "scripts/codex_coordinator_session_start.py":
+                if entry.get("managedPath") != "codex_coordinator_session_start.py":
+                    return None
+                hook_verified = True
+            elif kind == "skill" and relative in COORDINATOR_SKILL_PATHS:
+                expected_managed = relative.removeprefix("skills/codex-coordinator/")
+                if entry.get("managedPath") != expected_managed:
+                    return None
+            else:
+                return None
+        if (
+            seen != set(PACKAGE_IDENTITY_PATHS)
+            or runtime_paths != set(MISSION_CONTROL_RUNTIME_PATHS)
+            or not hook_verified
+        ):
+            return None
+        return _package_file(plugin_root, "scripts/mission_control_lifecycle.py")
+    except (OSError, UnicodeError, ValueError, TypeError, json.JSONDecodeError):
+        return None
+
+
 def _start_mission_control(project_root: Path) -> None:
     if os.environ.get("CODEX_COORDINATOR_DISABLE_MISSION_CONTROL_AUTOSTART") == "1":
         return
-    lifecycle = Path(__file__).with_name("mission_control_lifecycle.py")
-    if not lifecycle.is_file():
+    lifecycle = _verified_mission_control_lifecycle()
+    if lifecycle is None:
         return
     command = [
         sys.executable,

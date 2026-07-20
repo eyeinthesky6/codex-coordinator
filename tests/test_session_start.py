@@ -30,6 +30,30 @@ def _load_hook_module():
     return module
 
 
+def _release_plugin_copy(root: Path):
+    plugin = root / "plugin"
+    shutil.copytree(PLUGIN, plugin, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    manifest = json.loads(
+        (plugin / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    receipt_path = plugin / "release-receipt.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["packageVersion"] = manifest["version"]
+    receipt["packageState"] = "release"
+    receipt["packageId"] = (
+        f"codex-coordinator-package@{manifest['version']}+contract21"
+    )
+    receipt_path.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+    hook_path = plugin / "scripts" / HOOK.name
+    name = f"verified_session_start_fixture_{id(root)}"
+    spec = importlib.util.spec_from_file_location(name, hook_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return plugin, module
+
+
 def _run(command: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
     environment["CODEX_COORDINATOR_DISABLE_MISSION_CONTROL_AUTOSTART"] = "1"
@@ -243,33 +267,73 @@ def _current(
 
 class SessionStartHookTests(unittest.TestCase):
     def test_valid_session_start_dispatches_bounded_mission_control_lifecycle(self) -> None:
-        module = _load_hook_module()
-        with (
-            mock.patch.dict(
-                os.environ,
-                {"CODEX_COORDINATOR_DISABLE_MISSION_CONTROL_AUTOSTART": "0"},
-            ),
-            mock.patch.object(module.subprocess, "Popen") as popen,
-        ):
-            module._start_mission_control(REPOSITORY)
+        with tempfile.TemporaryDirectory() as directory:
+            _plugin, module = _release_plugin_copy(Path(directory))
+            with (
+                mock.patch.dict(
+                    os.environ,
+                    {"CODEX_COORDINATOR_DISABLE_MISSION_CONTROL_AUTOSTART": "0"},
+                ),
+                mock.patch.object(module.subprocess, "Popen") as popen,
+            ):
+                module._start_mission_control(REPOSITORY)
 
-        command = popen.call_args.args[0]
-        self.assertEqual(command[0], sys.executable)
-        self.assertEqual(command[1], "-I")
-        self.assertEqual(Path(command[2]).name, "mission_control_lifecycle.py")
-        self.assertIn("--automatic", command)
-        self.assertEqual(command[-1], str(REPOSITORY))
-        self.assertEqual(popen.call_args.kwargs["stdout"], subprocess.DEVNULL)
+            command = popen.call_args.args[0]
+            self.assertEqual(command[0], sys.executable)
+            self.assertEqual(command[1], "-I")
+            self.assertEqual(Path(command[2]).name, "mission_control_lifecycle.py")
+            self.assertIn("--automatic", command)
+            self.assertEqual(command[-1], str(REPOSITORY))
+            self.assertEqual(popen.call_args.kwargs["stdout"], subprocess.DEVNULL)
+
+    def test_optional_autostart_skips_untrusted_or_incomplete_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            plugin, module = _release_plugin_copy(Path(directory))
+            lifecycle = plugin / "scripts" / "mission_control_lifecycle.py"
+            lifecycle.write_text("raise SystemExit('tampered')\n", encoding="utf-8")
+            with mock.patch.object(module.subprocess, "Popen") as popen:
+                module._start_mission_control(REPOSITORY)
+            popen.assert_not_called()
+
+        development = _load_hook_module()
+        with mock.patch.object(development.subprocess, "Popen") as popen:
+            development._start_mission_control(REPOSITORY)
+        popen.assert_not_called()
+
+    def test_optional_autostart_rejects_missing_runtime_receipt_row(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            plugin, module = _release_plugin_copy(Path(directory))
+            receipt_path = plugin / "release-receipt.json"
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            receipt["managedFiles"] = [
+                item
+                for item in receipt["managedFiles"]
+                if item["sourcePath"] != "mission_control/server.py"
+            ]
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            with mock.patch.object(module.subprocess, "Popen") as popen:
+                module._start_mission_control(REPOSITORY)
+            popen.assert_not_called()
+
+    @unittest.skipIf(os.name == "nt", "Unix package-link regression")
+    def test_optional_autostart_rejects_runtime_link_redirect(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plugin, module = _release_plugin_copy(root)
+            server = plugin / "mission_control" / "server.py"
+            outside = root / "outside-server.py"
+            outside.write_bytes(server.read_bytes())
+            server.unlink()
+            server.symlink_to(outside)
+            with mock.patch.object(module.subprocess, "Popen") as popen:
+                module._start_mission_control(REPOSITORY)
+            popen.assert_not_called()
 
     def test_lifecycle_child_uses_isolated_installed_shape_imports(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            plugin = root / "plugin"
+            plugin, hook = _release_plugin_copy(root)
             scripts = plugin / "scripts"
-            scripts.mkdir(parents=True)
-            shutil.copy2(HOOK, scripts / HOOK.name)
-            shutil.copy2(PLUGIN / "scripts" / "mission_control_lifecycle.py", scripts)
-            shutil.copytree(PLUGIN / "mission_control", plugin / "mission_control")
             marker = root / "shadow-executed.txt"
             shadow = (
                 "import os\n"
@@ -278,14 +342,6 @@ class SessionStartHookTests(unittest.TestCase):
             )
             (scripts / "json.py").write_text(shadow, encoding="utf-8")
             (plugin / "json.py").write_text(shadow, encoding="utf-8")
-            spec = importlib.util.spec_from_file_location(
-                "isolated_session_start_fixture", scripts / HOOK.name
-            )
-            assert spec and spec.loader
-            hook = importlib.util.module_from_spec(spec)
-            sys.modules[spec.name] = hook
-            spec.loader.exec_module(hook)
-
             with mock.patch.dict(
                 os.environ,
                 {"CODEX_COORDINATOR_DISABLE_MISSION_CONTROL_AUTOSTART": "0"},
