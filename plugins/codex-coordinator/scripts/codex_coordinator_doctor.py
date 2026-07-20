@@ -608,16 +608,21 @@ class _InstalledTargetAccess:
             f"(Windows error {error_code}: {ctypes.FormatError(error_code).strip()})"
         )
 
-    def _windows_raise_cleanup_errors(self, errors: list[str]) -> None:
-        if not errors:
+    def _windows_raise_cleanup_errors(
+        self,
+        errors: list[str],
+        *,
+        active_error: BaseException | None = None,
+    ) -> None:
+        combined_errors = list(getattr(active_error, "recovery_errors", ())) + errors
+        if not combined_errors:
             return
-        active_error = sys.exception()
         if active_error is not None and not isinstance(active_error, Exception):
             return
-        message = "; ".join(errors)
+        message = "; ".join(combined_errors)
         if isinstance(active_error, Exception):
             message = f"{active_error}; {message}"
-        raise _InstalledMutationError(message, errors) from active_error
+        raise _InstalledMutationError(message, combined_errors) from active_error
 
     @contextlib.contextmanager
     def _windows_parent(self, path: Path, *, create: bool) -> Any:
@@ -636,6 +641,7 @@ class _InstalledTargetAccess:
         )
         if handle == ctypes.c_void_p(-1).value:
             raise ctypes.WinError(ctypes.get_last_error())
+        active_error: BaseException | None = None
         try:
             self._windows_validate_handle(handle, anchor, directory=True)
             current = anchor
@@ -662,10 +668,11 @@ class _InstalledTargetAccess:
                     )
                 try:
                     self._windows_validate_handle(child, current, directory=True)
-                except BaseException:
+                except BaseException as error:
                     close_error = self._windows_close_error(child, current)
                     self._windows_raise_cleanup_errors(
-                        [close_error] if close_error is not None else []
+                        [close_error] if close_error is not None else [],
+                        active_error=error,
                     )
                     raise
                 close_error = self._windows_close_error(handle, current.parent)
@@ -677,10 +684,14 @@ class _InstalledTargetAccess:
                     self._windows_raise_cleanup_errors(errors)
                 handle = child
             yield handle, absolute.name
+        except BaseException as error:
+            active_error = error
+            raise
         finally:
             close_error = self._windows_close_error(handle, absolute.parent)
             self._windows_raise_cleanup_errors(
-                [close_error] if close_error is not None else []
+                [close_error] if close_error is not None else [],
+                active_error=active_error,
             )
 
     def _windows_read_handle(self, handle: int) -> bytes:
@@ -697,13 +708,18 @@ class _InstalledTargetAccess:
     def _windows_read(self, path: Path) -> bytes:
         with self._windows_parent(path, create=False) as (parent, name):
             handle = self._windows_open_relative(parent, name, directory=False)
+            active_error: BaseException | None = None
             try:
                 self._windows_validate_handle(handle, path, directory=False)
                 return self._windows_read_handle(handle)
+            except BaseException as error:
+                active_error = error
+                raise
             finally:
                 close_error = self._windows_close_error(handle, path)
                 self._windows_raise_cleanup_errors(
-                    [close_error] if close_error is not None else []
+                    [close_error] if close_error is not None else [],
+                    active_error=active_error,
                 )
 
     def _windows_write_handle(self, handle: int, data: bytes) -> None:
@@ -792,6 +808,7 @@ class _InstalledTargetAccess:
                 handle = self._windows_open_relative(
                     parent, name, directory=False, delete=True
                 )
+                active_error: BaseException | None = None
                 try:
                     self._windows_validate_handle(handle, path, directory=False)
                     disposition = self._DispositionInformation(1)
@@ -799,10 +816,14 @@ class _InstalledTargetAccess:
                         handle, 4, ctypes.byref(disposition), ctypes.sizeof(disposition)
                     ):
                         raise ctypes.WinError(ctypes.get_last_error())
+                except BaseException as error:
+                    active_error = error
+                    raise
                 finally:
                     close_error = self._windows_close_error(handle, path)
                     self._windows_raise_cleanup_errors(
-                        [close_error] if close_error is not None else []
+                        [close_error] if close_error is not None else [],
+                        active_error=active_error,
                     )
         except FileNotFoundError:
             if not missing_ok:
