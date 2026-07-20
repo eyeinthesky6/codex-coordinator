@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import re
 import unittest
@@ -51,6 +52,40 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("${PLUGIN_ROOT}/" + target, hook["command"])
         self.assertIn("${PLUGIN_ROOT}/" + target, hook["commandWindows"])
         self.assertTrue((PLUGIN / target).is_file())
+        self.assertIn("codex_coordinator_bootstrap.sh", hook["command"])
+        self.assertIn("codex_coordinator_bootstrap.ps1", hook["commandWindows"])
+        self.assertTrue((PLUGIN / "scripts" / "codex_coordinator_bootstrap.sh").is_file())
+        self.assertTrue((PLUGIN / "scripts" / "codex_coordinator_bootstrap.ps1").is_file())
+        self.assertTrue((PLUGIN / "scripts" / "mission_control_lifecycle.py").is_file())
+        self.assertTrue((PLUGIN / "scripts" / "codex_coordinator_uninstall.py").is_file())
+
+    def test_uninstall_helper_matches_the_packaged_discovery_contract(self) -> None:
+        installation = (
+            PLUGIN / "skills" / "codex-coordinator" / "references" / "installation.md"
+        ).read_text(encoding="utf-8")
+        match = re.search(
+            r"Use this exact block:\n\n```markdown\n(## Codex Coordinator\n.*?\n)```",
+            installation,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        expected = match.group(1).rstrip("\n")
+
+        script = (PLUGIN / "scripts" / "codex_coordinator_uninstall.py").read_text(
+            encoding="utf-8"
+        )
+        module = ast.parse(script)
+        assignment = next(
+            node
+            for node in module.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "DISCOVERY_BLOCK" for target in node.targets)
+        )
+        self.assertEqual(ast.literal_eval(assignment.value), expected)
+
+        readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
+        self.assertIn("Deactivate or uninstall safely", readme)
+        self.assertIn("codex_coordinator_uninstall.py", readme)
 
     def test_manifest_brand_assets_exist_inside_the_plugin(self) -> None:
         manifest = json.loads(
@@ -62,24 +97,32 @@ class PackageContractTests(unittest.TestCase):
             self.assertTrue(asset.is_relative_to(PLUGIN.resolve()))
             self.assertTrue(asset.is_file(), f"missing manifest asset: {field}")
 
-    def test_public_source_release_contains_mission_control_companion(self) -> None:
+    def test_distributed_plugin_contains_mission_control_runtime(self) -> None:
         required = (
             "__main__.py",
             "collector.py",
             "doctor_scan.py",
+            "lifecycle.py",
             "server.py",
             "README.md",
             "static/index.html",
             "static/app.js",
             "static/styles.css",
         )
-        app = REPOSITORY / "apps" / "mission_control"
+        app = PLUGIN / "mission_control"
         for relative in required:
             self.assertTrue((app / relative).is_file(), relative)
 
         readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
         self.assertIn("python -m apps.mission_control", readme)
-        self.assertIn("source-installed companion", readme)
+        installation = (
+            PLUGIN / "skills" / "codex-coordinator" / "references" / "installation.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("The bundled Mission Control companion", installation)
+        self.assertIn("Start Mission Control", installation)
+        self.assertIn("Stop Mission Control", installation)
+        self.assertIn("start --automatic --project <primary-worktree>", installation)
+        self.assertIn("automatic mode never overrides it", installation)
         self.assertTrue((REPOSITORY / "tests" / "test_mission_control.py").is_file())
 
     def test_skill_markdown_references_resolve_inside_the_skill(self) -> None:
@@ -161,11 +204,17 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Do not create a project task", operations)
         self.assertIn("Assigned, working, blocked, and paused workers count", operations)
         self.assertIn("search for an existing same-area owner", operations)
+        self.assertIn("Record the delegation decision before ordinary implementation starts", operations)
+        self.assertIn("`REUSE`", operations)
+        self.assertIn("`RETAIN`", operations)
+        self.assertIn("`DELEGATE`", operations)
+        self.assertIn("`CREATE`", operations)
         self.assertIn("keep the distinct work undispatched", operations)
         self.assertIn("Never evade the gate or ceiling", operations)
         self.assertIn("Fewer, durable worker tasks", readme)
         self.assertIn("normally targets one to three active workers", readme)
         self.assertIn("Those helpers do not become new project tasks", readme)
+        self.assertIn("records a reuse-first decision", readme)
 
     def test_worker_identity_and_status_come_from_native_tools(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
@@ -179,6 +228,8 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("use only its exact returned task ID", operations)
         self.assertIn("Do not ask the worker what it is doing", operations)
         self.assertIn("Immediately bind the returned native identity", operations)
+        self.assertIn("Rename a generated generic title once", operations)
+        self.assertIn("preserve a meaningful user-written title", operations)
         self.assertIn("Do not request a separate identity", operations)
         self.assertNotIn("non-executable holding prompt", operations)
         self.assertNotIn("non-executable holding turn", readme)
@@ -194,9 +245,17 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Terminal-task inventory and independent review", operations)
         self.assertIn("keep it closed", operations)
         self.assertIn("Never reactivate a terminal, non-accepting session", operations)
+        self.assertIn("Carry forward the exact unmet outcome", operations)
+        self.assertIn("`AWAITING_USER_DECISION`", operations)
+        self.assertIn("Do not make the user inspect old task windows", operations)
         self.assertIn("one stable commit, immutable diff, release artifact", operations)
         self.assertIn("no writer or Git-integration ownership", operations)
         self.assertIn("A terminal task with nothing left to do stays closed", readme)
+        operating_guide = (REPOSITORY / "docs" / "OPERATING_GUIDE.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Reconcile historical tasks", operating_guide)
+        self.assertIn("closed, continued, deferred or not", operating_guide)
 
     def test_direct_user_override_and_durable_inbox(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
@@ -323,7 +382,7 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Before its own final answer, the Coordinator", operations)
         self.assertIn("every unprocessed `TURN_RECONCILIATION`", recovery)
         self.assertIn("at the end of each material turn", maintenance)
-        self.assertIn("single project view: completed, active, queued, blocked", readme)
+        self.assertIn("single project view: mode, exclusions, completed, active, queued, blocked", readme)
 
     def test_public_positioning_explains_multi_agent_work_without_ultra(self) -> None:
         readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
@@ -371,8 +430,8 @@ class PackageContractTests(unittest.TestCase):
 
         self.assertIn("Coordinator is control-first by default", skill)
         self.assertIn("The Coordinator is control-first by default", operations)
-        self.assertIn("one temporary native heartbeat", skill)
-        self.assertIn("end-of-turn continuation gate", skill)
+        self.assertIn("one repository heartbeat", skill)
+        self.assertIn("verify exactly one repository heartbeat", skill)
         self.assertIn("codex_app__automation_update", operations)
         self.assertIn("End-of-turn continuation gate", operations)
         self.assertIn("A plan, earlier instruction, automation prompt", operations)
@@ -434,7 +493,7 @@ class PackageContractTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("An enabled marker does not require every task to register", operations)
+        self.assertIn("Every task in an enabled repository is managed by default", operations)
         self.assertIn("A filtered native thread search is only a convenience", recovery)
         self.assertIn("Retry once with an unfiltered inventory", recovery)
         self.assertIn("never ask the user to approve a coordination bypass", maintenance)
@@ -487,7 +546,11 @@ class PackageContractTests(unittest.TestCase):
             (PLUGIN / "scripts" / "codex_coordinator_doctor.py").is_file()
         )
         contract = json.loads((skill_root / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 14)
+        self.assertEqual(contract["contractVersion"], 18)
+        self.assertEqual(
+            contract["capabilities"]["missionControlLifecycle"],
+            "bundled-autostart-user-disable-chat-control",
+        )
         self.assertEqual(
             contract["capabilities"]["doctorDiagnostics"],
             "json-with-optional-mermaid",
@@ -545,6 +608,38 @@ class PackageContractTests(unittest.TestCase):
         self.assertEqual(
             contract["capabilities"]["subagentDispatch"],
             "one-to-three-for-two-independent-lanes",
+        )
+        self.assertEqual(
+            contract["capabilities"]["pythonRuntimeBootstrap"],
+            "bounded-machine-discovery-informed-install",
+        )
+        self.assertEqual(
+            contract["capabilities"]["lifecycleCleanup"],
+            "dry-run-first-history-preserving",
+        )
+        self.assertEqual(
+            contract["capabilities"]["globalUninstall"],
+            "verified-project-index-no-drive-scan",
+        )
+        self.assertEqual(
+            contract["capabilities"]["worktreeSelection"],
+            "coordinator-selected-bounded-when-beneficial",
+        )
+        self.assertEqual(
+            contract["capabilities"]["waitingClassification"],
+            "canonical-evidence-only",
+        )
+        self.assertEqual(
+            contract["capabilities"]["delegationDecision"],
+            "reuse-first-recorded",
+        )
+        self.assertEqual(
+            contract["capabilities"]["taskTitlePolicy"],
+            "rename-generic-once-preserve-user-title",
+        )
+        self.assertEqual(
+            contract["capabilities"]["historicalTaskReconciliation"],
+            "current-goal-authority-and-disposition",
         )
         self.assertTrue((skill_root / "scripts" / "coordination_state.py").is_file())
 

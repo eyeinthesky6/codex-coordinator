@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Sanitized public demonstrations of the Codex Coordinator user flow",
+  "generator": "scripts/generate_site_demos.py",
+  "dimensions": "960x600",
+  "loop": true,
+  "privacy": "No private project names, task messages, paths, or identifiers are used.",
+  "files": [
+    "01-ask-and-split.gif",
+    "02-tasks-at-work.gif",
+    "03-one-result.gif"
+  ]
+}

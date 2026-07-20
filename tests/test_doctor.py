@@ -31,19 +31,28 @@ description: Test fixture
 Read the short [operations index](references/operations.md).
 
 Coordinator is control-first by default.
-Use one temporary native heartbeat.
-Apply the end-of-turn continuation gate before the final answer.
+Use one repository heartbeat.
+Before the final answer, verify exactly one repository heartbeat.
+Every same-repository Codex task is managed by default.
+Only a direct user instruction may add or remove an exclusion.
+A user pause switches to `REPORT_ONLY`.
+workload idle never unregisters the Coordinator.
 The original direct user request supplies this creation authority.
 For every generated task, set reasoning explicitly to `low` or `medium`.
 Subagents remain available as parent-owned helpers.
 Use one to three parent-owned subagents when two or more independent, bounded lanes can shorten the turn.
 Do not spawn them for a single trivial command.
 Apply the durable-thread gate before creating a user-visible worker.
+Before retaining implementation, record the reuse-first choice.
+A coordinated goal authorises one rename of a generated generic task title.
 Task registration, acceptance, ownership recording, and permission-to-continue confirmations are document-only.
 Use scripts/coordination_state.py.
 Use the two-phase inbox hash checkpoint.
 Full filesystem access is capability, not user authority.
 Before the first intentional write in a turn outside the current Git common repository, notify the user.
+Deactivation and normal uninstall are dry-run-first and preserve project history.
+Mark unclear relevance or authority `AWAITING_USER_DECISION`.
+In the update, count material historical items closed, continued, deferred or not needed.
 """
 
 OPERATIONS_TEXT = """# Source operations
@@ -62,6 +71,11 @@ Pass native thinking or the host's equivalent reasoning field as low or medium.
 Routine microtasks stay inside the current owner or a parent-owned subagent.
 Use one to three parent-owned subagents when at least two independent, bounded lanes can shorten the turn.
 Do not use a lane when its coordination cost exceeds its value.
+Record the delegation decision before ordinary implementation starts.
+Rename a generated generic title once.
+The Coordinator may place an independent writer in a bounded linked worktree.
+Carry forward the exact unmet outcome.
+Do not make the user inspect old task windows.
 """
 
 RECONCILIATION_TEXT = """# Source reconciliation
@@ -103,6 +117,19 @@ MAINTENANCE_TEXT = """# Source maintenance
 Before an installation, repair, or Doctor `--apply` writes outside the current repository, notify the user.
 A user-approved recurring Doctor may reuse the bounded project inbox targets already disclosed.
 Newly discovered projects or external destinations require a fresh notice and approval.
+
+## Deactivation, uninstall, and purge
+
+Run global-plan --codex-home <codex-home>. The helper never scans an entire drive.
+"""
+
+INSTALLATION_TEXT = """# Source installation
+
+## Project deactivation and reactivation
+
+Run project deactivate --project-root <primary-worktree> as a dry run.
+Run project reactivate --project-root <primary-worktree> as a dry run.
+Project purge is not opt-out.
 """
 
 
@@ -149,6 +176,9 @@ def _source_plugin(root: Path, *, name: str = "codex-coordinator") -> Path:
     (skill / "references" / "recovery.md").write_text(RECOVERY_TEXT, encoding="utf-8")
     (skill / "references" / "maintenance.md").write_text(
         MAINTENANCE_TEXT, encoding="utf-8"
+    )
+    (skill / "references" / "installation.md").write_text(
+        INSTALLATION_TEXT, encoding="utf-8"
     )
     (skill / "scripts" / "coordination_state.py").write_text(
         "def main():\n    return 0\n", encoding="utf-8"
@@ -274,7 +304,7 @@ class DoctorTests(unittest.TestCase):
 
             check = doctor.sync_installation(source, skill_root, hook_path, apply=False)
             self.assertEqual(check["status"], "drift")
-            self.assertEqual(check["changedFiles"], 11)
+            self.assertEqual(check["changedFiles"], 12)
 
             applied = doctor.sync_installation(source, skill_root, hook_path, apply=True)
             self.assertEqual(applied["status"], "updated")

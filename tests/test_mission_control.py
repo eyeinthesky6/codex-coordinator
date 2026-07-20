@@ -12,7 +12,10 @@ from http import HTTPStatus
 from pathlib import Path
 from unittest import mock
 
-from apps.mission_control.collector import (
+PLUGIN = Path(__file__).resolve().parents[1] / "plugins" / "codex-coordinator"
+sys.path.insert(0, str(PLUGIN))
+
+from mission_control.collector import (
     CodexThreadReader,
     Collector,
     DeepReviewRunner,
@@ -24,7 +27,7 @@ from apps.mission_control.collector import (
     _extract_patch_paths,
     _local_date,
 )
-from apps.mission_control.server import MissionControlRuntime, MissionControlServer
+from mission_control.server import MissionControlRuntime, MissionControlServer
 
 
 THREAD_ONE = "11111111-1111-4111-8111-111111111111"
@@ -51,7 +54,7 @@ class MissionControlFixture:
 
 **Project ID:** sample-project
 **Coordination epoch:** 2
-**Coordination mode:** ACTIVE
+**Coordination mode:** MANAGING
 **Shared goal:** Ship the dashboard
 **Last reconciliation:** 2026-07-16T12:00:00Z
 
@@ -88,6 +91,11 @@ class MissionControlFixture:
 
 | Decision ID | Task ID | Decision needed | Status |
 |---|---|---|---|
+
+## Excluded tasks
+
+| Thread ID | Thread name | Excluded by | Reason | Status |
+|---|---|---|---|---|
 """,
             encoding="utf-8",
         )
@@ -169,7 +177,7 @@ class CollectorTests(unittest.TestCase):
         )
         self.assertEqual(_codex_token_usage(receipt, ""), 120)
 
-    def test_user_message_stays_queued_until_agent_work_begins(self):
+    def test_user_message_is_not_waiting_without_a_recorded_dependency(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = MissionControlFixture(Path(directory))
             rollout = fixture.codex_home / "one.jsonl"
@@ -196,12 +204,12 @@ class CollectorTests(unittest.TestCase):
             self.assertTrue(receipt["pendingUserMessage"])
 
             rows = CodexThreadReader(fixture.codex_home).read()
-            self.assertEqual(next(row for row in rows if row["threadId"] == THREAD_ONE)["status"], "queued")
+            self.assertEqual(next(row for row in rows if row["threadId"] == THREAD_ONE)["status"], "idle")
             snapshot = Collector([fixture.project], codex_home=fixture.codex_home).collect()
-            queued = next(task for task in snapshot["tasks"] if task["openUrl"].endswith(THREAD_ONE))
-            self.assertEqual(queued["status"], "queued")
+            assigned = next(task for task in snapshot["tasks"] if task["openUrl"].endswith(THREAD_ONE))
+            self.assertEqual(assigned["status"], "assigned")
             self.assertEqual(snapshot["metrics"]["active"], 2)
-            self.assertEqual(snapshot["conflicts"], [])
+            self.assertEqual(snapshot["conflicts"][0]["title"], "Declared scopes collide")
 
             with rollout.open("a", encoding="utf-8") as handle:
                 handle.write(
@@ -218,6 +226,38 @@ class CollectorTests(unittest.TestCase):
             self.assertFalse(receipt["pendingUserMessage"])
             rows = CodexThreadReader(fixture.codex_home).read()
             self.assertEqual(next(row for row in rows if row["threadId"] == THREAD_ONE)["status"], "active")
+
+    def test_recorded_coordination_command_marks_a_task_waiting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = MissionControlFixture(Path(directory))
+            current = fixture.coordination / "CURRENT.md"
+            text = current.read_text(encoding="utf-8")
+            header = (
+                "| Task ID | Message ID | Recipient thread ID | Message type | Status |\n"
+                "|---|---|---|---|---|\n"
+            )
+            text = text.replace(
+                header,
+                header + f"| MC-001 | msg-1 | {THREAD_ONE} | PAUSE | PENDING |\n",
+            )
+            current.write_text(text, encoding="utf-8")
+
+            snapshot = Collector([fixture.project], codex_home=fixture.codex_home).collect()
+            waiting = next(task for task in snapshot["tasks"] if task["openUrl"].endswith(THREAD_ONE))
+            self.assertEqual(waiting["status"], "queued")
+            self.assertIn("recorded coordination command", waiting["attention"])
+
+            current.write_text(
+                current.read_text(encoding="utf-8").replace(
+                    f"| MC-001 | msg-1 | {THREAD_ONE} | PAUSE | PENDING |",
+                    f"| MC-001 | msg-1 | {THREAD_ONE} | PAUSE | COMPLETE |",
+                ),
+                encoding="utf-8",
+            )
+            snapshot = Collector([fixture.project], codex_home=fixture.codex_home).collect()
+            released = next(task for task in snapshot["tasks"] if task["openUrl"].endswith(THREAD_ONE))
+            self.assertNotEqual(released["status"], "queued")
+            self.assertEqual(released["attention"], "")
 
     def test_invalid_local_timestamps_and_receipt_rows_fail_safe(self):
         epoch = datetime.fromtimestamp(0, timezone.utc)
@@ -273,6 +313,8 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(snapshot["metrics"]["active"], 2)
             self.assertEqual(snapshot["metrics"]["attention"], 2)
             self.assertEqual(snapshot["metrics"]["overlaps"], 1)
+            self.assertEqual(snapshot["projects"][0]["modeLabel"], "Managing")
+            self.assertEqual(snapshot["projects"][0]["excludedTasks"], [])
             self.assertEqual(snapshot["conflicts"][0]["title"], "Declared scopes collide")
             self.assertEqual(snapshot["conflicts"][0]["confidence"], "declared")
             self.assertIn("Confirm one owner", snapshot["conflicts"][0]["action"])
@@ -280,6 +322,26 @@ class CollectorTests(unittest.TestCase):
             self.assertNotIn('"taskId"', serialized)
             self.assertNotIn('"threadId"', serialized)
             self.assertIn("codex://threads/", serialized)
+
+    def test_project_summary_exposes_user_exclusions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = MissionControlFixture(Path(directory))
+            current = fixture.coordination / "CURRENT.md"
+            text = current.read_text(encoding="utf-8")
+            row = (
+                f"| {THREAD_TWO} | Private task | DIRECT_USER | User requested isolation | ACTIVE |\n"
+            )
+            exclusion_table = (
+                "## Excluded tasks\n\n"
+                "| Thread ID | Thread name | Excluded by | Reason | Status |\n"
+                "|---|---|---|---|---|\n"
+            )
+            text = text.replace(exclusion_table, exclusion_table + row)
+            current.write_text(text, encoding="utf-8")
+
+            snapshot = Collector([fixture.project], codex_home=fixture.codex_home).collect()
+
+            self.assertEqual(snapshot["projects"][0]["excludedTasks"][0]["name"], "Private task")
 
     def test_filters_general_chats_and_discovers_other_coordinator_projects(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -668,7 +730,7 @@ class CollectorTests(unittest.TestCase):
                     "_repair_installed_runtime",
                     return_value={"status": "current"},
                 ) as repair,
-                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
             ):
                 scanner.return_value.scan.return_value = {
                     "status": "review",
@@ -705,7 +767,7 @@ class CollectorTests(unittest.TestCase):
             ]
 
             with mock.patch(
-                "apps.mission_control.collector.subprocess.run", side_effect=reports
+                "mission_control.collector.subprocess.run", side_effect=reports
             ) as run:
                 self.assertEqual(runner._repair_installed_runtime()["status"], "current")
 
@@ -747,7 +809,7 @@ class CollectorTests(unittest.TestCase):
                     "_repair_installed_runtime",
                     return_value={"status": "current"},
                 ) as repair,
-                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
             ):
                 scanner.return_value.scan.return_value = {
                     "status": "healthy",
@@ -817,7 +879,7 @@ class CollectorTests(unittest.TestCase):
                     "_repair_installed_runtime",
                     return_value={"status": "current"},
                 ),
-                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
             ):
                 scanner.return_value.scan.side_effect = RuntimeError("structured scan failed")
                 self.assertFalse(runner.run(snapshot))
@@ -860,8 +922,8 @@ class CollectorTests(unittest.TestCase):
                 "projects": [{"path": str(root / "sample"), "enabled": True}]
             }
             with (
-                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
-                mock.patch("apps.mission_control.collector.subprocess.run") as run,
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch("mission_control.collector.subprocess.run") as run,
             ):
                 scanner.return_value.semantic_review_packet.return_value = {
                     "schemaVersion": 1,
@@ -925,9 +987,9 @@ class CollectorTests(unittest.TestCase):
                 return mock.Mock(returncode=0, stdout="tokens used 1,234", stderr="")
 
             with (
-                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
                 mock.patch(
-                    "apps.mission_control.collector.subprocess.run", side_effect=complete
+                    "mission_control.collector.subprocess.run", side_effect=complete
                 ) as run,
             ):
                 scanner.return_value.semantic_review_packet.return_value = packet
@@ -979,9 +1041,9 @@ class CollectorTests(unittest.TestCase):
                 return mock.Mock(returncode=0, stdout="tokens used 88", stderr="")
 
             with (
-                mock.patch("apps.mission_control.collector.DeterministicDoctorScanner") as scanner,
+                mock.patch("mission_control.collector.DeterministicDoctorScanner") as scanner,
                 mock.patch(
-                    "apps.mission_control.collector.subprocess.run",
+                    "mission_control.collector.subprocess.run",
                     side_effect=invalid_result,
                 ),
             ):
@@ -1000,6 +1062,25 @@ class CollectorTests(unittest.TestCase):
 
 
 class ServerTests(unittest.TestCase):
+    def test_server_shutdown_disables_automatic_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = MissionControlFixture(Path(directory))
+            runtime = MissionControlRuntime(
+                [fixture.project], fixture.codex_home, fixture.data_dir
+            )
+            server = MissionControlServer(("127.0.0.1", 0), runtime)
+            try:
+                with mock.patch.object(server, "shutdown") as shutdown:
+                    server.request_shutdown()
+                    time.sleep(0.1)
+                shutdown.assert_called_once_with()
+                lifecycle = json.loads(
+                    (fixture.data_dir / "lifecycle.json").read_text(encoding="utf-8")
+                )
+                self.assertFalse(lifecycle["automatic_start_enabled"])
+            finally:
+                server.server_close()
+
     def test_background_launcher_opens_browser_only_when_requested(self):
         launcher = Path("apps/mission_control/start-background.ps1").read_text(encoding="utf-8")
         self.assertIn("[switch]$Open", launcher)
@@ -1059,6 +1140,7 @@ class ServerTests(unittest.TestCase):
                     self.assertIn("Run Doctor", html)
                     self.assertIn("Deterministic local checks · zero model calls", html)
                     self.assertIn("AI Review", html)
+                    self.assertIn("Shut down Mission Control", html)
                     self.assertIn("candidate only", html)
                     self.assertIn('id="doctor-health-icon"', html)
                     self.assertIn('<ul class="doctor-summary"', html)
@@ -1069,6 +1151,8 @@ class ServerTests(unittest.TestCase):
                     self.assertNotIn("feedback-dismiss", html)
                     self.assertNotIn('id="feedback-panel" aria-labelledby="feedback-title" hidden', html)
                     self.assertIn("Filter Mission Control by project", html)
+                    self.assertIn("Coordinator mode", html)
+                    self.assertIn("Excluded tasks: none", html)
                     self.assertIn("No login, cloud service or telemetry", html)
                     self.assertNotIn("Agent brief", html)
                     self.assertNotIn("What matters now", html)
@@ -1149,6 +1233,20 @@ class ServerTests(unittest.TestCase):
                 with self.assertRaises(urllib.error.HTTPError) as raised:
                     urllib.request.urlopen(plain_text, timeout=5)
                 self.assertEqual(raised.exception.code, HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
+
+                with mock.patch.object(server, "request_shutdown") as request_shutdown:
+                    shutdown_request = urllib.request.Request(
+                        base + "/api/shutdown",
+                        data=json.dumps(
+                            {"confirmation": "user-requested-shutdown"}
+                        ).encode("utf-8"),
+                        method="POST",
+                        headers={"Content-Type": "application/json"},
+                    )
+                    with urllib.request.urlopen(shutdown_request, timeout=5) as response:
+                        self.assertEqual(response.status, HTTPStatus.ACCEPTED)
+                        self.assertEqual(json.load(response)["status"], "stopping")
+                    request_shutdown.assert_called_once_with()
             finally:
                 server.shutdown()
                 server.server_close()

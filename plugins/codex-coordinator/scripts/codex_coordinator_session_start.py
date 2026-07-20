@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only Codex Coordinator SessionStart context hook."""
+"""Load Coordinator context and start the optional local Mission Control observer."""
 
 from __future__ import annotations
 
@@ -173,6 +173,13 @@ TABLE_SCHEMAS: dict[str, dict[str, tuple[str, ...]]] = {
         "decision_needed": ("Decision needed",),
         "status": ("Status",),
     },
+    "excluded_tasks": {
+        "thread_id": ("Thread ID",),
+        "thread_name": ("Thread name",),
+        "excluded_by": ("Excluded by",),
+        "reason": ("Reason",),
+        "status": ("Status",),
+    },
 }
 
 
@@ -249,6 +256,14 @@ def _valid_table_row(slug: str, row: dict[str, str]) -> bool:
             "decision_needed": _valid_table_text,
             "status": token,
         },
+        "excluded_tasks": {
+            "thread_id": lambda value: bool(THREAD.fullmatch(value.strip().strip("`")))
+            and value.strip().strip("`") not in {"NONE", "UNAVAILABLE"},
+            "thread_name": _valid_name,
+            "excluded_by": lambda value: value.strip().strip("`") == "DIRECT_USER",
+            "reason": _valid_table_text,
+            "status": lambda value: value.strip().strip("`") in {"ACTIVE", "REMOVED"},
+        },
     }
     return all(check(row[field]) for field, check in checks[slug].items())
 
@@ -266,6 +281,7 @@ def _unique_row_identity(slug: str, row: dict[str, str]) -> tuple[str, str] | No
         "paused_work": ("task_id", "task_id"),
         "resume_queue": ("message_id", "message_id"),
         "blocked_decisions": ("decision_id", "decision_id"),
+        "excluded_tasks": ("thread_id", "thread_id"),
     }
     field = fields.get(slug)
     if field is None:
@@ -358,6 +374,36 @@ def _emit(context: str) -> None:
         },
         sys.stdout,
     )
+
+
+def _start_mission_control(project_root: Path) -> None:
+    if os.environ.get("CODEX_COORDINATOR_DISABLE_MISSION_CONTROL_AUTOSTART") == "1":
+        return
+    lifecycle = Path(__file__).with_name("mission_control_lifecycle.py")
+    if not lifecycle.is_file():
+        return
+    command = [
+        sys.executable,
+        str(lifecycle),
+        "start",
+        "--automatic",
+        "--project",
+        str(project_root),
+    ]
+    options: dict[str, object] = {
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "close_fds": True,
+    }
+    if os.name == "nt":
+        options["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    else:
+        options["start_new_session"] = True
+    try:
+        subprocess.Popen(command, **options)
+    except OSError:
+        return
 
 
 def _marker_value(text: str, key: str) -> str | None:
@@ -530,6 +576,19 @@ def _transition_ids(
         if "UNKNOWN" not in {task, message, status} and _is_pending_status(status):
             items.append(f"{task}:{message}:{status}")
     return ",".join(items) if items else "NONE"
+
+
+def _excluded_task_ids(table: ParsedTable, *, current_truncated: bool) -> str:
+    if current_truncated:
+        return "UNKNOWN_TRUNCATED"
+    if not table.valid:
+        return "UNKNOWN_INVALID_STATE"
+    items = [
+        _safe(row["thread_id"], THREAD)
+        for row in table.rows
+        if _safe(row["status"], TOKEN) == "ACTIVE"
+    ]
+    return ",".join(item for item in items if item != "UNKNOWN") if items else "NONE"
 
 
 def _active_task_warnings(
@@ -736,6 +795,7 @@ def main() -> None:
             _emit_invalid_marker(project_id, marker_warnings)
             return
         enabled_project_id = project_id
+        _start_mission_control(root)
 
         current_path = coordination / "CURRENT.md"
         if current_path.exists() and not current_path.is_file():
@@ -832,11 +892,8 @@ def main() -> None:
             if value == "UNKNOWN":
                 warnings.append(label)
 
-        if shared_goal != "UNKNOWN":
-            if mode == "IDLE" and shared_goal != "none":
-                warnings.append("idle_mode_shared_goal_not_none")
-            elif mode not in {"IDLE", "UNKNOWN"} and shared_goal == "none":
-                warnings.append("non_idle_mode_shared_goal_missing")
+        if mode not in {"MANAGING", "REPORT_ONLY", "ATTENTION_NEEDED", "UNKNOWN"}:
+            warnings.append("legacy_or_invalid_coordination_mode")
 
         registered_table = _parse_table(current.text, "Registered sessions", "registered_sessions")
         active_table = _parse_table(current.text, "Active tasks", "active_tasks")
@@ -844,6 +901,7 @@ def main() -> None:
         paused_table = _parse_table(current.text, "Paused work", "paused_work")
         resume_table = _parse_table(current.text, "Resume queue", "resume_queue")
         blocked_table = _parse_table(current.text, "Blocked decisions", "blocked_decisions")
+        excluded_table = _parse_table(current.text, "Excluded tasks", "excluded_tasks")
         for table in (
             registered_table,
             active_table,
@@ -851,6 +909,7 @@ def main() -> None:
             paused_table,
             resume_table,
             blocked_table,
+            excluded_table,
         ):
             warnings.extend(table.warnings)
         if not active_table.valid:
@@ -907,6 +966,8 @@ def main() -> None:
                 coordinator_accepts=coordinator_accepts,
             )
         )
+        if coordinator_id == "NONE" or coordinator_status == "UNREGISTERED" or coordinator_accepts != "true":
+            warnings.append("enabled_project_coordinator_not_active")
 
         session_id = _safe(str(payload.get("session_id", "")), THREAD)
         if session_id == "UNKNOWN":
@@ -945,6 +1006,7 @@ def main() -> None:
                 f"coordinator_thread_name={coordinator_name}",
                 f"coordinator_status={coordinator_status}",
                 f"coordinator_accepts_project_messages={coordinator_accepts}",
+                "excluded_tasks=" + _excluded_task_ids(excluded_table, current_truncated=current.truncated),
                 f"this_session_id={session_id}",
                 f"registered_scope_kind={scope_kind}",
                 f"registered_role={role}",

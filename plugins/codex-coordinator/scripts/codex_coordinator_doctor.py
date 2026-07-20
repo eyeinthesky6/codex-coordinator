@@ -16,14 +16,20 @@ from typing import Any
 PLUGIN_NAME = "codex-coordinator"
 HOOK_NAME = "codex_coordinator_session_start.py"
 CAPABILITY_CONTRACT = "capabilities.json"
-CAPABILITY_CONTRACT_VERSION = 14
+CAPABILITY_CONTRACT_VERSION = 18
 REQUIRED_CAPABILITIES: dict[str, Any] = {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
     "doctorDiagnostics": "json-with-optional-mermaid",
     "doctorProjectScan": "deterministic-structured-state-zero-model",
     "doctorSemanticReview": "user-triggered-allowlisted-low-candidate-only",
-    "monitoring": "heartbeat-with-single-wake-fallback",
+    "monitoring": "enabled-repository-persistent-heartbeat",
+    "repositoryLifecycle": "active-by-default-after-enablement",
+    "taskCoverage": "all-same-repository-tasks-by-default",
+    "taskExclusions": "direct-user-only",
+    "pauseBehavior": "report-only-no-control-actions",
+    "idleBehavior": "retain-pinned-accepting-coordinator",
+    "userStateReporting": "mode-and-exclusions-always-visible",
     "modelDefault": "inherit-unless-user-overrides",
     "reasoningDefault": "low-or-medium",
     "registrationDelivery": "document-only-no-ack",
@@ -39,6 +45,14 @@ REQUIRED_CAPABILITIES: dict[str, Any] = {
     "archivedRecovery": "direct-request-no-repeat-confirmation",
     "externalWriteDisclosure": "prewrite-notice-and-scope-authority",
     "subagentDispatch": "one-to-three-for-two-independent-lanes",
+    "pythonRuntimeBootstrap": "bounded-machine-discovery-informed-install",
+    "lifecycleCleanup": "dry-run-first-history-preserving",
+    "globalUninstall": "verified-project-index-no-drive-scan",
+    "worktreeSelection": "coordinator-selected-bounded-when-beneficial",
+    "waitingClassification": "canonical-evidence-only",
+    "delegationDecision": "reuse-first-recorded",
+    "taskTitlePolicy": "rename-generic-once-preserve-user-title",
+    "historicalTaskReconciliation": "current-goal-authority-and-disposition",
 }
 REQUIRED_TASK_LIFECYCLE = {
     "pin-coordinator",
@@ -50,8 +64,12 @@ REQUIRED_TASK_LIFECYCLE = {
 REQUIRED_GUIDANCE = {
     "SKILL.md": (
         "Coordinator is control-first by default",
-        "one temporary native heartbeat",
-        "end-of-turn continuation gate",
+        "one repository heartbeat",
+        "verify exactly one repository heartbeat",
+        "Every same-repository Codex task is managed by default",
+        "Only a direct user instruction may add or remove",
+        "A user pause switches to `REPORT_ONLY`",
+        "workload idle never unregisters the Coordinator",
         "set reasoning explicitly to `low`",
         "Subagents remain available as parent-owned helpers",
         "Use one to three parent-owned subagents when two or more independent, bounded",
@@ -64,6 +82,11 @@ REQUIRED_GUIDANCE = {
         "The original direct user request supplies this creation authority",
         "Full filesystem access is capability, not user authority",
         "Before the first intentional write in a turn outside the current Git common repository",
+        "record the reuse-first choice",
+        "one rename of a generated generic task title",
+        "dry-run-first and preserve project history",
+        "Mark unclear relevance or authority `AWAITING_USER_DECISION`",
+        "count material historical items closed, continued, deferred or not needed",
     ),
     "references/operations.md": (
         "[execution.md](execution.md)",
@@ -79,6 +102,11 @@ REQUIRED_GUIDANCE = {
         "Routine microtasks stay inside the current owner",
         "Use one to three parent-owned subagents when at least two independent, bounded lanes",
         "coordination cost exceeds its value",
+        "Record the delegation decision before ordinary implementation starts",
+        "Rename a generated generic title once",
+        "Coordinator may place an independent writer in a bounded linked worktree",
+        "Carry forward the exact unmet outcome",
+        "Do not make the user inspect old task windows",
     ),
     "references/reconciliation.md": (
         "scan-inbox",
@@ -117,6 +145,15 @@ REQUIRED_GUIDANCE = {
         "Before an installation, repair, or Doctor `--apply` writes outside the current repository",
         "A user-approved recurring Doctor may reuse the bounded project inbox targets",
         "Newly discovered projects or external destinations require a fresh notice and approval",
+        "Deactivation, uninstall, and purge",
+        "global-plan --codex-home <codex-home>",
+        "never scans an entire drive",
+    ),
+    "references/installation.md": (
+        "Project deactivation and reactivation",
+        "project deactivate --project-root <primary-worktree>",
+        "project reactivate --project-root <primary-worktree>",
+        "Project purge is not opt-out",
     ),
 }
 FORBIDDEN_GUIDANCE = (

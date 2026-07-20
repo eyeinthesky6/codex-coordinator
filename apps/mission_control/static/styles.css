@@ -1504,3 +1504,30 @@ h1 em {
     transition-duration: 0.01ms !important;
   }
 }
+.button-danger {
+  margin-right: auto;
+  border: 1px solid rgba(255, 105, 120, .55);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #ffd7dc;
+  background: rgba(150, 35, 55, .18);
+  cursor: pointer;
+}
+
+.button-danger:hover { background: rgba(180, 45, 65, .28); }
+.button-danger:disabled { cursor: wait; opacity: .6; }
+
+.shutdown-screen {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  padding: 32px;
+  text-align: center;
+  background: #07142b;
+  color: #f5f8ff;
+}
+
+.shutdown-screen h1,
+.shutdown-screen p { margin: 0; }
+.shutdown-screen p { max-width: 560px; color: #aebbd0; line-height: 1.65; }

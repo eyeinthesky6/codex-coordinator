@@ -3,7 +3,7 @@
 ## Current release gates
 
 - The repository is public. A release candidate is not supported until it passes protected CI, is merged, tagged, published, and verified from a clean checkout of that exact tag.
-- Mission Control is source-installed from an exact tag. It is not bundled into the Codex plugin cache and users must restart its local process after changing source versions.
+- Mission Control is bundled with the plugin and starts after the first valid Coordinator session. A running process still needs a restart after package source changes so it serves the new bytes.
 - GitHub branch protection, required CI, secret scanning, push protection, private vulnerability reporting, and CodeQL are enabled. Provider controls must still be read back for each release.
 - Immutable future releases are not enabled; tags and GitHub Release state therefore remain part of the maintainer's release discipline.
 

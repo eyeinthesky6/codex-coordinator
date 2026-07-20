@@ -16,13 +16,13 @@ flowchart TD
     install --> stateCheck
 
     stateCheck -->|"invalid, missing, or incompatible"| repair["Recovery or Maintainer repair; grant no authority"]
-    stateCheck -->|"valid"| coordination{"Does this goal need coordinated tasks?"}
-    coordination -->|"no overlap"| direct
-    coordination -->|"yes"| coordinator{"Usable registered Coordinator?"}
+    stateCheck -->|"valid"| coordinator{"Usable registered Coordinator?"}
     coordinator -->|"uncertain"| repair
-    coordinator -->|"no, creation authorised"| bootstrap["Create one Coordinator with a complete bootstrap prompt"]
-    coordinator -->|"yes"| contract["Record one bounded task contract"]
-    bootstrap --> contract
+    coordinator -->|"no, repository enabled"| bootstrap["Create and pin one Coordinator with a complete bootstrap prompt"]
+    coordinator -->|"yes"| mode{"Managing or report-only?"}
+    bootstrap --> mode
+    mode -->|"Managing"| contract["Manage this same-repository task by default"]
+    mode -->|"Report-only"| observe["Observe and report; perform no control action"]
 
     contract --> create["Create native worker with the complete first-turn assignment"]
     create --> bind["Bind returned native task identity and ownership"]
@@ -35,14 +35,14 @@ flowchart TD
     terminal -->|"no"| contract
     terminal -->|"blocked"| decision["Record the blocker and ask only for the missing user decision"]
     decision --> contract
-    terminal -->|"yes"| finish["Release ownership, archive finished workers, remove heartbeat, return to idle"]
+    terminal -->|"yes"| finish["Release finished ownership; retain pinned Coordinator and heartbeat at workload idle"]
 
     doctor["Doctor agent scans installed behavior and enabled projects"] -. "deduplicated finding only" .-> reconcile
-    hook["SessionStart read-only context"] -. "restart hint; never authority" .-> stateCheck
+    hook["SessionStart context and observer launcher"] -. "restart hint; never authority" .-> stateCheck
 
     classDef instruction fill:#17152f,stroke:#8b7cf6,color:#ffffff;
     classDef executable fill:#102b3a,stroke:#56d6d2,color:#ffffff;
-    class request,marker,direct,install,repair,coordination,coordinator,bootstrap,contract,create,bind,routeCheck,discard,work,report,reconcile,terminal,decision,finish,doctor instruction;
+    class request,marker,direct,install,repair,coordinator,bootstrap,mode,contract,observe,create,bind,routeCheck,discard,work,report,reconcile,terminal,decision,finish,doctor instruction;
     class stateCheck,hook executable;
 ```
 
@@ -51,32 +51,32 @@ flowchart TD
 
 ## Main flow
 
-1. A user invokes `$codex-coordinator` for work that needs coordination.
-2. The skill checks the repository marker and current task context.
-3. For meaningful parallel or cross-task work, it lazily creates the repository-scoped marker, local current-state record, and only the task records that are needed.
-4. The Coordinator records a bounded contract, creates each worker with the complete first-turn assignment, and immediately binds Codex's returned native task identity.
-5. The Coordinator remains control-first; bounded workers own normal product and integration execution. Subagents may help a registered task while their parent retains durable ownership and reporting.
-6. One temporary native heartbeat reconciles changed worker turns while a shared goal is live. It uses a host-native incremental cursor when available and never mirrors Codex task history. Native messages remain a sparse fallback for exact control transitions or one unattended result/blocker wake.
+1. Every task checks the repository marker; a global installation with no enabled marker remains inert.
+2. In an enabled repository, the task loads the skill and verifies the pinned accepting Coordinator, current mode, and user exclusions.
+3. Initial enablement creates the repository-scoped marker and local state, then creates, registers, pins, and monitors exactly one Coordinator before claiming active management.
+4. The Coordinator records a bounded contract, chooses the shared checkout or a bounded linked worktree, creates each worker with the complete first-turn assignment, and immediately binds Codex's returned native task identity. It may choose a worktree for an independent writer when isolation avoids an unnecessary wait and one integration owner is named.
+5. Managed-by-default is an observation and ownership rule, not an approval gate. Conflict-free tasks proceed after recording notice; only a recorded dependency, pause, pending command, decision, or ownership conflict puts work in a waiting state. The Coordinator remains control-first; bounded workers own normal product and integration execution. Subagents may help a registered task while their parent retains durable ownership and reporting.
+6. One repository heartbeat reconciles changed same-repository task turns while Coordinator is enabled, including workload-idle and report-only periods. It uses a host-native incremental cursor when available and never mirrors Codex task history. Native messages remain a sparse channel for exact control transitions.
 7. Durable repository-local records preserve the handoff when a task pauses, compacts, or restarts. The bundled state helper validates required fields, identifiers, table rows, uniqueness, and reconciliation ledgers, safely creates task or inbox records without overwriting existing files, and maintains an optional two-phase hash checkpoint only for inbox records already reconciled by the exact current Coordinator.
-8. On SessionStart, the Python hook reads bounded state from the primary worktree and emits a short context block. It does not change repository files.
+8. On SessionStart, the Python hook reads bounded state from the primary worktree, emits a short context block, and starts or reuses the bundled local Mission Control observer when the repository is enabled. It does not change repository files.
 9. An optional Codex automation may run Doctor across locally discovered enabled projects. Doctor writes only deduplicated inbox findings; each project Coordinator remains the sole owner of canonical reconciliation and repair.
 
 ## Mission Control observer
 
-Mission Control is an optional source-installed companion with a separate process boundary from the plugin. Its Python standard-library server binds only to `127.0.0.1`, reads bounded local Codex receipts and Coordinator records, and renders a reviewer-facing snapshot. A submitted user message is `queued` until a later agent reasoning, response, or tool event proves work started; it is never labelled `Working now` merely because the task received text.
+Mission Control is an optional runtime bundled with the plugin and kept behind a separate local process boundary. Its Python standard-library server binds only to `127.0.0.1`, reads bounded local Codex receipts and Coordinator records, and renders a reviewer-facing snapshot. The first valid Coordinator SessionStart launches it once; later sessions reuse it. Native task receipts indicate activity, idleness, or completion; they do not create a coordination wait. Mission Control shows waiting work only when canonical records contain a dependency, pause or resume condition, pending control command, unresolved decision, or ownership conflict.
 
-The dashboard may update its own local settings, run the bounded Doctor contract, and record an optional local feedback dismissal. It cannot assign work, change ownership, send task messages, edit application code, or replace the canonical Coordinator records.
+The dashboard may update its own local settings, run the bounded Doctor contract, and shut down its own server. A shutdown records a local disabled preference so the next SessionStart respects the user's choice; an explicit chat start re-enables it. It cannot assign work, change ownership, send task messages, edit application code, or replace the canonical Coordinator records.
 
 ## State boundary
 
 - `.codex/coordination/project.yaml` is the stable, trackable discovery marker.
 - Mutable ownership, task, and handoff records stay local to the checkout and are ignored by Git.
 - A project ID and current epoch guard cross-task routing. Messages without the expected repository identity and recipient are not actionable.
-- Git worktrees isolate files and branches; Coordinator records ownership and handoffs. These are complementary controls.
+- Git worktrees isolate files and branches; Coordinator may select that placement for a bounded independent writer and records ownership, integration responsibility, and handoffs. Canonical state remains in the primary worktree.
 
 ## Hook safety boundary
 
-The hook validates and bounds marker values, text size, table rows, Git output, and emitted context. It uses a bounded Git query to find the primary worktree, treats malformed or truncated state as unknown, and never turns recovered text into authority.
+The hook validates and bounds marker values, text size, table rows, Git output, and emitted context. It uses a bounded Git query to find the primary worktree, treats malformed or truncated state as unknown, and never turns recovered text into authority. Only after a valid enabled marker is confirmed may it launch the packaged lifecycle helper; that helper writes only its local application-data preference and starts the loopback observer.
 
 ## Doctor safety boundary
 
@@ -86,7 +86,7 @@ In a configured development or legacy manual setup, the source-sync helper valid
 
 ## What the plugin does not own
 
-- Git commits, merges, branches, or worktree lifecycle.
+- Git commits, merges, branches, or the native worktree lifecycle. Coordinator may choose and record execution placement, but Codex and Git perform those operations through their existing surfaces.
 - Deployment, database, environment, or provider permissions.
 - Cross-machine state synchronization.
 - Application locks or enforcement.

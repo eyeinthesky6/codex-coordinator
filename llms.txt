@@ -8,7 +8,9 @@ Use it when several Codex tasks need to work in the same repository and the user
 
 - Website: https://eyeinthesky6.github.io/codex-coordinator/
 - Repository and quick start: https://github.com/eyeinthesky6/codex-coordinator
-- Fit, non-fit, and fair comparison: https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/DISCOVERY.md
+- Plain-language FAQ, including token use: https://eyeinthesky6.github.io/codex-coordinator/faq.html
+- Developer installation and fair comparison: https://eyeinthesky6.github.io/codex-coordinator/developers.html
+- Full fit and discovery guide: https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/DISCOVERY.md
 - Telegram community: https://t.me/+ra4BQ7-_5uM2MDY1
 - Latest stable release: https://github.com/eyeinthesky6/codex-coordinator/releases/latest
 - Architecture: https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/codebase/ARCHITECTURE.md
@@ -20,8 +22,8 @@ Use it when several Codex tasks need to work in the same repository and the user
 
 ## Supported first action
 
-Install the latest stable tagged release through Codex Plugins, trust the read-only SessionStart hook after review, then start a new Codex task with:
+Install the latest stable tagged release through Codex Plugins, trust the bounded SessionStart hook after review, then start a new Codex task with:
 
 `Use $codex-coordinator to create the tasks needed and coordinate this goal: <goal>`
 
-The plugin requires Git, Python 3.10 or newer, and Codex with plugin and hook support. The optional Mission Control companion runs from the tagged source checkout on localhost and does not become coordination authority. The project does not bypass Codex plan, usage, token, or concurrency limits.
+The plugin requires Git, Python 3.10 or newer, and Codex with plugin and hook support. The optional Mission Control companion is bundled with the plugin, starts on the first valid Coordinator session, runs only on localhost, and can be stopped or re-enabled from its UI or Codex chat. It does not become coordination authority. The project does not bypass Codex plan, usage, token, or concurrency limits.

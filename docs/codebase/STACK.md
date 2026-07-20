@@ -6,8 +6,9 @@ Codex Coordinator is a source-distributed Codex plugin. Its behavior is primaril
 
 - OpenAI Codex with plugin, skill, and hook support.
 - Git for repository identity, primary-worktree discovery, and normal source control.
-- Python 3.10 or newer for the SessionStart hook.
+- Python 3.10 or newer for the SessionStart hook, selected by the OS-native bootstrap from PATH, registered or standard installs, or Codex runtime folders.
 - Python standard library only; the plugin has no runtime package dependencies.
+- PowerShell on Windows and POSIX `sh` on macOS/Linux for Python discovery and an informed best-effort install when Python is absent.
 
 ## Repository formats
 

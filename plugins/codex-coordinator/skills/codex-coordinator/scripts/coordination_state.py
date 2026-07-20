@@ -49,6 +49,7 @@ TABLES: dict[str, tuple[str, ...]] = {
     "Paused work": ("Task ID", "Owner", "Reason", "Resume condition", "Status"),
     "Resume queue": ("Task ID", "Message ID", "Resume condition", "Status"),
     "Blocked decisions": ("Decision ID", "Task ID", "Decision needed", "Status"),
+    "Excluded tasks": ("Thread ID", "Thread name", "Excluded by", "Reason", "Status"),
 }
 
 TASKLESS = {"", "-", "none", "n/a", "not applicable"}
@@ -244,6 +245,13 @@ def _validate_table_rows(heading: str, headers: list[str], rows: list[list[str]]
             "Decision needed": lambda value: _valid_text(value, maximum=512),
             "Status": token,
         },
+        "Excluded tasks": {
+            "Thread ID": lambda value: bool(THREAD.fullmatch(value)) and value not in {"NONE", "UNAVAILABLE"},
+            "Thread name": lambda value: _valid_text(value, maximum=120),
+            "Excluded by": lambda value: value == "DIRECT_USER",
+            "Reason": lambda value: _valid_text(value, maximum=512),
+            "Status": lambda value: value in {"ACTIVE", "REMOVED"},
+        },
     }
     unique_columns = {
         "Active tasks": "Task ID",
@@ -251,6 +259,7 @@ def _validate_table_rows(heading: str, headers: list[str], rows: list[list[str]]
         "Paused work": "Task ID",
         "Resume queue": "Message ID",
         "Blocked decisions": "Decision ID",
+        "Excluded tasks": "Thread ID",
     }
     seen_rows: set[tuple[str, ...]] = set()
     seen_keys: set[str] = set()

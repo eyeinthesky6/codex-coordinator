@@ -21,7 +21,7 @@ When an enabled project's canonical state is idle with no active ownership or pe
 Only a user-authorised Maintainer may change:
 
 - the global Codex Coordinator skill package;
-- the source-installed Mission Control companion files;
+- the bundled Mission Control companion files and lifecycle helper;
 - the Coordinator block in repository `AGENTS.md`, or an exact legacy global block during migration or removal;
 - `.codex/coordination/project.yaml`;
 - the plugin-managed hook registration and SessionStart script, or an exact legacy global hook entry during migration or removal;
@@ -36,6 +36,38 @@ Adding the Coordinator-state block to `.gitignore` does not untrack existing fil
 After a global skill or hook change, require resumed coordinated sessions to reload the global skill before acting. Threads retain previously loaded instructions until reloaded. After a Mission Control package change, restart a running Mission Control process so it serves the current source bytes; verify that restart through Mission Control's own health check and UAT rather than Doctor.
 
 Keep maintenance reports user-facing and plain. Do not expose epochs, task or thread IDs, scope kinds, acceptance flags, or role constants unless the user explicitly asks for raw diagnostics.
+
+## Deactivation, uninstall, and purge
+
+Keep four operations separate:
+
+- a user pause changes an enabled repository to report-only monitoring and removes nothing;
+- project deactivation is reversible and preserves local coordination history;
+- global uninstall deactivates verified known projects, stops Coordinator-owned lifecycle components, and removes the plugin while preserving project history;
+- purge is a separate destructive request for exact project or application-data state.
+
+Use `scripts/codex_coordinator_uninstall.py` from the trusted installed plugin. Every filesystem operation is dry-run-first; mutation requires `--apply`. The helper validates the primary Git worktree, schema-1 marker, project ID, and exact current or explicitly allowlisted legacy instruction block plus the exact ignore block before writing. Reactivation replaces an allowlisted legacy discovery block with the current packaged block. Arbitrary lookalikes fail before mutation. The helper never scans an entire drive and never runs Codex task, automation, Mission Control, or plugin commands implicitly.
+
+For one project:
+
+1. Reconcile active work to a safe boundary without discarding or stashing user changes.
+2. Run `project deactivate --project-root <primary-worktree>` and inspect every planned file and native action.
+3. Remove only the verified repository heartbeat, then archive and unpin the exact registered Coordinator at its safe boundary.
+4. Run the same command with `--apply`; validate the disabled marker, removed exact discovery block, and preserved history.
+
+For global uninstall:
+
+1. Build or update the bounded local index only from explicitly known repositories with `index-project --project-root <primary-worktree> --codex-home <codex-home> --apply`. This external application-data write requires the advance disclosure above. The index is non-authoritative.
+2. Run `global-plan --codex-home <codex-home>` and revalidate every candidate against its live Git root and marker. Extra `--project-root` values may be supplied explicitly. Reject stale paths and project-ID mismatches; never replace this with a drive scan.
+3. Deactivate each verified enabled project independently through the one-project procedure. One failure does not authorise guessing about another project.
+4. Run the packaged Mission Control lifecycle stop command so automatic startup remains disabled.
+5. Remove only heartbeat automations whose exact target and prompt prove that they belong to those verified repository Coordinators. Similar names are not evidence.
+6. Remove the plugin with `codex plugin remove codex-coordinator@codex-coordinator`. Remove its marketplace or exact verified legacy skill/hook copies only when the direct request includes them.
+7. Verify project histories, Mission Control settings and receipts, unrelated automations, Codex sessions and transcripts, global configuration, application files, and environment are unchanged.
+
+Project purge uses `project purge --project-root <primary-worktree> --confirm-project-id <exact-id>` and remains a dry run until `--apply`. It may quarantine and remove only the verified `.codex/coordination/` directory plus the exact packaged discovery and ignore blocks. Never remove the root `.codex` directory, `.codex/config.toml`, Codex sessions or databases, application code, Git worktrees or branches, or unrelated instructions and ignore entries. Global Coordinator application-data purge is another separate direct request after the plugin and runtime are stopped.
+
+Test this lifecycle with temporary Git repositories, a temporary Codex home, mocked native actions, interruption injection, and a disposable sandbox or VM for real install-to-uninstall proof. Never deactivate or uninstall the working machine merely to validate source changes.
 
 ## Reinstall boundaries
 

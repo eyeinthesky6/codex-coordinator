@@ -34,7 +34,7 @@ jobs:
       - name: Assemble static site
         run: |
           mkdir -p _site/assets
-          cp site/index.html site/robots.txt site/sitemap.xml _site/
+          cp -R site/. _site/
           cp llms.txt _site/
           cp plugins/codex-coordinator/assets/logo.png _site/assets/
           touch _site/.nojekyll

@@ -1,10 +1,16 @@
 # Local Mission Control
 
-Mission Control is an optional, local-only dashboard for Codex Coordinator. It shows what Codex tasks are doing, what needs attention, and where active work may overlap before a commit.
+Mission Control is an optional, local-only dashboard bundled with Codex Coordinator. It shows what Codex tasks are doing, what needs attention, and where active work may overlap before a commit.
 
 It has no product login, cloud service, database server, telemetry, or JavaScript dependency. The Python standard library serves the dashboard on `127.0.0.1` and normally reads local Codex receipts plus Coordinator records without changing them. **Run Doctor** is its only explicit project write action; optional **Deep Review** writes only its private local result receipt.
 
 ## Run it
+
+After plugin installation and hook trust, the first session in a Coordinator-enabled repository starts Mission Control automatically and opens the dashboard once. Later sessions reuse that server without opening duplicate tabs.
+
+From Codex chat, ask `Start Mission Control` to enable and open it, or `Stop Mission Control` to disable automatic startup and shut it down. The Settings dialog provides the same shutdown control. An explicit chat start turns automatic startup back on.
+
+For source development, run it directly from the repository root:
 
 From the repository root:
 
@@ -58,6 +64,7 @@ The dashboard never treats its display as coordination authority. Coordinator re
 - Overlap means path evidence: declared scopes collide, an observed edit crosses another task's declared scope, or two active task receipts record edits to the same path. Merely working in the same project is not an alert.
 - Overall and project tabs filter the metrics, workboard, and Action Center together.
 - Only Coordinator-enabled projects appear. General Codex chats and arbitrary working folders are excluded from tabs, totals, the workboard, and actions.
+- Each enabled project shows **Managing**, **Paused - report-only**, or **Attention needed**, plus its user-selected task exclusions or **none**. Workload idle does not hide or unregister the project Coordinator.
 - The Action Center is the only issue queue. It combines confirmed path conflicts with genuinely blocked or paused work, without duplicating the same signal across competing sections.
 - A permanent feedback card links to the Codex Coordinator Telegram community. It stays visible across refreshes and project views, and does not write local response state.
 

@@ -570,6 +570,32 @@ async function saveSettings() {
   }
 }
 
+async function shutdownMissionControl() {
+  if (!window.confirm("Shut down Mission Control and keep automatic startup off? You can enable it again from Codex chat.")) return;
+  const button = document.getElementById("shutdown-button");
+  const message = document.getElementById("settings-message");
+  button.disabled = true;
+  message.textContent = "Shutting down…";
+  try {
+    await request("/api/shutdown", {
+      method: "POST",
+      body: JSON.stringify({ confirmation: "user-requested-shutdown" }),
+    });
+    document.body.replaceChildren(
+      element("main", "shutdown-screen")
+    );
+    const screen = document.querySelector(".shutdown-screen");
+    screen.append(
+      element("span", "overline", "Mission Control is off"),
+      element("h1", "", "Server shut down."),
+      element("p", "", "Automatic startup is disabled. Ask Codex to “Start Mission Control” whenever you want it back."),
+    );
+  } catch (error) {
+    button.disabled = false;
+    message.textContent = error.message;
+  }
+}
+
 document.querySelectorAll(".filter-tab").forEach((button) => {
   button.addEventListener("click", () => {
     setFilter(button.dataset.filter);
@@ -585,6 +611,7 @@ document.getElementById("doctor-run-button").addEventListener("click", runDoctor
 document.getElementById("deep-review-button").addEventListener("click", runDeepReview);
 document.getElementById("settings-button").addEventListener("click", openSettings);
 document.getElementById("save-settings").addEventListener("click", saveSettings);
+document.getElementById("shutdown-button").addEventListener("click", shutdownMissionControl);
 
 async function start() {
   schedulePolling();

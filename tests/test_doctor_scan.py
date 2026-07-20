@@ -2,25 +2,29 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from apps.mission_control.doctor_scan import (
+REPOSITORY = Path(__file__).resolve().parents[1]
+PLUGIN = REPOSITORY / "plugins" / "codex-coordinator"
+sys.path.insert(0, str(PLUGIN))
+
+from mission_control.doctor_scan import (
     DeterministicDoctorScanner,
     MAX_SEMANTIC_PACKET_BYTES,
     compact_report,
 )
 
 
-REPOSITORY = Path(__file__).resolve().parents[1]
 COORDINATOR = "11111111-1111-4111-8111-111111111111"
 WORKER = "22222222-2222-4222-8222-222222222222"
 
 
 def _current(*, active: bool) -> str:
     if active:
-        mode = "ACTIVE"
+        mode = "MANAGING"
         goal = "Finish the bounded project work."
         coordinator = COORDINATOR
         coordinator_name = "Sample Coordinator"
@@ -30,7 +34,7 @@ def _current(*, active: bool) -> str:
             f"| {COORDINATOR} | Sample Coordinator | PROJECT_EXECUTION | COORDINATOR | NONE | IDLE | true |"
         )
     else:
-        mode = "IDLE"
+        mode = "ATTENTION_NEEDED"
         goal = "none"
         coordinator = "NONE"
         coordinator_name = "UNREGISTERED"
@@ -79,6 +83,11 @@ def _current(*, active: bool) -> str:
 
 | Decision ID | Task ID | Decision needed | Status |
 | --- | --- | --- | --- |
+
+## Excluded tasks
+
+| Thread ID | Thread name | Excluded by | Reason | Status |
+| --- | --- | --- | --- | --- |
 """
 
 
@@ -179,16 +188,16 @@ class DeterministicDoctorTests(unittest.TestCase):
             self.assertEqual(scanner.reads["rolloutMetadataBytes"], 0)
             self.assertEqual(scanner.reads["transcriptBodies"], 0)
 
-    def test_idle_project_is_healthy_without_native_or_model_reads(self) -> None:
+    def test_enabled_project_without_coordinator_needs_attention_without_model_reads(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             fixture = DoctorFixture(Path(directory), active=False)
             report = DeterministicDoctorScanner(REPOSITORY, fixture.codex_home).scan(
                 [fixture.project]
             )
 
-            self.assertEqual(report["status"], "healthy")
+            self.assertEqual(report["status"], "review")
             self.assertEqual(report["projectsChecked"], 1)
-            self.assertEqual(report["findingCount"], 0)
+            self.assertIn("ACTIVE_COORDINATOR_MISSING", report["issueCodes"])
             self.assertEqual(report["reads"]["applicationFiles"], 0)
             self.assertEqual(report["reads"]["transcriptBodies"], 0)
             self.assertEqual(report["reads"]["modelCalls"], 0)
