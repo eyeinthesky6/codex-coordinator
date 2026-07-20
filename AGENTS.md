@@ -36,6 +36,6 @@ Also parse changed JSON/YAML where practical and verify that relative package pa
 
 - This repository is Codex Coordinator-enabled.
 - Project identity is in `.codex/coordination/project.yaml`; current coordination state is in `.codex/coordination/CURRENT.md`.
-- Load the globally installed `codex-coordinator` skill before substantial, overlapping, parallel, or cross-thread work.
+- Load the globally installed `codex-coordinator` skill at the start of every task in this repository; all same-repository tasks are managed by default unless the user explicitly excludes one.
 - Respect the project ID and assigned task boundary; reject missing or mismatched cross-thread project bindings.
 - Treat Coordinator internals as protected; only an explicitly user-authorised `COORDINATOR_MAINTAINER` may modify them.

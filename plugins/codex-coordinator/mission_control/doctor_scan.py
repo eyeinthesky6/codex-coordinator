@@ -24,7 +24,7 @@ THREAD_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 TERMINAL_STATUS = re.compile(
     r"^(?:COMPLETE|COMPLETED|DONE|TERMINAL|RELEASED|SUPERSEDED|ARCHIVED|CANCELLED|CANCELED|FAILED)"
 )
-ACTIVE_COORDINATION_MODES = {"ACTIVE", "PAUSED", "MAINTENANCE", "RECOVERY"}
+ACTIVE_COORDINATION_MODES = {"MANAGING", "REPORT_ONLY", "ATTENTION_NEEDED"}
 WORKER_ROLES = {"TASK_AGENT", "ADVISER", "REVIEWER", "WORKER"}
 REVIEW_ONLY_CHECKS = (
     "worker-semantic-granularity",
@@ -655,8 +655,16 @@ class DeterministicDoctorScanner:
         ]
         mode = fields["Coordination mode"].upper()
         shared_goal = fields["Shared goal"]
-        requires_coordinator = mode in ACTIVE_COORDINATION_MODES or shared_goal != "none"
+        requires_coordinator = True
         coordinator_id = fields["Coordinator thread ID"]
+        if mode not in ACTIVE_COORDINATION_MODES:
+            add(
+                "INVALID_COORDINATION_MODE",
+                "HIGH",
+                [mode],
+                ["enabled repositories require MANAGING, REPORT_ONLY, or ATTENTION_NEEDED"],
+                "Migrate the canonical mode before claiming active management.",
+            )
         if requires_coordinator and not accepting_coordinators:
             add(
                 "ACTIVE_COORDINATOR_MISSING",
@@ -849,18 +857,8 @@ class DeterministicDoctorScanner:
         elif not native_available and THREAD_ID.fullmatch(coordinator_id):
             limitations.append("native-status-unavailable")
 
-        nonterminal_work = bool(
-            shared_goal != "none"
-            or active_rows
-            or tables["Paused work"]
-            or tables["Resume queue"]
-            or tables["Blocked decisions"]
-            or tables["Pending commands"]
-        )
         if (
             coordinator_native
-            and coordinator_native.get("state") == "complete"
-            and nonterminal_work
             and heartbeat_available
             and coordinator_id not in heartbeats
         ):
@@ -868,10 +866,10 @@ class DeterministicDoctorScanner:
                 "UNATTENDED_RETURN_PATH",
                 "HIGH",
                 [coordinator_id],
-                ["latest Coordinator turn is complete", "non-terminal canonical work remains", "no active heartbeat targets the Coordinator"],
-                "Create one temporary Coordinator-owned heartbeat or use the single result/blocker wake fallback.",
+                ["enabled repository has no active heartbeat targeting its Coordinator"],
+                "Create the one repository heartbeat and keep it while Coordinator remains enabled.",
             )
-        elif nonterminal_work and not heartbeat_available:
+        elif not heartbeat_available:
             limitations.append("heartbeat-inventory-unavailable")
 
         if coordinator_id not in {"NONE", "UNAVAILABLE"}:

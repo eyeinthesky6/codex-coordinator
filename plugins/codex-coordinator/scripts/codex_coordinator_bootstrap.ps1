@@ -133,6 +133,6 @@ $process.StandardInput.Close()
 $stdout = $process.StandardOutput.ReadToEnd()
 $stderr = $process.StandardError.ReadToEnd()
 $process.WaitForExit()
-[Console]::Out.Write($stdout)
+Write-Output -NoEnumerate $stdout
 [Console]::Error.Write($stderr)
 exit $process.ExitCode

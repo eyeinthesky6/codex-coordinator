@@ -602,12 +602,29 @@ class CoordinationReader:
                 "path": str(root),
                 "enabled": marker.get("coordination_enabled", "false").lower() == "true",
                 "mode": "unknown",
+                "modeLabel": "Attention needed",
+                "excludedTasks": [],
                 "lastReconciliation": "",
             }
             if current_text:
                 fields = _parse_bold_fields(current_text)
                 project["mode"] = _safe_text(fields.get("coordination mode"), 40).lower() or "unknown"
+                project["modeLabel"] = {
+                    "managing": "Managing",
+                    "report_only": "Paused - report-only",
+                    "attention_needed": "Attention needed",
+                }.get(project["mode"], "Attention needed")
                 project["lastReconciliation"] = _safe_text(fields.get("last reconciliation"), 80)
+                exclusions = _parse_markdown_table(current_text, "Excluded tasks")
+                project["excludedTasks"] = [
+                    {
+                        "threadId": _safe_text(row.get("Thread ID"), 80),
+                        "name": _safe_text(row.get("Thread name"), 140),
+                        "reason": _safe_text(row.get("Reason"), 180),
+                    }
+                    for row in exclusions
+                    if row.get("Status", "").upper() == "ACTIVE"
+                ]
             projects.append(project)
             if not project["enabled"] or not current_text:
                 continue

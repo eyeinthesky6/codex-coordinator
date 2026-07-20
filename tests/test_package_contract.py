@@ -336,7 +336,7 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Before its own final answer, the Coordinator", operations)
         self.assertIn("every unprocessed `TURN_RECONCILIATION`", recovery)
         self.assertIn("at the end of each material turn", maintenance)
-        self.assertIn("single project view: completed, active, queued, blocked", readme)
+        self.assertIn("single project view: mode, exclusions, completed, active, queued, blocked", readme)
 
     def test_public_positioning_explains_multi_agent_work_without_ultra(self) -> None:
         readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
@@ -384,8 +384,8 @@ class PackageContractTests(unittest.TestCase):
 
         self.assertIn("Coordinator is control-first by default", skill)
         self.assertIn("The Coordinator is control-first by default", operations)
-        self.assertIn("one temporary native heartbeat", skill)
-        self.assertIn("end-of-turn continuation gate", skill)
+        self.assertIn("one repository heartbeat", skill)
+        self.assertIn("verify exactly one repository heartbeat", skill)
         self.assertIn("codex_app__automation_update", operations)
         self.assertIn("End-of-turn continuation gate", operations)
         self.assertIn("A plan, earlier instruction, automation prompt", operations)
@@ -447,7 +447,7 @@ class PackageContractTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("An enabled marker does not require every task to register", operations)
+        self.assertIn("Every task in an enabled repository is managed by default", operations)
         self.assertIn("A filtered native thread search is only a convenience", recovery)
         self.assertIn("Retry once with an unfiltered inventory", recovery)
         self.assertIn("never ask the user to approve a coordination bypass", maintenance)
@@ -500,7 +500,7 @@ class PackageContractTests(unittest.TestCase):
             (PLUGIN / "scripts" / "codex_coordinator_doctor.py").is_file()
         )
         contract = json.loads((skill_root / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 16)
+        self.assertEqual(contract["contractVersion"], 17)
         self.assertEqual(
             contract["capabilities"]["missionControlLifecycle"],
             "bundled-autostart-user-disable-chat-control",

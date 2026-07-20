@@ -30,13 +30,13 @@ When a completed worker or direct user request says another owner blocks require
 
 ## Coordinator election and takeover
 
-- If no coordination is needed, keep mode `IDLE` and do not elect a new Coordinator.
+- If no work is active, keep the registered Coordinator `IDLE / accepts=true`, keep mode `MANAGING` or the user's existing `REPORT_ONLY`, retain the pin and heartbeat, and do not unregister it.
 - If a usable Coordinator is registered, validate the same project and epoch and use its exact address. Never self-elect merely because it is idle or unloaded.
-- If no usable active Coordinator session is registered, apply the main skill's Coordinator creation authority and the operations lane's one-time bootstrap procedure. A direct request that already asks to execute or continue the recorded goal satisfies that authority after exact native inspection confirms the Coordinator archived or unusable; do not stop for a second confirmation. If authority does not apply, create nothing. Retain any prior session only as history; the invoking task does not register itself or edit canonical state.
+- If no usable active Coordinator session is registered in an enabled repository, apply the main skill's Coordinator creation authority and the operations lane's one-time bootstrap procedure. Enablement itself supplies that narrow authority after exact native inspection confirms the Coordinator absent, archived, or unusable. Retain any prior session only as history; the invoking task does not register itself or edit canonical state.
 - If the prior Coordinator is confirmed archived, do not unarchive it merely to preserve its role.
 - If the Coordinator only appears inaccessible, first use exact thread inspection to distinguish archived from unloaded, idle, running, or temporarily unreachable. Do not create a replacement while its state is uncertain.
 
-The fresh Coordinator follows the operations lane's atomic registration exception: verify the marker and canonical state, advance the epoch, register itself, pin its native task when supported, record any superseded thread and reason in task history, and reconcile every task before assigning work. Its native creation prompt is the one-time bootstrap grant, not a normal task-ID assignment; do not send a follow-up assignment or acknowledgement request. Recreate the one temporary heartbeat only when the shared goal still has live work and no valid Coordinator-owned heartbeat exists. Never use time alone as lease expiry.
+The fresh Coordinator follows the operations lane's atomic registration exception: verify the marker and canonical state, advance the epoch, register itself, pin its native task when supported, record any superseded thread and reason in task history, and reconcile every task before assigning work. Its native creation prompt is the one-time bootstrap grant, not a normal task-ID assignment; do not send a follow-up assignment or acknowledgement request. Recreate the one repository heartbeat whenever Coordinator remains enabled and no valid Coordinator-owned heartbeat exists, including workload-idle and report-only states. Never use time alone as lease expiry.
 
 ## Archived sessions
 

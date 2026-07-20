@@ -29,7 +29,7 @@ def _current(*, shared_goal: str = "none", task_id: str = "NONE") -> str:
 
 **Project ID:** sample
 **Coordination epoch:** 0
-**Coordination mode:** IDLE
+**Coordination mode:** MANAGING
 **Shared goal:** {shared_goal}
 **Last reconciliation:** 2026-07-16T12:00:00+00:00
 **Coordinator thread ID:** 11111111-1111-4111-8111-111111111111
@@ -67,6 +67,11 @@ def _current(*, shared_goal: str = "none", task_id: str = "NONE") -> str:
 
 | Decision ID | Task ID | Decision needed | Status |
 | --- | --- | --- | --- |
+
+## Excluded tasks
+
+| Thread ID | Thread name | Excluded by | Reason | Status |
+| --- | --- | --- | --- | --- |
 """
 
 
@@ -91,6 +96,27 @@ class CoordinationStateTests(unittest.TestCase):
             self.assertIn("**Shared goal:** none", text)
             self.assertIn("| COORDINATOR | NONE | IDLE |", text)
             self.assertEqual(normalized["normalizations"], [])
+
+    def test_exclusions_require_direct_user_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "CURRENT.md"
+            row = (
+                "| 22222222-2222-4222-8222-222222222222 | Private task | "
+                "DIRECT_USER | User requested isolation | ACTIVE |\n"
+            )
+            exclusion_table = (
+                "## Excluded tasks\n\n"
+                "| Thread ID | Thread name | Excluded by | Reason | Status |\n"
+                "| --- | --- | --- | --- | --- |\n"
+            )
+            current = _current().replace(exclusion_table, exclusion_table + row)
+            path.write_text(current, encoding="utf-8")
+            inspected = state.inspect_current(path)
+            self.assertEqual(inspected["tables"]["Excluded tasks"][0]["Excluded by"], "DIRECT_USER")
+
+            path.write_text(current.replace("DIRECT_USER", "COORDINATOR"), encoding="utf-8")
+            with self.assertRaises(state.StateError):
+                state.validate_current(path)
 
     def test_validate_current_rejects_missing_required_table_column(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

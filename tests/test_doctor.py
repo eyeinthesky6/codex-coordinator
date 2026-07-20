@@ -31,8 +31,12 @@ description: Test fixture
 Read the short [operations index](references/operations.md).
 
 Coordinator is control-first by default.
-Use one temporary native heartbeat.
-Apply the end-of-turn continuation gate before the final answer.
+Use one repository heartbeat.
+Before the final answer, verify exactly one repository heartbeat.
+Every same-repository Codex task is managed by default.
+Only a direct user instruction may add or remove an exclusion.
+A user pause switches to `REPORT_ONLY`.
+workload idle never unregisters the Coordinator.
 The original direct user request supplies this creation authority.
 For every generated task, set reasoning explicitly to `low` or `medium`.
 Subagents remain available as parent-owned helpers.

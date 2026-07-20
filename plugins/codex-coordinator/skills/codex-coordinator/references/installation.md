@@ -4,7 +4,7 @@ Read this file completely only when the user asks to install, enable, initialise
 
 ## Installation authority and boundaries
 
-Apply the main skill's **Project enablement trigger** exactly; this lane does not add another trigger. When it selects enablement, that selection grants bounded `COORDINATOR_MAINTAINER` authority over Coordinator files and the exact Coordinator-state block in the root `.gitignore`. Project `.codex/config.toml` remains read-only unless the user separately and explicitly asks to set a project model or reasoning default. Enablement does not grant the separate **Coordinator creation authority**. Do not touch application code, environment files, unrelated configuration, or unrelated instructions.
+Apply the main skill's **Project enablement trigger** exactly; this lane does not add another trigger. When it selects enablement, that selection grants bounded `COORDINATOR_MAINTAINER` authority over Coordinator files and the exact Coordinator-state block in the root `.gitignore`, plus the main skill's bounded authority to create, pin, and register exactly one repository Coordinator. Project `.codex/config.toml` remains read-only unless the user separately and explicitly asks to set a project model or reasoning default. Do not touch application code, environment files, unrelated configuration, or unrelated instructions.
 
 Keep global behavior separate from project state:
 
@@ -90,9 +90,10 @@ Run this procedure only when the main skill's Project enablement trigger selects
 9. Reuse the global skill and SessionStart hook. Do not create project-local Coordinator behavior files.
 10. Preserve `.codex/config.toml` byte-for-byte and create no project model default unless the user separately asks for one. Native Coordinator task creation inherits the user's configured model while explicitly using the cost-safe `low` or `medium` reasoning policy.
 11. When the user explicitly requests a project default, resolve the exact supported model/reasoning combination from the target host, confirm any unavailable exact choice, then create or minimally merge only `model` and `model_reasoning_effort`. Preserve every unrelated setting and never edit global config.
-12. Initialise `CURRENT.md` with the main skill's exact compatibility contract: epoch `0`, mode `IDLE`, shared goal `none`, Coordinator `NONE / UNREGISTERED / accepts=false`, and empty required tables with no sessions, tasks, commands, paused work, resume actions, or decisions.
-13. Create `tasks/`, `inbox/`, or `suggestions/` only when writing the first real record of that kind. Do not add placeholders.
-14. After a newly enabled marker and initial state pass validation, run the packaged Mission Control lifecycle helper in automatic mode as described above. Re-enabling a repository must respect an existing user-disabled lifecycle preference; automatic mode never overrides it.
+12. Initialise `CURRENT.md` as a short `ATTENTION_NEEDED` bootstrap transition with shared goal `none`, Coordinator `NONE / UNREGISTERED / accepts=false`, and empty required tables including `Excluded tasks`.
+13. Apply the main skill's Coordinator creation authority immediately: create one complete native Coordinator task, bind its exact identity, pin it, register it as `IDLE / accepts=true`, switch mode to `MANAGING`, and verify one repository heartbeat. Do not claim enablement complete until all of these receipts exist.
+14. Create `tasks/`, `inbox/`, or `suggestions/` only when writing the first real record of that kind. Do not add placeholders.
+15. After the enabled marker and registered state pass validation, run the packaged Mission Control lifecycle helper in automatic mode as described above. Re-enabling a repository must respect an existing user-disabled Mission Control preference; automatic mode never overrides it.
 
 ## Enabled marker with missing local state
 
@@ -101,7 +102,8 @@ An enabled marker without canonical `CURRENT.md` is possible local-state loss, n
 1. Verify the supported marker and derive the expected project ID from that primary-worktree marker.
 2. Use native discovery to prove that no other task besides this authorised bootstrap task is currently active in the same Git common repository. A timeout, unavailable tool, incomplete listing, uncertain repository match, or any other active same-repository task fails this proof.
 3. Complete the Bootstrap preflight for the missing state path and inspect surviving local task records without deleting or rewriting them.
-4. Only after that proof, recreate `CURRENT.md` in the exact compact shape from the main skill, with epoch `0`, mode `IDLE`, no active shared goal, an unregistered non-accepting Coordinator, and empty tables. Preserve the marker, project ID, surviving task records, project config, and all unrelated files.
+4. Only after that proof, recreate `CURRENT.md` in the exact compact shape from the main skill with mode `ATTENTION_NEEDED`, no active shared goal, an unregistered non-accepting Coordinator, and empty tables including `Excluded tasks`. Preserve the marker, project ID, surviving task records, project config, and all unrelated files.
+5. Create or recover and pin the repository Coordinator, then switch to `MANAGING`, restore `IDLE / accepts=true`, and verify the repository heartbeat before substantial project work.
 
 If the proof fails, report `LOCAL_COORDINATION_STATE_MISSING`, make no Coordinator-state change, send no project message, and do not begin substantial overlapping writes. Never infer that missing ignored state is safe merely because the tracked marker survived a clone or checkout.
 
@@ -135,7 +137,7 @@ Use this exact block:
 
 - This repository is Codex Coordinator-enabled.
 - Project identity is in `.codex/coordination/project.yaml`; current coordination state is in `.codex/coordination/CURRENT.md`.
-- Load the globally installed `codex-coordinator` skill before substantial, overlapping, parallel, or cross-thread work.
+- Load the globally installed `codex-coordinator` skill at the start of every task in this repository; all same-repository tasks are managed by default unless the user explicitly excludes one.
 - Respect the project ID and assigned task boundary; reject missing or mismatched cross-thread project bindings.
 - Treat Coordinator internals as protected; only an explicitly user-authorised `COORDINATOR_MAINTAINER` may modify them.
 ```
@@ -147,10 +149,10 @@ Preserve every non-Coordinator line exactly. Do not reorganize, shorten, expand,
 Demonstrate discovery without creating fake project work:
 
 1. Re-read the marker and `CURRENT.md` as a new thread would.
-2. Show that a small isolated task needs no coordination lead or extra process.
-3. Explain that real parallel work records one lead agent and clear ownership before assignments begin.
+2. Show that the pinned Coordinator sees a small isolated task without creating unnecessary worker processes.
+3. Explain that every task is managed by default and real parallel work records clear ownership before assignments begin.
 4. Confirm that a system-maintenance agent repairs Coordinator only and never receives ordinary project work.
-5. Do not create fake tasks, acknowledgements, threads, or messages. If the user supplied a real coordinated goal, finish installation first, then apply the main skill's separate Coordinator creation authority and operations lane; installation itself creates no task.
+5. Do not create fake workers, acknowledgements, or messages. The one pinned Coordinator created by enablement is the real lifecycle task, not demonstration data.
 
 ## User handoff
 
@@ -165,7 +167,7 @@ Report:
 
 Do not expose epochs, task IDs, thread IDs, role constants, scope kinds, acceptance flags, or mode constants in the normal handoff. Provide raw values only when the user asks for diagnostics.
 
-Explain simply: the global plugin is discoverable everywhere; the main Project enablement trigger decides whether an unmarked repository is enabled; `coordination_enabled: false` keeps that repository off; documents hold authority; and messages only deliver or acknowledge recorded state. Normal small tasks need no special prompt.
+Explain simply: the global plugin is discoverable everywhere but manages nothing until a repository is enabled; an enabled repository keeps one pinned Coordinator; all its tasks are managed by default; only the user can exclude a task or pause management into report-only mode; documents hold authority; and messages only deliver recorded state.
 
 Give these example prompts:
 

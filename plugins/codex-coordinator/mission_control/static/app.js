@@ -144,6 +144,23 @@ function renderProjects(snapshot) {
   });
 }
 
+function renderCoordinationState(snapshot) {
+  const projects = (snapshot.projects || []).filter((project) => project.enabled);
+  const selected = state.projectId === "overall"
+    ? projects
+    : projects.filter((project) => project.id === state.projectId);
+  const labels = new Set(selected.map((project) => project.modeLabel || "Attention needed"));
+  const mode = selected.length === 0
+    ? "Attention needed"
+    : (labels.size === 1 ? Array.from(labels)[0] : "Mixed project modes");
+  const exclusions = selected.flatMap((project) =>
+    (project.excludedTasks || []).map((task) => task.name || task.threadId).filter(Boolean)
+  );
+  document.getElementById("coordination-mode").textContent = mode;
+  document.getElementById("coordination-exclusions").textContent = `Excluded tasks: ${exclusions.length ? exclusions.join(", ") : "none"}`;
+  document.getElementById("coordination-state").classList.toggle("needs-attention", mode.includes("Attention"));
+}
+
 function taskVisible(task, snapshot) {
   if (state.filter === "all") return true;
   if (state.filter === "done") return landedToday(task, snapshot);
@@ -414,6 +431,7 @@ function renderFreshness(snapshot) {
 function render(snapshot) {
   state.snapshot = snapshot;
   renderProjects(snapshot);
+  renderCoordinationState(snapshot);
   const view = filteredSnapshot(snapshot);
   renderMetrics(view);
   renderTasks(view);

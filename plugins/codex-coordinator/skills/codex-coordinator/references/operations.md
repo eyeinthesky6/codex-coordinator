@@ -23,6 +23,7 @@ This section applies only to commentary, final replies, and other user-visible s
 
 Coordinator protocol is internal bookkeeping. Keep normal user chat simple:
 
+- Every Coordinator commentary or final summary states whether the repository is managing, paused in report-only mode, or needs attention, and lists excluded tasks or says there are none.
 - In commentary and final replies to the user, do not expose epochs, project or task IDs, thread IDs, scope kinds, acceptance flags, mode constants, role constants, acknowledgement tokens, or message-type constants unless the user explicitly asks for raw diagnostics.
 - Describe work directly: “I am coordinating two independent checks,” “one agent owns these files,” “the review is complete,” or “that instruction belongs to another project, so I ignored it.”
 - Mention a lead agent, working agent, read-only adviser, or reviewer only when the distinction helps the user. Do not use `COORDINATOR`, `TASK_AGENT`, `PROJECT_EXECUTION`, `accepts=true`, or similar constants in ordinary explanations.

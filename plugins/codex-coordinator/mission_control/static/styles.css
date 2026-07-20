@@ -404,6 +404,32 @@ h1 em {
   min-width: 0;
 }
 
+.coordination-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(86, 214, 210, 0.32);
+  border-radius: 14px;
+  background: rgba(9, 25, 51, 0.64);
+}
+
+.coordination-state strong {
+  display: block;
+  margin-top: 0.2rem;
+}
+
+.coordination-state p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.coordination-state.needs-attention {
+  border-color: rgba(255, 182, 72, 0.5);
+}
+
 .project-tabs {
   display: flex;
   gap: 7px;

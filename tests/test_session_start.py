@@ -193,11 +193,11 @@ def _current(
             }
         )
 
-    mode = "IDLE" if coordinator_task == "NONE" and not active else "ACTIVE"
+    mode = "MANAGING"
     resolved_shared_goal = (
         shared_goal
         if shared_goal is not None
-        else ("none" if mode == "IDLE" else "test hook behavior")
+        else ("none" if coordinator_task == "NONE" and not active else "test hook behavior")
     )
     return f"""# Codex Coordinator state
 
@@ -234,6 +234,10 @@ def _current(
 ## Blocked decisions
 
 {_table(blocked_headers, [])}
+
+## Excluded tasks
+
+{_table(["Thread ID", "Thread name", "Excluded by", "Reason", "Status"], [])}
 """
 
 
@@ -459,9 +463,9 @@ class SessionStartHookTests(unittest.TestCase):
                 self.assertIn("last_reconciliation=UNKNOWN", context)
                 self.assertIn("last_reconciliation_missing_or_invalid", context)
 
-    def test_coordination_mode_and_shared_goal_must_agree(self) -> None:
+    def test_managing_mode_is_independent_from_workload_idle(self) -> None:
         cases = {
-            "idle-with-goal": (
+            "goal-present": (
                 _current(
                     coordinator_task="NONE",
                     coordinator_status="IDLE",
@@ -470,11 +474,11 @@ class SessionStartHookTests(unittest.TestCase):
                     include_active_worker=False,
                     shared_goal="work remains",
                 ),
-                "idle_mode_shared_goal_not_none",
+                "shared_goal=work remains",
             ),
-            "active-without-goal": (
+            "workload-idle": (
                 _current(shared_goal="none"),
-                "non_idle_mode_shared_goal_missing",
+                "shared_goal=none",
             ),
         }
         for name, (current, expected) in cases.items():
@@ -485,6 +489,8 @@ class SessionStartHookTests(unittest.TestCase):
                 context = self._invoke(root)
 
                 self.assertIn(expected, context)
+                self.assertIn("coordination_mode=MANAGING", context)
+                self.assertIn("state_warnings=NONE", context)
 
     def test_primary_worktree_uses_one_git_call_bounded_below_hook_timeout(self) -> None:
         root = self._repository()
@@ -736,8 +742,34 @@ class SessionStartHookTests(unittest.TestCase):
 
         context = self._invoke(root, COORDINATOR_ID)
 
-        self.assertIn("coordination_mode=IDLE", context)
+        self.assertIn("coordination_mode=MANAGING", context)
         self.assertIn("assigned_task_id=NONE", context)
+        self.assertIn("state_warnings=NONE", context)
+
+    def test_active_user_exclusions_are_reported_in_restart_context(self) -> None:
+        root = self._repository()
+        exclusion_table = (
+            "## Excluded tasks\n\n"
+            + _table(["Thread ID", "Thread name", "Excluded by", "Reason", "Status"], [])
+        )
+        excluded = _table(
+            ["Thread ID", "Thread name", "Excluded by", "Reason", "Status"],
+            [
+                {
+                    "Thread ID": WORKER_ID,
+                    "Thread name": "Private task",
+                    "Excluded by": "DIRECT_USER",
+                    "Reason": "User requested isolation",
+                    "Status": "ACTIVE",
+                }
+            ],
+        )
+        current = _current().replace(exclusion_table, "## Excluded tasks\n\n" + excluded)
+        self._write_state(root, current=current)
+
+        context = self._invoke(root, COORDINATOR_ID)
+
+        self.assertIn(f"excluded_tasks={WORKER_ID}", context)
         self.assertIn("state_warnings=NONE", context)
 
     def test_harmless_idle_aliases_normalize_without_weakening_ownership_checks(self) -> None:
@@ -749,7 +781,7 @@ class SessionStartHookTests(unittest.TestCase):
             include_active_coordinator=False,
             include_active_worker=False,
             shared_goal="No active coordinated goal.",
-        ).replace("**Coordination mode:** `ACTIVE`", "**Coordination mode:** `IDLE`")
+        )
         self._write_state(
             root,
             current=current,
@@ -784,7 +816,7 @@ class SessionStartHookTests(unittest.TestCase):
 
         self.assertIn("coordinator_thread_id=NONE", context)
         self.assertIn("coordinator_thread_name=UNREGISTERED", context)
-        self.assertIn("state_warnings=NONE", context)
+        self.assertIn("state_warnings=enabled_project_coordinator_not_active", context)
 
     def test_terminal_nonaccepting_coordinator_header_is_stale_without_active_task(self) -> None:
         root = self._repository()

@@ -16,13 +16,13 @@ flowchart TD
     install --> stateCheck
 
     stateCheck -->|"invalid, missing, or incompatible"| repair["Recovery or Maintainer repair; grant no authority"]
-    stateCheck -->|"valid"| coordination{"Does this goal need coordinated tasks?"}
-    coordination -->|"no overlap"| direct
-    coordination -->|"yes"| coordinator{"Usable registered Coordinator?"}
+    stateCheck -->|"valid"| coordinator{"Usable registered Coordinator?"}
     coordinator -->|"uncertain"| repair
-    coordinator -->|"no, creation authorised"| bootstrap["Create one Coordinator with a complete bootstrap prompt"]
-    coordinator -->|"yes"| contract["Record one bounded task contract"]
-    bootstrap --> contract
+    coordinator -->|"no, repository enabled"| bootstrap["Create and pin one Coordinator with a complete bootstrap prompt"]
+    coordinator -->|"yes"| mode{"Managing or report-only?"}
+    bootstrap --> mode
+    mode -->|"Managing"| contract["Manage this same-repository task by default"]
+    mode -->|"Report-only"| observe["Observe and report; perform no control action"]
 
     contract --> create["Create native worker with the complete first-turn assignment"]
     create --> bind["Bind returned native task identity and ownership"]
@@ -35,14 +35,14 @@ flowchart TD
     terminal -->|"no"| contract
     terminal -->|"blocked"| decision["Record the blocker and ask only for the missing user decision"]
     decision --> contract
-    terminal -->|"yes"| finish["Release ownership, archive finished workers, remove heartbeat, return to idle"]
+    terminal -->|"yes"| finish["Release finished ownership; retain pinned Coordinator and heartbeat at workload idle"]
 
     doctor["Doctor agent scans installed behavior and enabled projects"] -. "deduplicated finding only" .-> reconcile
     hook["SessionStart context and observer launcher"] -. "restart hint; never authority" .-> stateCheck
 
     classDef instruction fill:#17152f,stroke:#8b7cf6,color:#ffffff;
     classDef executable fill:#102b3a,stroke:#56d6d2,color:#ffffff;
-    class request,marker,direct,install,repair,coordination,coordinator,bootstrap,contract,create,bind,routeCheck,discard,work,report,reconcile,terminal,decision,finish,doctor instruction;
+    class request,marker,direct,install,repair,coordinator,bootstrap,mode,contract,observe,create,bind,routeCheck,discard,work,report,reconcile,terminal,decision,finish,doctor instruction;
     class stateCheck,hook executable;
 ```
 
@@ -51,12 +51,12 @@ flowchart TD
 
 ## Main flow
 
-1. A user invokes `$codex-coordinator` for work that needs coordination.
-2. The skill checks the repository marker and current task context.
-3. For meaningful parallel or cross-task work, it lazily creates the repository-scoped marker, local current-state record, and only the task records that are needed.
+1. Every task checks the repository marker; a global installation with no enabled marker remains inert.
+2. In an enabled repository, the task loads the skill and verifies the pinned accepting Coordinator, current mode, and user exclusions.
+3. Initial enablement creates the repository-scoped marker and local state, then creates, registers, pins, and monitors exactly one Coordinator before claiming active management.
 4. The Coordinator records a bounded contract, creates each worker with the complete first-turn assignment, and immediately binds Codex's returned native task identity.
 5. The Coordinator remains control-first; bounded workers own normal product and integration execution. Subagents may help a registered task while their parent retains durable ownership and reporting.
-6. One temporary native heartbeat reconciles changed worker turns while a shared goal is live. It uses a host-native incremental cursor when available and never mirrors Codex task history. Native messages remain a sparse fallback for exact control transitions or one unattended result/blocker wake.
+6. One repository heartbeat reconciles changed same-repository task turns while Coordinator is enabled, including workload-idle and report-only periods. It uses a host-native incremental cursor when available and never mirrors Codex task history. Native messages remain a sparse channel for exact control transitions.
 7. Durable repository-local records preserve the handoff when a task pauses, compacts, or restarts. The bundled state helper validates required fields, identifiers, table rows, uniqueness, and reconciliation ledgers, safely creates task or inbox records without overwriting existing files, and maintains an optional two-phase hash checkpoint only for inbox records already reconciled by the exact current Coordinator.
 8. On SessionStart, the Python hook reads bounded state from the primary worktree, emits a short context block, and starts or reuses the bundled local Mission Control observer when the repository is enabled. It does not change repository files.
 9. An optional Codex automation may run Doctor across locally discovered enabled projects. Doctor writes only deduplicated inbox findings; each project Coordinator remains the sole owner of canonical reconciliation and repair.

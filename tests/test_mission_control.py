@@ -54,7 +54,7 @@ class MissionControlFixture:
 
 **Project ID:** sample-project
 **Coordination epoch:** 2
-**Coordination mode:** ACTIVE
+**Coordination mode:** MANAGING
 **Shared goal:** Ship the dashboard
 **Last reconciliation:** 2026-07-16T12:00:00Z
 
@@ -91,6 +91,11 @@ class MissionControlFixture:
 
 | Decision ID | Task ID | Decision needed | Status |
 |---|---|---|---|
+
+## Excluded tasks
+
+| Thread ID | Thread name | Excluded by | Reason | Status |
+|---|---|---|---|---|
 """,
             encoding="utf-8",
         )
@@ -276,6 +281,8 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(snapshot["metrics"]["active"], 2)
             self.assertEqual(snapshot["metrics"]["attention"], 2)
             self.assertEqual(snapshot["metrics"]["overlaps"], 1)
+            self.assertEqual(snapshot["projects"][0]["modeLabel"], "Managing")
+            self.assertEqual(snapshot["projects"][0]["excludedTasks"], [])
             self.assertEqual(snapshot["conflicts"][0]["title"], "Declared scopes collide")
             self.assertEqual(snapshot["conflicts"][0]["confidence"], "declared")
             self.assertIn("Confirm one owner", snapshot["conflicts"][0]["action"])
@@ -283,6 +290,26 @@ class CollectorTests(unittest.TestCase):
             self.assertNotIn('"taskId"', serialized)
             self.assertNotIn('"threadId"', serialized)
             self.assertIn("codex://threads/", serialized)
+
+    def test_project_summary_exposes_user_exclusions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = MissionControlFixture(Path(directory))
+            current = fixture.coordination / "CURRENT.md"
+            text = current.read_text(encoding="utf-8")
+            row = (
+                f"| {THREAD_TWO} | Private task | DIRECT_USER | User requested isolation | ACTIVE |\n"
+            )
+            exclusion_table = (
+                "## Excluded tasks\n\n"
+                "| Thread ID | Thread name | Excluded by | Reason | Status |\n"
+                "|---|---|---|---|---|\n"
+            )
+            text = text.replace(exclusion_table, exclusion_table + row)
+            current.write_text(text, encoding="utf-8")
+
+            snapshot = Collector([fixture.project], codex_home=fixture.codex_home).collect()
+
+            self.assertEqual(snapshot["projects"][0]["excludedTasks"][0]["name"], "Private task")
 
     def test_filters_general_chats_and_discovers_other_coordinator_projects(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1092,6 +1119,8 @@ class ServerTests(unittest.TestCase):
                     self.assertNotIn("feedback-dismiss", html)
                     self.assertNotIn('id="feedback-panel" aria-labelledby="feedback-title" hidden', html)
                     self.assertIn("Filter Mission Control by project", html)
+                    self.assertIn("Coordinator mode", html)
+                    self.assertIn("Excluded tasks: none", html)
                     self.assertIn("No login, cloud service or telemetry", html)
                     self.assertNotIn("Agent brief", html)
                     self.assertNotIn("What matters now", html)

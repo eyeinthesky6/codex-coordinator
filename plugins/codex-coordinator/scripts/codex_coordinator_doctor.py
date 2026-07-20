@@ -16,14 +16,20 @@ from typing import Any
 PLUGIN_NAME = "codex-coordinator"
 HOOK_NAME = "codex_coordinator_session_start.py"
 CAPABILITY_CONTRACT = "capabilities.json"
-CAPABILITY_CONTRACT_VERSION = 16
+CAPABILITY_CONTRACT_VERSION = 17
 REQUIRED_CAPABILITIES: dict[str, Any] = {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
     "doctorDiagnostics": "json-with-optional-mermaid",
     "doctorProjectScan": "deterministic-structured-state-zero-model",
     "doctorSemanticReview": "user-triggered-allowlisted-low-candidate-only",
-    "monitoring": "heartbeat-with-single-wake-fallback",
+    "monitoring": "enabled-repository-persistent-heartbeat",
+    "repositoryLifecycle": "active-by-default-after-enablement",
+    "taskCoverage": "all-same-repository-tasks-by-default",
+    "taskExclusions": "direct-user-only",
+    "pauseBehavior": "report-only-no-control-actions",
+    "idleBehavior": "retain-pinned-accepting-coordinator",
+    "userStateReporting": "mode-and-exclusions-always-visible",
     "modelDefault": "inherit-unless-user-overrides",
     "reasoningDefault": "low-or-medium",
     "registrationDelivery": "document-only-no-ack",
@@ -51,8 +57,12 @@ REQUIRED_TASK_LIFECYCLE = {
 REQUIRED_GUIDANCE = {
     "SKILL.md": (
         "Coordinator is control-first by default",
-        "one temporary native heartbeat",
-        "end-of-turn continuation gate",
+        "one repository heartbeat",
+        "verify exactly one repository heartbeat",
+        "Every same-repository Codex task is managed by default",
+        "Only a direct user instruction may add or remove",
+        "A user pause switches to `REPORT_ONLY`",
+        "workload idle never unregisters the Coordinator",
         "set reasoning explicitly to `low`",
         "Subagents remain available as parent-owned helpers",
         "Use one to three parent-owned subagents when two or more independent, bounded",

@@ -44,6 +44,18 @@ class GoalLeadershipContractTests(unittest.TestCase):
         self.assertIn("Suggest a correction or safer next path", reconciliation)
         self.assertIn("Never reduce the report to worker activity", reconciliation)
 
+    def test_enabled_repository_lifecycle_is_active_by_default(self) -> None:
+        skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        installation = (SKILL_ROOT / "references" / "installation.md").read_text(encoding="utf-8")
+        reconciliation = (SKILL_ROOT / "references" / "reconciliation.md").read_text(encoding="utf-8")
+
+        self.assertIn("Every same-repository Codex task is managed by default", skill)
+        self.assertIn("Only a direct user instruction may add or remove", skill)
+        self.assertIn("A user pause switches to `REPORT_ONLY`", skill)
+        self.assertIn("workload idle never unregisters the Coordinator", skill)
+        self.assertIn("create one complete native Coordinator task", installation)
+        self.assertIn("lists excluded tasks or `none`", reconciliation)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -46,6 +46,8 @@ Mission Control is optional. It reads local Codex and Coordinator records and di
 dashboard; it does not become the project authority. The bundled server starts on the first valid
 Coordinator session and later sessions reuse it without opening duplicate tabs.
 
+After Coordinator is enabled for a repository, one pinned Coordinator remains registered and all same-repository tasks are managed by default. Only the user may exclude a task. A user pause changes the project to report-only mode: observation and summaries continue, but assignment, redirection, wake, stop, resume, and ownership changes stop. Workload idle keeps the Coordinator and repository heartbeat. Each Coordinator summary and Mission Control project view shows the mode and exclusions.
+
 From chat:
 
 ```text
