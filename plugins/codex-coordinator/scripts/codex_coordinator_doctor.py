@@ -16,7 +16,7 @@ from typing import Any
 PLUGIN_NAME = "codex-coordinator"
 HOOK_NAME = "codex_coordinator_session_start.py"
 CAPABILITY_CONTRACT = "capabilities.json"
-CAPABILITY_CONTRACT_VERSION = 18
+CAPABILITY_CONTRACT_VERSION = 19
 REQUIRED_CAPABILITIES: dict[str, Any] = {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
@@ -30,6 +30,10 @@ REQUIRED_CAPABILITIES: dict[str, Any] = {
     "pauseBehavior": "report-only-no-control-actions",
     "idleBehavior": "retain-pinned-accepting-coordinator",
     "userStateReporting": "mode-and-exclusions-always-visible",
+    "deliverySummary": "complete-ledger-sections-every-user-visible-final",
+    "providerMonitoring": "bounded-read-reconcile-at-start-change-closure",
+    "providerMutationConsent": "exact-current-consent-immutable-target-revalidation",
+    "scheduledTaskReconciliation": "exact-project-binding-major-change-direct-decision",
     "modelDefault": "inherit-unless-user-overrides",
     "reasoningDefault": "low-or-medium",
     "registrationDelivery": "document-only-no-ack",
@@ -87,6 +91,10 @@ REQUIRED_GUIDANCE = {
         "dry-run-first and preserve project history",
         "Mark unclear relevance or authority `AWAITING_USER_DECISION`",
         "count material historical items closed, continued, deferred or not needed",
+        "At goal start, after material Git changes, and before closure",
+        "Any provider mutation requires exact current user consent",
+        "At goal start, after material task or automation changes, and before closure",
+        "Before every user-visible Coordinator final response",
     ),
     "references/operations.md": (
         "[execution.md](execution.md)",
@@ -120,6 +128,13 @@ REQUIRED_GUIDANCE = {
         "codex_app__handoff_thread",
         "Never send task registration, acceptance, task-ID assignment",
         "End-of-turn continuation gate",
+        "GitHub monitoring and provider consent",
+        "exact current user consent",
+        "return the exact provider receipt",
+        "Project-related scheduled-task reconciliation",
+        "Record a direct user decision before any major scheduled-task change",
+        "Before every user-visible Coordinator final response",
+        "done work, pending work, blockers or decisions, next actions, and the full-goal verdict",
     ),
     "references/messaging.md": (
         "Project-bound routing",

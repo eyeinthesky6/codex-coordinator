@@ -46,6 +46,35 @@ Coordinator-generated tasks inherit the user's configured model. They use Low re
 deterministic work or Medium for normal work unless managed policy or the user explicitly overrides
 it. Expensive reasoning is not required for coordination.
 
+### Monitor GitHub safely
+
+Coordinator reads relevant pull requests, required checks, reviews, unresolved conversations, merge
+state, and goal-related issues at the start of a coordinated goal, after material Git changes, and
+before closure when GitHub access is available. These reads do not need repeated approval. Missing
+access is reported as a gap, and unrelated issues do not silently become project work.
+
+GitHub writes are separate. Creating or changing a pull request or issue, submitting a review,
+marking ready, merging, releasing, deploying, or changing repository settings needs exact current
+permission unless that same bounded action is already directly authorised. Before asking to merge,
+Coordinator reports the pull request, exact head and base, checks, reviews, mergeability, unresolved
+conversations, merge method, stacked-work effect, and recommendation. It checks the immutable head
+again immediately before the action and returns the provider receipt afterward.
+
+### Reconcile scheduled work
+
+Coordinator inventories project-related automations, heartbeats, changed run results, and repository
+scheduled workflows at goal start, after material automation changes, and before closure. It matches
+the exact project, working directory, target, and action boundary rather than trusting a similar
+display name. Each matching item is recorded with its purpose, status, cadence, authority, ownership,
+latest material result, dependencies, relationship to the goal, and next action.
+
+Unrelated, user-created, paused, disabled, and explicitly stopped work is preserved. Read-only
+inspection needs no repeated permission. A small reversible alignment may use existing direct
+authority only when it does not expand the action type or ownership. Enabling, disabling, deleting,
+or materially changing status, cadence, purpose, scope, target, permissions, external writes, or
+ownership requires a recorded direct user decision first. A green scheduled run proves only that
+run; it does not prove the wider product outcome.
+
 ### Reconcile historical tasks
 
 Old task windows are evidence, not a backlog. `idle`, `notLoaded`, or elapsed time alone does not say
@@ -71,6 +100,12 @@ dashboard; it does not become the project authority. The bundled server starts o
 Coordinator session and later sessions reuse it without opening duplicate tabs.
 
 After Coordinator is enabled for a repository, one pinned Coordinator remains registered and all same-repository tasks are managed by default. Only the user may exclude a task. A user pause changes the project to report-only mode: observation and summaries continue, but assignment, redirection, wake, stop, resume, and ownership changes stop. Workload idle keeps the Coordinator and repository heartbeat. Each Coordinator summary and Mission Control project view shows the mode and exclusions.
+
+Before every user-visible final update, Coordinator reconciles changed task turns, local handoffs,
+ownership, acceptance evidence, GitHub state, scheduled work, retained decisions, and the full goal
+ledger. The update always includes done work, pending work, blockers or decisions, next actions, and
+the full-goal verdict, using `None` when a section is empty. It also verifies a real return path. A
+quiet heartbeat with no material change stays quiet and preserves every pending item.
 
 From chat:
 
@@ -168,6 +203,12 @@ metadata, or tests. Focused tests may shorten development, but the full suite is
 Use the [README quick start](../README.md#quick-start) for the current stable install path. After an
 update, start a new Codex task. A project with `coordination_enabled: true` reuses its existing local
 state; an update must not reset its work or ownership.
+
+The provider-consent, complete delivery-summary, and scheduled-task reconciliation behavior is owned
+by the global plugin package and capability contract, not by project markers or local state. The
+current `v0.3.0` marketplace stays pinned and does not receive unreleased source changes. Distribution
+requires a separately authorised tag and release; existing installations then use the README's normal
+marketplace replacement and plugin reinstall flow. No project-state migration is part of this update.
 
 First success is a real bounded goal that is easier to follow because Coordinator kept ownership and
 status clear. Installation alone, an empty demo, a green Doctor result, or an open dashboard is not
