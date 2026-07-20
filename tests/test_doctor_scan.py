@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 PLUGIN = REPOSITORY / "plugins" / "codex-coordinator"
@@ -15,6 +17,8 @@ from mission_control.doctor_scan import (
     DeterministicDoctorScanner,
     MAX_SEMANTIC_PACKET_BYTES,
     compact_report,
+    main,
+    resolve_plugin_root,
 )
 
 
@@ -140,6 +144,59 @@ class DoctorFixture:
 
 
 class DeterministicDoctorTests(unittest.TestCase):
+    def test_repository_plugin_compatibility_and_installed_shapes_resolve(self) -> None:
+        compatibility = REPOSITORY / "apps" / "mission_control" / "doctor_scan.py"
+        self.assertEqual(resolve_plugin_root(REPOSITORY), PLUGIN)
+        self.assertEqual(resolve_plugin_root(PLUGIN), PLUGIN)
+        self.assertEqual(resolve_plugin_root(compatibility), PLUGIN)
+
+        with tempfile.TemporaryDirectory() as directory:
+            installed = Path(directory) / "plugins" / "cache" / "codex-coordinator"
+            shutil.copytree(PLUGIN, installed)
+            self.assertEqual(resolve_plugin_root(installed), installed.resolve())
+            self.assertEqual(
+                resolve_plugin_root(installed / "mission_control" / "doctor_scan.py"),
+                installed.resolve(),
+            )
+
+    def test_invalid_source_shape_fails_with_bounded_identity_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            invalid = Path(directory) / "not-a-package"
+            invalid.mkdir()
+            with self.assertRaisesRegex(
+                RuntimeError, "COORDINATOR_PACKAGE_IDENTITY_ERROR"
+            ):
+                resolve_plugin_root(invalid)
+
+    def test_cli_accepts_repository_plugin_and_compatibility_source_shapes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = DoctorFixture(Path(directory), active=False)
+            compatibility = REPOSITORY / "apps" / "mission_control" / "doctor_scan.py"
+            installed = Path(directory) / "installed" / "codex-coordinator"
+            shutil.copytree(PLUGIN, installed)
+            for source in (
+                REPOSITORY,
+                PLUGIN,
+                compatibility,
+                installed,
+                installed / "mission_control" / "doctor_scan.py",
+            ):
+                with self.subTest(source=source), mock.patch("builtins.print") as output:
+                    result = main(
+                        [
+                            "--source-root",
+                            str(source),
+                            "--codex-home",
+                            str(fixture.codex_home),
+                            "--project-root",
+                            str(fixture.project),
+                            "--compact",
+                        ]
+                    )
+                    self.assertEqual(result, 0)
+                    payload = json.loads(output.call_args.args[0])
+                    self.assertEqual(payload["projectsChecked"], 1)
+
     def test_semantic_packet_is_allowlisted_bounded_and_never_reads_rollouts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             fixture = DoctorFixture(Path(directory), active=True)

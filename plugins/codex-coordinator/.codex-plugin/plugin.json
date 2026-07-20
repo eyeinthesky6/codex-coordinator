@@ -1,6 +1,7 @@
 {
   "name": "codex-coordinator",
   "version": "0.3.0",
+  "packageState": "development",
   "description": "Keep several Codex agents from duplicating work or losing handoffs on one large repository goal, with explicit delegation without Ultra.",
   "author": {
     "name": "Six Ideas",
@@ -9,6 +10,7 @@
   "homepage": "https://eyeinthesky6.github.io/codex-coordinator/",
   "repository": "https://github.com/eyeinthesky6/codex-coordinator",
   "license": "MIT",
+  "integrityReceipt": "release-receipt.json",
   "keywords": [
     "codex",
     "coordination",

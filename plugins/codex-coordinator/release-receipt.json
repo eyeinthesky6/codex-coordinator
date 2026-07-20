@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 2,
+  "pluginName": "codex-coordinator",
+  "packageVersion": "0.0.0-unreleased",
+  "packageState": "development",
+  "packageId": "codex-coordinator-development@926a921+contract21",
+  "managedFiles": [
+    {
+      "kind": "skill",
+      "sourcePath": "skills/codex-coordinator/agents/openai.yaml",
+      "managedPath": "agents/openai.yaml",
+      "sha256": "fef99ea070da5a5fbe17d9d0dd0d61e238685c130f58ced43389d4d4a6f86697"
+    },
+    {
+      "kind": "skill",
+      "sourcePath": "skills/codex-coordinator/capabilities.json",
+      "managedPath": "capabilities.json",
+      "sha256": "8df2acbef3539791f621a727e522cddf699b3b3fab6a788456803ac26fee48a1"
+    },
+    {
+      "kind": "skill",
+      "sourcePath": "skills/codex-coordinator/references/doctor.md",
+      "managedPath": "references/doctor.md",
+      "sha256": "74706804be6c861fda316c77db34a464ff23458e38e40546b05d47c01be2048e"
+    },
+    {
+      "kind": "skill",
+      "sourcePath": "skills/codex-coordinator/references/execution.md",
+      "managedPath": "references/execution.md",
+      "sha256": "4e4968e15dafbb6643937580cf9da8f215f104d3a6b48cbe5c1dd0316c0c5ad5"
+    },
+    {
+      "kind": "skill",
+      "sourcePath": "skills/codex-coordinator/references/installation.md",
+      "managedPath": "references/installation.md",
+      "sha256": "2c8133850399bca2a70c91784decaef4ca2f51a11fbe8e9d8070e86211446be1"
+    },
+    {
+      "kind": "skill",
+      "sourcePath": "skills/codex-coordinator/references/maintenance.md",
+      "managedPath": "references/maintenance.md",
+      "sha256": "32dd12b918a644348502d4181a10cb8092d69651c3a3fa95b5026e318ddc89c7"
+    },
+    {
+      "kind": "skill",
+      "sourcePath": "skills/codex-coordinator/references/messaging.md",
+      "managedPath": "references/messaging.md",
+      "sha256": "690f860925e19e4f9b7c1d885f1ea26b5c4805587a2c3497dcdc4c25ca5effc4"
+    },
+    {
+      "kind": "skill",
+      "sourcePath": "skills/codex-coordinator/references/operations.md",
+      "managedPath": "references/operations.md",
+      "sha256": "74d7ae9a929ac103626177374e1d89edade11a86d228e00955819b53e13d0e67"
+    },
+    {
+      "kind": "skill",
+      "sourcePath": "skills/codex-coordinator/references/reconciliation.md",
+      "managedPath": "references/reconciliation.md",
+      "sha256": "bc514123f0f99e8957ad06e5f2ca304b13c0da6f503193ef67df86fc0c7d9bfc"
+    },
+    {
+      "kind": "skill",
+      "sourcePath": "skills/codex-coordinator/references/recovery.md",
+      "managedPath": "references/recovery.md",
+      "sha256": "04428c874bd554903791fcb299a24e2246471d3c303af1441fb8a76049f54900"
+    },
+    {
+      "kind": "skill",
+      "sourcePath": "skills/codex-coordinator/scripts/coordination_state.py",
+      "managedPath": "scripts/coordination_state.py",
+      "sha256": "fdf21c8dd1d30c21cd42a16569a33fa29737b7c7c4f3eee42ece40f6747102e0"
+    },
+    {
+      "kind": "skill",
+      "sourcePath": "skills/codex-coordinator/SKILL.md",
+      "managedPath": "SKILL.md",
+      "sha256": "ca59402fd4c97b64700703e0d41fcadc0b67d80a69b1068179753c91b45f8c6a"
+    },
+    {
+      "kind": "hook",
+      "sourcePath": "scripts/codex_coordinator_session_start.py",
+      "managedPath": "codex_coordinator_session_start.py",
+      "sha256": "273cd319b3c0d15ba0348c2d34561df3c5014928d22cfec6aeeb4af28e44e955"
+    }
+  ]
+}

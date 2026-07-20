@@ -71,6 +71,8 @@ Test this lifecycle with temporary Git repositories, a temporary Codex home, moc
 
 ## Reinstall boundaries
 
+A Maintainer changes the trusted product source, never an installed core as a development shortcut. Ordinary agents and Maintainers must not hand-edit a global, local, legacy, cached, or marketplace-managed Coordinator installation. Marketplace repairs use the supported plugin update or reinstall path. Supported manual repairs use Doctor with an immutable package receipt, the exact package version and receipt SHA-256 from separately published release metadata, and its last-known-good rollback receipt. The manifest keeps the last public version as a baseline; development package state and receipt version `0.0.0-unreleased` identify source work. Choosing a real version, giving the manifest and receipt that same version, changing the package to `release`, then tagging, publishing the pin, releasing, or installing, are separate approval-gated actions.
+
 A normal plugin reinstall may replace only the plugin-managed global package or cache. It must not rewrite project `AGENTS.md`, `.gitignore`, `.codex/config.toml`, markers, current state, task records, inbox records, suggestions, application files, or environment files. Preserve both enabled and explicitly opted-out projects. A separate user-authorised project repair or schema migration is required for any project-file change.
 
 When moving a machine from a manual global installation to the packaged plugin, do not leave both copies active. Install the plugin, verify its skill and hook in a new task, then remove only the legacy manual Coordinator skill copy and exact legacy hook entry and script. Preserve unrelated global instructions and every project file.

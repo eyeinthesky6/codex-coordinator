@@ -16,7 +16,17 @@ from typing import Any
 PLUGIN_NAME = "codex-coordinator"
 HOOK_NAME = "codex_coordinator_session_start.py"
 CAPABILITY_CONTRACT = "capabilities.json"
-CAPABILITY_CONTRACT_VERSION = 19
+CAPABILITY_CONTRACT_VERSION = 21
+RECEIPT_SCHEMA_VERSION = 2
+RECEIPT_MANIFEST_KEY = "integrityReceipt"
+PACKAGE_STATE_KEY = "packageState"
+RELEASE_PACKAGE_STATE = "release"
+INSTALLATION_KINDS = {"auto", "manual", "marketplace"}
+RELEASE_VERSION = re.compile(
+    r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
+    r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+)
 REQUIRED_CAPABILITIES: dict[str, Any] = {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
@@ -34,6 +44,7 @@ REQUIRED_CAPABILITIES: dict[str, Any] = {
     "providerMonitoring": "bounded-read-reconcile-at-start-change-closure",
     "providerMutationConsent": "exact-current-consent-immutable-target-revalidation",
     "scheduledTaskReconciliation": "exact-project-binding-major-change-direct-decision",
+    "installedCoreIntegrity": "external-receipt-pin-marketplace-reinstall-manual-rollback",
     "modelDefault": "inherit-unless-user-overrides",
     "reasoningDefault": "low-or-medium",
     "registrationDelivery": "document-only-no-ack",
@@ -150,6 +161,9 @@ REQUIRED_GUIDANCE = {
         "never receives project paths, task URLs, transcript text, or application files",
         "Deep Review is never scheduled",
         "candidate-only",
+        "immutable package receipt",
+        "marketplace-managed",
+        "last-known-good",
     ),
     "references/recovery.md": (
         "inspect that exact owner's native status in the same turn",
@@ -181,11 +195,17 @@ class DoctorError(RuntimeError):
     pass
 
 
+class RepairFailed(DoctorError):
+    def __init__(self, message: str, report: dict[str, Any]):
+        super().__init__(message)
+        self.report = report
+
+
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _read_json(path: Path) -> dict[str, Any]:
+def _parse_json(path: Path, raw: bytes) -> dict[str, Any]:
     def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         value: dict[str, Any] = {}
         for key, child in pairs:
@@ -195,12 +215,43 @@ def _read_json(path: Path) -> dict[str, Any]:
         return value
 
     try:
-        value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
+        value = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_object)
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise DoctorError(f"Cannot parse {path}: {error}") from error
     if not isinstance(value, dict):
         raise DoctorError(f"Expected a JSON object in {path}")
     return value
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    try:
+        raw = path.read_bytes()
+    except OSError as error:
+        raise DoctorError(f"Cannot read {path}: {error}") from error
+    return _parse_json(path, raw)
+
+
+def _validate_expected_release(
+    expected_receipt_sha256: str | None,
+    expected_package_version: str | None,
+    *,
+    required: bool,
+) -> tuple[str | None, str | None]:
+    if expected_receipt_sha256 is None and expected_package_version is None and not required:
+        return None, None
+    if expected_receipt_sha256 is None or expected_package_version is None:
+        raise DoctorError(
+            "Manual package trust requires both an expected package version and an expected receipt SHA-256 from separate release metadata"
+        )
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_receipt_sha256):
+        raise DoctorError("Expected receipt SHA-256 is malformed")
+    if (
+        len(expected_package_version) > 100
+        or not RELEASE_VERSION.fullmatch(expected_package_version)
+        or expected_package_version == "0.0.0-unreleased"
+    ):
+        raise DoctorError("Expected package version is malformed or unreleased")
+    return expected_receipt_sha256, expected_package_version
 
 
 def _hook_commands(value: Any) -> list[str]:
@@ -217,13 +268,136 @@ def _hook_commands(value: Any) -> list[str]:
     return commands
 
 
-def _validated_source(source_plugin: Path) -> tuple[Path, Path]:
+def _safe_package_path(source_plugin: Path, raw: Any, *, field: str) -> Path:
+    if not isinstance(raw, str) or not raw.strip():
+        raise DoctorError(f"Trusted package receipt has no {field}")
+    relative = Path(raw)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise DoctorError(f"Trusted package receipt has unsafe {field}: {raw!r}")
+    candidate = source_plugin / relative
+    if candidate.is_symlink():
+        raise DoctorError(f"Trusted package receipt cannot manage a symlink: {raw!r}")
+    resolved = candidate.resolve(strict=False)
+    try:
+        resolved.relative_to(source_plugin)
+    except ValueError as error:
+        raise DoctorError(f"Trusted package receipt {field} escapes the package: {raw!r}") from error
+    return resolved
+
+
+def _reject_dirty_developer_source(source_plugin: Path) -> None:
+    has_git_marker = any(
+        (current / ".git").exists() for current in (source_plugin, *source_plugin.parents)
+    )
+    try:
+        root = subprocess.run(
+            ["git", "-C", str(source_plugin), "rev-parse", "--show-toplevel"],
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        if has_git_marker:
+            raise DoctorError(f"Cannot verify trusted package Git state: {error}") from error
+        return
+    if root.returncode != 0:
+        if has_git_marker:
+            raise DoctorError("Cannot verify trusted package Git state")
+        return
+    try:
+        repository = Path(root.stdout.strip()).resolve(strict=True)
+        relative = source_plugin.relative_to(repository)
+    except (OSError, ValueError):
+        raise DoctorError("Trusted package identity is ambiguous inside its Git repository")
+    try:
+        status = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository),
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+                "--",
+                relative.as_posix(),
+            ],
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise DoctorError(f"Cannot verify trusted package Git state: {error}") from error
+    if status.returncode != 0:
+        raise DoctorError("Cannot verify trusted package Git state")
+    if status.stdout.strip():
+        raise DoctorError(
+            "Trusted repair source is a dirty developer checkout; use an immutable release package"
+        )
+
+
+def _validated_source(
+    source_plugin: Path,
+    *,
+    expected_receipt_sha256: str | None,
+    expected_package_version: str | None,
+) -> tuple[Path, Path, dict[str, Any], list[dict[str, Any]]]:
     source_plugin = source_plugin.resolve(strict=True)
     manifest = _read_json(source_plugin / ".codex-plugin" / "plugin.json")
     if manifest.get("name") != PLUGIN_NAME:
         raise DoctorError(
             f"Expected plugin name {PLUGIN_NAME!r}, found {manifest.get('name')!r}"
         )
+    receipt_name = manifest.get(RECEIPT_MANIFEST_KEY)
+    receipt_path = _safe_package_path(
+        source_plugin, receipt_name, field=RECEIPT_MANIFEST_KEY
+    )
+    try:
+        receipt_bytes = receipt_path.read_bytes()
+    except OSError as error:
+        raise DoctorError(f"Cannot read trusted package receipt: {error}") from error
+    receipt_sha256 = _sha256(receipt_bytes)
+    if (
+        expected_receipt_sha256 is not None
+        and receipt_sha256 != expected_receipt_sha256
+    ):
+        raise DoctorError("Trusted package receipt does not match the expected release pin")
+    receipt = _parse_json(receipt_path, receipt_bytes)
+    if receipt.get("schemaVersion") != RECEIPT_SCHEMA_VERSION:
+        raise DoctorError(
+            "Trusted package receipt schema is unsupported: "
+            f"expected {RECEIPT_SCHEMA_VERSION}, found {receipt.get('schemaVersion')!r}"
+        )
+    if receipt.get("pluginName") != PLUGIN_NAME:
+        raise DoctorError("Trusted package receipt has the wrong plugin identity")
+    if manifest.get(PACKAGE_STATE_KEY) != RELEASE_PACKAGE_STATE:
+        raise DoctorError("Trusted package metadata is not a release package")
+    if receipt.get(PACKAGE_STATE_KEY) != RELEASE_PACKAGE_STATE:
+        raise DoctorError("Trusted package receipt is not a release receipt")
+    if receipt.get("packageVersion") != manifest.get("version"):
+        raise DoctorError("Trusted package receipt version does not match plugin metadata")
+    if (
+        not isinstance(receipt.get("packageVersion"), str)
+        or not RELEASE_VERSION.fullmatch(receipt["packageVersion"])
+        or receipt["packageVersion"] == "0.0.0-unreleased"
+    ):
+        raise DoctorError("Trusted package receipt has a malformed or unreleased version")
+    if (
+        expected_package_version is not None
+        and receipt.get("packageVersion") != expected_package_version
+    ):
+        raise DoctorError("Trusted package version does not match the expected release version")
+    package_id = receipt.get("packageId")
+    expected_package_id = (
+        f"{PLUGIN_NAME}-package@{receipt.get('packageVersion')}"
+        f"+contract{CAPABILITY_CONTRACT_VERSION}"
+    )
+    if package_id != expected_package_id:
+        raise DoctorError("Trusted package receipt has the wrong release identity")
+
     hooks = _read_json(source_plugin / "hooks" / "hooks.json")
     if not isinstance(hooks.get("hooks"), dict):
         raise DoctorError("Plugin hooks.json has no hooks object")
@@ -243,21 +417,79 @@ def _validated_source(source_plugin: Path) -> tuple[Path, Path]:
     if not hook_source.is_file():
         raise DoctorError(f"Missing source hook: {hook_source}")
     _validate_capability_contract(skill_source)
-    return skill_source, hook_source
+    entries = receipt.get("managedFiles")
+    if not isinstance(entries, list) or not entries:
+        raise DoctorError("Trusted package receipt has no managed files")
+
+    normalized: list[dict[str, Any]] = []
+    seen_sources: set[str] = set()
+    seen_targets: set[tuple[str, str]] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise DoctorError("Trusted package receipt contains a malformed managed-file entry")
+        kind = entry.get("kind")
+        if kind not in {"skill", "hook"}:
+            raise DoctorError(f"Trusted package receipt has unsupported target kind {kind!r}")
+        source = _safe_package_path(source_plugin, entry.get("sourcePath"), field="sourcePath")
+        source_key = source.relative_to(source_plugin).as_posix()
+        managed = Path(str(entry.get("managedPath", "")))
+        if not managed.parts or managed.is_absolute() or ".." in managed.parts:
+            raise DoctorError("Trusted package receipt has an unsafe managedPath")
+        if kind == "hook" and managed != Path(HOOK_NAME):
+            raise DoctorError("Trusted package receipt declares an unexpected hook target")
+        target_key = (str(kind), managed.as_posix())
+        if source_key in seen_sources or target_key in seen_targets:
+            raise DoctorError("Trusted package receipt contains a duplicate managed-file mapping")
+        seen_sources.add(source_key)
+        seen_targets.add(target_key)
+        digest = entry.get("sha256")
+        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise DoctorError(f"Trusted package receipt has an invalid hash for {source_key}")
+        try:
+            source_bytes = source.read_bytes()
+        except OSError as error:
+            raise DoctorError(f"Trusted package file is missing or unreadable: {source_key}") from error
+        if _sha256(source_bytes) != digest:
+            raise DoctorError(f"Trusted package receipt hash mismatch for {source_key}")
+        normalized.append(
+            {
+                "kind": kind,
+                "source": source,
+                "relative": managed,
+                "sourceBytes": source_bytes,
+                "sourceHash": digest,
+            }
+        )
+
+    actual_sources = {
+        path.relative_to(source_plugin).as_posix()
+        for path in skill_source.rglob("*")
+        if path.is_file()
+        and "__pycache__" not in path.relative_to(skill_source).parts
+        and path.suffix.lower() not in {".pyc", ".pyo"}
+    }
+    actual_sources.add(hook_source.relative_to(source_plugin).as_posix())
+    if actual_sources != seen_sources:
+        missing = sorted(actual_sources - seen_sources)
+        extra = sorted(seen_sources - actual_sources)
+        raise DoctorError(
+            "Trusted package receipt does not exactly declare the managed package files: "
+            f"missing={missing}, unexpected={extra}"
+        )
+    _reject_dirty_developer_source(source_plugin)
+    receipt_summary = {
+        "schemaVersion": RECEIPT_SCHEMA_VERSION,
+        "pluginName": PLUGIN_NAME,
+        "packageVersion": receipt.get("packageVersion"),
+        "packageId": receipt.get("packageId"),
+        "sha256": receipt_sha256,
+        "managedFileCount": len(normalized),
+    }
+    return skill_source, hook_source, receipt_summary, normalized
 
 
-def _source_files(skill_source: Path, hook_source: Path) -> list[tuple[str, Path, Path]]:
-    mappings: list[tuple[str, Path, Path]] = []
-    for source in sorted(skill_source.rglob("*")):
-        if source.is_symlink():
-            raise DoctorError(f"Symlinks are not supported in the source skill: {source}")
-        relative = source.relative_to(skill_source)
-        if "__pycache__" in relative.parts or source.suffix.lower() in {".pyc", ".pyo"}:
-            continue
-        if source.is_file():
-            mappings.append(("skill", source, relative))
-    mappings.append(("hook", hook_source, Path(HOOK_NAME)))
-    return mappings
+def _source_files(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(entries, key=lambda item: (str(item["kind"]), item["relative"].as_posix()))
 
 
 def _validate_capability_contract(skill_root: Path) -> list[dict[str, str]]:
@@ -533,13 +765,126 @@ def write_mermaid_report(path: Path, report: dict[str, Any]) -> str:
     return str(path.resolve(strict=False))
 
 
+def _path_in_plugin_cache(path: Path) -> bool:
+    resolved = path.resolve(strict=False)
+    lowered = [part.casefold() for part in resolved.parts]
+    for index in range(len(lowered) - 1):
+        if lowered[index : index + 2] == ["plugins", "cache"]:
+            return True
+    return False
+
+
+def _looks_marketplace_managed(path: Path) -> bool:
+    resolved = path.resolve(strict=False)
+    if _path_in_plugin_cache(resolved):
+        return True
+    return any(
+        (current / ".codex-plugin" / "plugin.json").is_file()
+        for current in (resolved, *resolved.parents)
+    )
+
+
+def _installation_kind(
+    source_plugin: Path, skill_root: Path, hook_path: Path, requested: str
+) -> str:
+    if requested not in INSTALLATION_KINDS:
+        raise DoctorError(f"Unsupported installation kind: {requested!r}")
+    if requested != "auto":
+        return requested
+    if (
+        _path_in_plugin_cache(source_plugin)
+        or _looks_marketplace_managed(skill_root)
+        or _looks_marketplace_managed(hook_path)
+    ):
+        return "marketplace"
+    return "manual"
+
+
+def _rollback_report(
+    *,
+    files: list[dict[str, Any]],
+    receipt: dict[str, Any],
+    installation_kind: str,
+    changed: int,
+    error: Exception,
+    rollback_errors: list[str],
+) -> dict[str, Any]:
+    restored = not rollback_errors
+    return {
+        "status": "error",
+        "integrityState": "local_modification_detected",
+        "recoveryState": (
+            "repair_failed_last_good_restored" if restored else "manual_action_required"
+        ),
+        "installationKind": installation_kind,
+        "changedFiles": changed,
+        "files": files,
+        "installationChecks": [],
+        "trustedReceipt": receipt,
+        "rollback": {
+            "attempted": True,
+            "lastGoodRestored": restored,
+            "errors": rollback_errors,
+        },
+        "error": str(error),
+        "repairScope": "declared managed files only",
+        "note": (
+            "The attempted manual repair failed; all touched managed files were restored."
+            if restored
+            else "The attempted manual repair and last-good restore both failed; manual action is required."
+        ),
+    }
+
+
 def sync_installation(
     source_plugin: Path,
     skill_root: Path,
     hook_path: Path,
     *,
     apply: bool,
+    installation_kind: str = "auto",
+    expected_receipt_sha256: str | None = None,
+    expected_package_version: str | None = None,
 ) -> dict[str, Any]:
+    if installation_kind not in INSTALLATION_KINDS:
+        raise DoctorError(f"Unsupported installation kind: {installation_kind!r}")
+    known_marketplace = installation_kind == "marketplace" or (
+        installation_kind == "auto"
+        and (
+            _path_in_plugin_cache(source_plugin)
+            or _path_in_plugin_cache(skill_root)
+            or _path_in_plugin_cache(hook_path)
+        )
+    )
+    expected_receipt_sha256, expected_package_version = _validate_expected_release(
+        expected_receipt_sha256,
+        expected_package_version,
+        required=not known_marketplace,
+    )
+    try:
+        skill_source, hook_source, trusted_receipt, source_entries = _validated_source(
+            source_plugin,
+            expected_receipt_sha256=expected_receipt_sha256,
+            expected_package_version=expected_package_version,
+        )
+    except DoctorError as error:
+        if not known_marketplace:
+            raise
+        return {
+            "status": "error",
+            "integrityState": "local_modification_detected",
+            "recoveryState": "reinstall_required",
+            "installationKind": "marketplace",
+            "changedFiles": 0,
+            "files": [],
+            "installationChecks": [],
+            "error": str(error),
+            "repairScope": "none; marketplace-managed files are read-only to Doctor",
+            "note": (
+                "Use the supported Codex plugin update or reinstall path. "
+                "Doctor never rewrites marketplace-managed cache files directly."
+            ),
+        }
     resolved_skill_root = skill_root.resolve(strict=False)
     resolved_hook_path = hook_path.resolve(strict=False)
     try:
@@ -559,16 +904,19 @@ def sync_installation(
             "The installed skill directory must not overlap the SessionStart hook destination"
         )
 
-    skill_source, hook_source = _validated_source(source_plugin)
+    kind = _installation_kind(source_plugin, skill_root, hook_path, installation_kind)
     files: list[dict[str, Any]] = []
     planned: list[dict[str, Any]] = []
     changed = 0
     installation_checks: list[dict[str, str]] = []
 
-    for kind, source, relative in _source_files(skill_source, hook_source):
-        target = skill_root / relative if kind == "skill" else hook_path
-        source_bytes = source.read_bytes()
-        source_hash = _sha256(source_bytes)
+    for source_entry in _source_files(source_entries):
+        file_kind = source_entry["kind"]
+        source = source_entry["source"]
+        relative = source_entry["relative"]
+        target = skill_root / relative if file_kind == "skill" else hook_path
+        source_bytes = source_entry["sourceBytes"]
+        source_hash = source_entry["sourceHash"]
         try:
             target_bytes = target.read_bytes()
         except FileNotFoundError:
@@ -584,7 +932,7 @@ def sync_installation(
             changed += 1
         files.append(
             {
-                "kind": kind,
+                "kind": file_kind,
                 "managedPath": relative.as_posix(),
                 "source": str(source),
                 "target": str(target),
@@ -595,7 +943,7 @@ def sync_installation(
         )
         planned.append(
             {
-                "kind": kind,
+                "kind": file_kind,
                 "relative": relative,
                 "target": target,
                 "sourceBytes": source_bytes,
@@ -610,6 +958,27 @@ def sync_installation(
         for item in planned
         if item["kind"] == "skill" and item["relative"].suffix.lower() == ".md"
     ]
+
+    if kind == "marketplace" and changed:
+        return {
+            "status": "drift",
+            "integrityState": "local_modification_detected",
+            "recoveryState": "reinstall_required",
+            "installationKind": kind,
+            "sourcePlugin": str(source_plugin.resolve(strict=True)),
+            "skillRoot": str(skill_root.resolve(strict=False)),
+            "hookPath": str(hook_path.resolve(strict=False)),
+            "changedFiles": changed,
+            "files": files,
+            "installationChecks": [],
+            "trustedReceipt": trusted_receipt,
+            "repairScope": "none; marketplace-managed files are read-only to Doctor",
+            "note": (
+                "Use the supported Codex plugin update or reinstall path. "
+                "Doctor never rewrites marketplace-managed cache files directly."
+            ),
+            "error": "Marketplace-managed installation drift requires plugin update or reinstall.",
+        }
 
     if apply and changed:
         applied: list[dict[str, Any]] = []
@@ -632,11 +1001,18 @@ def sync_installation(
                     else:
                         _atomic_write(item["target"], item["targetBytes"])
                 except OSError as rollback_error:
-                    rollback_errors.append(f"{item['target']}: {rollback_error}")
-            detail = ""
-            if rollback_errors:
-                detail = "; rollback also failed for " + "; ".join(rollback_errors)
-            raise DoctorError(f"Installation update failed and was rolled back: {error}{detail}") from error
+                    rollback_errors.append(
+                        f"{item['relative'].as_posix()}: {rollback_error}"
+                    )
+            report = _rollback_report(
+                files=files,
+                receipt=trusted_receipt,
+                installation_kind=kind,
+                changed=changed,
+                error=error,
+                rollback_errors=rollback_errors,
+            )
+            raise RepairFailed(report["note"], report) from error
         for file in files:
             if file["before"] != "current":
                 file["state"] = "updated"
@@ -645,14 +1021,22 @@ def sync_installation(
 
     return {
         "status": "updated" if apply and changed else ("drift" if changed else "current"),
+        "integrityState": "local_modification_detected" if changed else "healthy",
+        "recoveryState": (
+            "repaired"
+            if apply and changed
+            else ("trusted_repair_available" if changed else "not_needed")
+        ),
+        "installationKind": kind,
         "sourcePlugin": str(source_plugin.resolve(strict=True)),
         "skillRoot": str(skill_root.resolve(strict=False)),
         "hookPath": str(hook_path.resolve(strict=False)),
         "changedFiles": changed,
         "files": files,
         "installationChecks": installation_checks,
-        "repairScope": "installed global skill and exact SessionStart hook",
-        "note": "Unexpected installation files are preserved; Doctor never edits managed plugin caches or project files.",
+        "trustedReceipt": trusted_receipt,
+        "repairScope": "declared managed files only",
+        "note": "Unexpected installation files and all project state are preserved.",
     }
 
 
@@ -684,6 +1068,29 @@ def main(argv: list[str] | None = None) -> int:
         help="Installed legacy/global SessionStart hook path.",
     )
     parser.add_argument(
+        "--installation-kind",
+        choices=sorted(INSTALLATION_KINDS),
+        default="auto",
+        help=(
+            "Installation owner. Auto detects marketplace cache/plugin roots; "
+            "marketplace targets are never repaired in place."
+        ),
+    )
+    parser.add_argument(
+        "--expected-package-version",
+        help=(
+            "Exact manual-package version from separately published release metadata; "
+            "required with --expected-receipt-sha256 for non-marketplace packages."
+        ),
+    )
+    parser.add_argument(
+        "--expected-receipt-sha256",
+        help=(
+            "Exact release-receipt.json SHA-256 from separately published release metadata; "
+            "required with --expected-package-version for non-marketplace packages."
+        ),
+    )
+    parser.add_argument(
         "--mermaid-out",
         type=Path,
         help="Write an optional Mermaid .mmd projection; JSON and exit status remain authoritative.",
@@ -705,9 +1112,22 @@ def main(argv: list[str] | None = None) -> int:
             args.skill_root,
             args.hook_path,
             apply=bool(args.apply),
+            installation_kind=args.installation_kind,
+            expected_receipt_sha256=args.expected_receipt_sha256,
+            expected_package_version=args.expected_package_version,
         )
+        if report.get("status") == "error":
+            exit_code = 1
+    except RepairFailed as error:
+        report = error.report
+        exit_code = 1
     except (DoctorError, OSError) as error:
-        report = {"status": "error", "error": str(error)}
+        report = {
+            "status": "error",
+            "integrityState": "unknown",
+            "recoveryState": "manual_action_required",
+            "error": str(error),
+        }
         exit_code = 1
 
     if args.mermaid_out is not None:
@@ -724,6 +1144,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.compact:
         output = {
             "status": report.get("status", "error"),
+            "integrityState": report.get("integrityState", "unknown"),
+            "recoveryState": report.get("recoveryState", "manual_action_required"),
             "changedFiles": int(report.get("changedFiles") or 0),
             "checksPassed": sum(
                 check.get("status") == "passed"
@@ -736,7 +1158,7 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(output, indent=None if args.compact else 2, separators=(",", ":") if args.compact else None))
     if exit_code:
         return exit_code
-    if not args.apply and report["status"] == "drift":
+    if report["status"] == "drift":
         return 2
     return 0
 

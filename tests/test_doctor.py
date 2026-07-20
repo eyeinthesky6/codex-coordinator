@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -112,6 +113,9 @@ DOCTOR_TEXT = """# Source doctor
 Report UNATTENDED_RETURN_PATH only after verified absence of the required heartbeat.
 Routine Doctor never receives project paths, task URLs, transcript text, or application files.
 Deep Review is never scheduled and its result is candidate-only.
+Use an immutable package receipt for managed files.
+Never rewrite marketplace-managed cache files.
+Restore last-known-good files after a failed manual repair.
 """
 
 RECOVERY_TEXT = """# Source recovery
@@ -150,7 +154,15 @@ def _source_plugin(root: Path, *, name: str = "codex-coordinator") -> Path:
     (plugin / "skills" / "codex-coordinator" / "references").mkdir(parents=True)
     (plugin / "skills" / "codex-coordinator" / "scripts").mkdir()
     (plugin / ".codex-plugin" / "plugin.json").write_text(
-        json.dumps({"name": name, "version": "1.0.0"}), encoding="utf-8"
+        json.dumps(
+            {
+                "name": name,
+                "version": "1.0.0",
+                doctor.PACKAGE_STATE_KEY: doctor.RELEASE_PACKAGE_STATE,
+                doctor.RECEIPT_MANIFEST_KEY: "release-receipt.json",
+            }
+        ),
+        encoding="utf-8",
     )
     (plugin / "hooks" / "hooks.json").write_text(
         json.dumps(
@@ -206,7 +218,83 @@ def _source_plugin(root: Path, *, name: str = "codex-coordinator") -> Path:
         ),
         encoding="utf-8",
     )
+    managed_files = []
+    for source in sorted(skill.rglob("*")):
+        relative = source.relative_to(skill)
+        if (
+            not source.is_file()
+            or "__pycache__" in relative.parts
+            or source.suffix.lower() in {".pyc", ".pyo"}
+        ):
+            continue
+        managed_files.append(
+            {
+                "kind": "skill",
+                "sourcePath": source.relative_to(plugin).as_posix(),
+                "managedPath": relative.as_posix(),
+                "sha256": doctor._sha256(source.read_bytes()),
+            }
+        )
+    hook = plugin / "scripts" / doctor.HOOK_NAME
+    managed_files.append(
+        {
+            "kind": "hook",
+            "sourcePath": hook.relative_to(plugin).as_posix(),
+            "managedPath": doctor.HOOK_NAME,
+            "sha256": doctor._sha256(hook.read_bytes()),
+        }
+    )
+    (plugin / "release-receipt.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": doctor.RECEIPT_SCHEMA_VERSION,
+                "pluginName": name,
+                "packageVersion": "1.0.0",
+                doctor.PACKAGE_STATE_KEY: doctor.RELEASE_PACKAGE_STATE,
+                "packageId": (
+                    f"{doctor.PLUGIN_NAME}-package@1.0.0"
+                    f"+contract{doctor.CAPABILITY_CONTRACT_VERSION}"
+                ),
+                "managedFiles": managed_files,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
     return plugin
+
+
+def _refresh_receipt(plugin: Path) -> None:
+    receipt_path = plugin / "release-receipt.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    for entry in receipt["managedFiles"]:
+        source = plugin / entry["sourcePath"]
+        entry["sha256"] = doctor._sha256(source.read_bytes())
+    receipt_path.write_text(json.dumps(receipt, sort_keys=True), encoding="utf-8")
+
+
+def _release_identity(plugin: Path) -> dict[str, str]:
+    manifest = json.loads(
+        (plugin / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    return {
+        "expected_package_version": manifest["version"],
+        "expected_receipt_sha256": doctor._sha256(
+            (plugin / "release-receipt.json").read_bytes()
+        ),
+    }
+
+
+def _sync_installation(
+    source: Path,
+    skill_root: Path,
+    hook_path: Path,
+    **kwargs: object,
+) -> dict[str, object]:
+    identity = _release_identity(source)
+    for key, value in identity.items():
+        kwargs.setdefault(key, value)
+    return doctor.sync_installation(source, skill_root, hook_path, **kwargs)
 
 
 class DoctorTests(unittest.TestCase):
@@ -247,6 +335,7 @@ class DoctorTests(unittest.TestCase):
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hooks" / "session_start.py"
             diagram_path = root / "reports" / "doctor.mmd"
+            identity = _release_identity(source)
 
             with mock.patch("builtins.print") as print_output:
                 result = doctor.main(
@@ -257,6 +346,10 @@ class DoctorTests(unittest.TestCase):
                         str(skill_root),
                         "--hook-path",
                         str(hook_path),
+                        "--expected-package-version",
+                        identity["expected_package_version"],
+                        "--expected-receipt-sha256",
+                        identity["expected_receipt_sha256"],
                         "--check",
                         "--mermaid-out",
                         str(diagram_path),
@@ -276,6 +369,7 @@ class DoctorTests(unittest.TestCase):
             source = _source_plugin(root)
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hooks" / "session_start.py"
+            identity = _release_identity(source)
 
             with mock.patch("builtins.print") as print_output:
                 result = doctor.main(
@@ -286,6 +380,10 @@ class DoctorTests(unittest.TestCase):
                         str(skill_root),
                         "--hook-path",
                         str(hook_path),
+                        "--expected-package-version",
+                        identity["expected_package_version"],
+                        "--expected-receipt-sha256",
+                        identity["expected_receipt_sha256"],
                         "--compact",
                         "--check",
                     ]
@@ -295,7 +393,16 @@ class DoctorTests(unittest.TestCase):
             raw = print_output.call_args.args[0]
             self.assertLess(len(raw.encode("utf-8")), 200)
             payload = json.loads(raw)
-            self.assertEqual(set(payload), {"status", "changedFiles", "checksPassed"})
+            self.assertEqual(
+                set(payload),
+                {
+                    "status",
+                    "integrityState",
+                    "recoveryState",
+                    "changedFiles",
+                    "checksPassed",
+                },
+            )
             self.assertNotIn(str(root), raw)
 
     def test_check_apply_and_repeat_are_idempotent(self) -> None:
@@ -311,12 +418,15 @@ class DoctorTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            check = doctor.sync_installation(source, skill_root, hook_path, apply=False)
+            check = _sync_installation(source, skill_root, hook_path, apply=False)
             self.assertEqual(check["status"], "drift")
+            self.assertEqual(check["integrityState"], "local_modification_detected")
+            self.assertEqual(check["recoveryState"], "trusted_repair_available")
             self.assertEqual(check["changedFiles"], 12)
 
-            applied = doctor.sync_installation(source, skill_root, hook_path, apply=True)
+            applied = _sync_installation(source, skill_root, hook_path, apply=True)
             self.assertEqual(applied["status"], "updated")
+            self.assertEqual(applied["recoveryState"], "repaired")
             self.assertEqual(
                 (skill_root / "SKILL.md").read_text(encoding="utf-8"),
                 SKILL_TEXT,
@@ -342,8 +452,9 @@ class DoctorTests(unittest.TestCase):
                 ],
             )
 
-            current = doctor.sync_installation(source, skill_root, hook_path, apply=False)
+            current = _sync_installation(source, skill_root, hook_path, apply=False)
             self.assertEqual(current["status"], "current")
+            self.assertEqual(current["integrityState"], "healthy")
             self.assertEqual(current["changedFiles"], 0)
 
     def test_stale_policy_installation_is_repaired_without_project_or_unmanaged_writes(
@@ -358,7 +469,7 @@ class DoctorTests(unittest.TestCase):
             project_state.parent.mkdir(parents=True)
             project_state.write_text("preserve project state\n", encoding="utf-8")
 
-            initial = doctor.sync_installation(source, skill_root, hook_path, apply=True)
+            initial = _sync_installation(source, skill_root, hook_path, apply=True)
             self.assertEqual(initial["status"], "updated")
             hook_before = hook_path.read_bytes()
             unmanaged = skill_root / "local-note.md"
@@ -393,7 +504,7 @@ class DoctorTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            check = doctor.sync_installation(source, skill_root, hook_path, apply=False)
+            check = _sync_installation(source, skill_root, hook_path, apply=False)
             self.assertEqual(check["status"], "drift")
             self.assertEqual(check["changedFiles"], 3)
             self.assertEqual(check["installationChecks"], [])
@@ -403,7 +514,7 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(unmanaged.read_text(encoding="utf-8"), "preserve unmanaged file\n")
             self.assertEqual(hook_path.read_bytes(), hook_before)
 
-            applied = doctor.sync_installation(source, skill_root, hook_path, apply=True)
+            applied = _sync_installation(source, skill_root, hook_path, apply=True)
             self.assertEqual(applied["status"], "updated")
             self.assertEqual(applied["changedFiles"], 3)
             self.assertEqual(
@@ -426,9 +537,328 @@ class DoctorTests(unittest.TestCase):
             for name, expected in doctor.REQUIRED_CAPABILITIES.items():
                 self.assertEqual(repaired_contract["capabilities"][name], expected)
 
-            current = doctor.sync_installation(source, skill_root, hook_path, apply=False)
+            current = _sync_installation(source, skill_root, hook_path, apply=False)
             self.assertEqual(current["status"], "current")
             self.assertEqual(current["changedFiles"], 0)
+
+    def test_missing_managed_file_is_detected_from_the_trusted_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+            _sync_installation(source, skill_root, hook_path, apply=True)
+            (skill_root / "references" / "operations.md").unlink()
+
+            report = _sync_installation(source, skill_root, hook_path, apply=False)
+
+            self.assertEqual(report["status"], "drift")
+            self.assertEqual(report["integrityState"], "local_modification_detected")
+            missing = [item for item in report["files"] if item["before"] == "missing"]
+            self.assertEqual(
+                [item["managedPath"] for item in missing],
+                ["references/operations.md"],
+            )
+
+    def test_tampered_package_receipt_is_untrusted_and_writes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            receipt_path = source / "release-receipt.json"
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            receipt["managedFiles"][0]["sha256"] = "0" * 64
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+
+            with self.assertRaisesRegex(doctor.DoctorError, "receipt hash mismatch"):
+                _sync_installation(source, skill_root, hook_path, apply=True)
+
+            self.assertFalse(skill_root.exists())
+            self.assertFalse(hook_path.exists())
+
+    def test_manual_package_requires_complete_external_release_identity_before_source_validation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+
+            with mock.patch.object(doctor, "_validated_source") as validate_source:
+                with self.assertRaisesRegex(doctor.DoctorError, "requires both"):
+                    doctor.sync_installation(
+                        source,
+                        skill_root,
+                        hook_path,
+                        apply=True,
+                        installation_kind="manual",
+                    )
+
+            validate_source.assert_not_called()
+            self.assertFalse(skill_root.exists())
+            self.assertFalse(hook_path.exists())
+
+    def test_malformed_external_release_pin_fails_before_target_access(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+
+            with mock.patch.object(doctor, "_validated_source") as validate_source:
+                with self.assertRaisesRegex(doctor.DoctorError, "SHA-256 is malformed"):
+                    doctor.sync_installation(
+                        source,
+                        skill_root,
+                        hook_path,
+                        apply=True,
+                        installation_kind="manual",
+                        expected_package_version="1.0.0",
+                        expected_receipt_sha256="not-a-sha256",
+                    )
+
+            validate_source.assert_not_called()
+            self.assertFalse(skill_root.exists())
+            self.assertFalse(hook_path.exists())
+
+    def test_malformed_expected_version_fails_before_target_access(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+
+            with mock.patch.object(doctor, "_validated_source") as validate_source:
+                with self.assertRaisesRegex(doctor.DoctorError, "version is malformed"):
+                    doctor.sync_installation(
+                        source,
+                        skill_root,
+                        hook_path,
+                        apply=True,
+                        installation_kind="manual",
+                        expected_package_version="not-a-version",
+                        expected_receipt_sha256=_release_identity(source)[
+                            "expected_receipt_sha256"
+                        ],
+                    )
+
+            validate_source.assert_not_called()
+            self.assertFalse(skill_root.exists())
+            self.assertFalse(hook_path.exists())
+
+    def test_wrong_release_pin_fails_without_installation_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+
+            with mock.patch.object(doctor, "_installation_kind") as classify_target:
+                with self.assertRaisesRegex(doctor.DoctorError, "expected release pin"):
+                    doctor.sync_installation(
+                        source,
+                        skill_root,
+                        hook_path,
+                        apply=True,
+                        installation_kind="manual",
+                        expected_package_version="1.0.0",
+                        expected_receipt_sha256="0" * 64,
+                    )
+
+            classify_target.assert_not_called()
+            self.assertFalse(skill_root.exists())
+            self.assertFalse(hook_path.exists())
+
+    def test_wrong_expected_version_fails_without_installation_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+
+            with self.assertRaisesRegex(doctor.DoctorError, "expected release version"):
+                doctor.sync_installation(
+                    source,
+                    skill_root,
+                    hook_path,
+                    apply=True,
+                    installation_kind="manual",
+                    expected_package_version="2.0.0",
+                    expected_receipt_sha256=_release_identity(source)[
+                        "expected_receipt_sha256"
+                    ],
+                )
+
+            self.assertFalse(skill_root.exists())
+            self.assertFalse(hook_path.exists())
+
+    def test_wrong_release_identity_fails_without_installation_target_access(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            receipt_path = source / "release-receipt.json"
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            receipt["packageId"] = "codex-coordinator-package@another-release"
+            receipt_path.write_text(json.dumps(receipt, sort_keys=True), encoding="utf-8")
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+
+            with mock.patch.object(doctor, "_installation_kind") as classify_target:
+                with self.assertRaisesRegex(doctor.DoctorError, "wrong release identity"):
+                    doctor.sync_installation(
+                        source,
+                        skill_root,
+                        hook_path,
+                        apply=True,
+                        installation_kind="manual",
+                        **_release_identity(source),
+                    )
+
+            classify_target.assert_not_called()
+            self.assertFalse(skill_root.exists())
+            self.assertFalse(hook_path.exists())
+
+    def test_regenerated_malicious_receipt_fails_against_prior_external_pin(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            identity = _release_identity(source)
+            (source / "skills" / "codex-coordinator" / "SKILL.md").write_text(
+                "# regenerated malicious package\n", encoding="utf-8"
+            )
+            _refresh_receipt(source)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+
+            with self.assertRaisesRegex(doctor.DoctorError, "expected release pin"):
+                doctor.sync_installation(
+                    source,
+                    skill_root,
+                    hook_path,
+                    apply=True,
+                    installation_kind="manual",
+                    **identity,
+                )
+
+            self.assertFalse(skill_root.exists())
+            self.assertFalse(hook_path.exists())
+
+    def test_legitimate_repackaged_bytes_install_with_new_external_pin(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill = source / "skills" / "codex-coordinator" / "SKILL.md"
+            skill.write_text(skill.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+            _refresh_receipt(source)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+
+            report = doctor.sync_installation(
+                source,
+                skill_root,
+                hook_path,
+                apply=True,
+                installation_kind="manual",
+                **_release_identity(source),
+            )
+
+            self.assertEqual(report["status"], "updated")
+            self.assertEqual(
+                (skill_root / "SKILL.md").read_bytes(), skill.read_bytes()
+            )
+
+    def test_development_package_is_not_a_manual_repair_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            manifest_path = source / ".codex-plugin" / "plugin.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest[doctor.PACKAGE_STATE_KEY] = "development"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+
+            with self.assertRaisesRegex(doctor.DoctorError, "not a release package"):
+                doctor.sync_installation(
+                    source,
+                    skill_root,
+                    hook_path,
+                    apply=True,
+                    installation_kind="manual",
+                    **_release_identity(source),
+                )
+
+            self.assertFalse(skill_root.exists())
+            self.assertFalse(hook_path.exists())
+
+    def test_dirty_developer_source_is_not_a_trusted_repair_package(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            completed = subprocess.run(
+                ["git", "init", str(root)],
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+
+            with self.assertRaisesRegex(doctor.DoctorError, "dirty developer checkout"):
+                _sync_installation(
+                    source,
+                    root / "installed" / "skill",
+                    root / "installed" / "hook.py",
+                    apply=True,
+                )
+
+    def test_marketplace_managed_target_requires_supported_reinstall(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            plugin_cache = root / "codex-home" / "plugins" / "cache" / "coordinator"
+            skill_root = plugin_cache / "skills" / "codex-coordinator"
+            hook_path = plugin_cache / "scripts" / doctor.HOOK_NAME
+
+            report = doctor.sync_installation(
+                source,
+                skill_root,
+                hook_path,
+                apply=True,
+            )
+
+            self.assertEqual(report["status"], "drift")
+            self.assertEqual(report["recoveryState"], "reinstall_required")
+            self.assertEqual(report["installationKind"], "marketplace")
+            self.assertFalse(skill_root.exists())
+            self.assertFalse(hook_path.exists())
+            self.assertIn("plugin update or reinstall", report["note"])
+
+    def test_modified_marketplace_package_fails_closed_to_reinstall(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache = root / "codex-home" / "plugins" / "cache"
+            source = _source_plugin(cache)
+            (source / "skills" / "codex-coordinator" / "SKILL.md").write_text(
+                "locally modified cache\n", encoding="utf-8"
+            )
+            skill_root = root / "manual" / "skill"
+            hook_path = root / "manual" / "hook.py"
+
+            report = doctor.sync_installation(
+                source,
+                skill_root,
+                hook_path,
+                apply=True,
+            )
+
+            self.assertEqual(report["status"], "error")
+            self.assertEqual(report["recoveryState"], "reinstall_required")
+            self.assertEqual(report["installationKind"], "marketplace")
+            self.assertFalse(skill_root.exists())
+            self.assertFalse(hook_path.exists())
 
     def test_wrong_plugin_source_is_rejected_without_writes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -438,7 +868,7 @@ class DoctorTests(unittest.TestCase):
             hook_path = root / "installed" / "hook.py"
 
             with self.assertRaises(doctor.DoctorError):
-                doctor.sync_installation(source, skill_root, hook_path, apply=True)
+                _sync_installation(source, skill_root, hook_path, apply=True)
             self.assertFalse(skill_root.exists())
             self.assertFalse(hook_path.exists())
 
@@ -450,7 +880,7 @@ class DoctorTests(unittest.TestCase):
             hook_path = skill_root / "scripts" / "coordination_state.py"
 
             with self.assertRaisesRegex(doctor.DoctorError, "overlap"):
-                doctor.sync_installation(source, skill_root, hook_path, apply=True)
+                _sync_installation(source, skill_root, hook_path, apply=True)
             self.assertFalse(skill_root.exists())
 
     def test_installed_skill_cannot_be_nested_under_hook_file_path(self) -> None:
@@ -461,7 +891,7 @@ class DoctorTests(unittest.TestCase):
             skill_root = hook_path / "skill"
 
             with self.assertRaisesRegex(doctor.DoctorError, "overlap"):
-                doctor.sync_installation(source, skill_root, hook_path, apply=True)
+                _sync_installation(source, skill_root, hook_path, apply=True)
             self.assertFalse(hook_path.exists())
 
     def test_duplicate_json_keys_are_rejected(self) -> None:
@@ -475,7 +905,7 @@ class DoctorTests(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(doctor.DoctorError, "Duplicate JSON key.*name"):
-                doctor.sync_installation(
+                _sync_installation(
                     source,
                     root / "installed" / "skill",
                     root / "installed" / "hook.py",
@@ -507,7 +937,7 @@ class DoctorTests(unittest.TestCase):
             )
 
             with self.assertRaises(doctor.DoctorError):
-                doctor.sync_installation(
+                _sync_installation(
                     source,
                     root / "installed" / "skill",
                     root / "installed" / "hook.py",
@@ -538,8 +968,14 @@ class DoctorTests(unittest.TestCase):
                 original_write(path, data)
 
             with mock.patch.object(doctor, "_atomic_write", side_effect=fail_second_write):
-                with self.assertRaisesRegex(doctor.DoctorError, "rolled back"):
-                    doctor.sync_installation(source, skill_root, hook_path, apply=True)
+                with self.assertRaises(doctor.RepairFailed) as failure:
+                    _sync_installation(source, skill_root, hook_path, apply=True)
+
+            self.assertEqual(
+                failure.exception.report["recoveryState"],
+                "repair_failed_last_good_restored",
+            )
+            self.assertTrue(failure.exception.report["rollback"]["lastGoodRestored"])
 
             self.assertEqual(
                 (skill_root / "SKILL.md").read_text(encoding="utf-8"), "# Old skill\n"
@@ -550,6 +986,41 @@ class DoctorTests(unittest.TestCase):
             )
             self.assertEqual(hook_path.read_text(encoding="utf-8"), "print('old hook')\n")
 
+    def test_failed_last_good_restore_requires_manual_action(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+            (skill_root / "agents").mkdir(parents=True)
+            (skill_root / "agents" / "openai.yaml").write_text(
+                "old agent metadata\n", encoding="utf-8"
+            )
+            (skill_root / "SKILL.md").write_text("# Old skill\n", encoding="utf-8")
+            hook_path.parent.mkdir(parents=True, exist_ok=True)
+            hook_path.write_text("print('old hook')\n", encoding="utf-8")
+            original_write = doctor._atomic_write
+            writes = 0
+
+            def fail_update_and_restore(path: Path, data: bytes) -> None:
+                nonlocal writes
+                writes += 1
+                if writes in {2, 3}:
+                    raise OSError("simulated update or restore failure")
+                original_write(path, data)
+
+            with mock.patch.object(
+                doctor, "_atomic_write", side_effect=fail_update_and_restore
+            ):
+                with self.assertRaises(doctor.RepairFailed) as failure:
+                    _sync_installation(source, skill_root, hook_path, apply=True)
+
+            self.assertEqual(
+                failure.exception.report["recoveryState"], "manual_action_required"
+            )
+            self.assertFalse(failure.exception.report["rollback"]["lastGoodRestored"])
+            self.assertEqual(len(failure.exception.report["rollback"]["errors"]), 1)
+
     def test_installed_runtime_failure_rolls_back_the_update(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -557,6 +1028,7 @@ class DoctorTests(unittest.TestCase):
             (source / "scripts" / doctor.HOOK_NAME).write_text(
                 "raise SystemExit(7)\n", encoding="utf-8"
             )
+            _refresh_receipt(source)
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
             (skill_root / "references").mkdir(parents=True)
@@ -566,8 +1038,14 @@ class DoctorTests(unittest.TestCase):
             )
             hook_path.write_text("print('old hook')\n", encoding="utf-8")
 
-            with self.assertRaisesRegex(doctor.DoctorError, "smoke check failed"):
-                doctor.sync_installation(source, skill_root, hook_path, apply=True)
+            with self.assertRaises(doctor.RepairFailed) as failure:
+                _sync_installation(source, skill_root, hook_path, apply=True)
+
+            self.assertIn("smoke check failed", failure.exception.report["error"])
+            self.assertEqual(
+                failure.exception.report["recoveryState"],
+                "repair_failed_last_good_restored",
+            )
 
             self.assertEqual(
                 (skill_root / "SKILL.md").read_text(encoding="utf-8"), "# Old skill\n"
@@ -584,7 +1062,7 @@ class DoctorTests(unittest.TestCase):
             contract.write_text(json.dumps(value), encoding="utf-8")
 
             with self.assertRaisesRegex(doctor.DoctorError, "workerCreation.*stale"):
-                doctor.sync_installation(
+                _sync_installation(
                     source,
                     root / "installed" / "skill",
                     root / "installed" / "hook.py",
@@ -614,7 +1092,7 @@ class DoctorTests(unittest.TestCase):
                 contract.write_text(json.dumps(value), encoding="utf-8")
 
                 with self.assertRaisesRegex(doctor.DoctorError, rf"{name}.*stale"):
-                    doctor.sync_installation(
+                    _sync_installation(
                         source,
                         root / "installed" / "skill",
                         root / "installed" / "hook.py",
@@ -666,7 +1144,7 @@ class DoctorTests(unittest.TestCase):
                 )
 
                 with self.assertRaisesRegex(doctor.DoctorError, "guidance is stale"):
-                    doctor.sync_installation(
+                    _sync_installation(
                         source,
                         root / "installed" / "skill",
                         root / "installed" / "hook.py",
@@ -683,7 +1161,7 @@ class DoctorTests(unittest.TestCase):
             contract.write_text(json.dumps(value), encoding="utf-8")
 
             with self.assertRaisesRegex(doctor.DoctorError, "reasoningDefault.*stale"):
-                doctor.sync_installation(
+                _sync_installation(
                     source,
                     root / "installed" / "skill",
                     root / "installed" / "hook.py",
@@ -700,7 +1178,7 @@ class DoctorTests(unittest.TestCase):
             contract.write_text(json.dumps(value), encoding="utf-8")
 
             with self.assertRaisesRegex(doctor.DoctorError, "workerGranularity.*stale"):
-                doctor.sync_installation(
+                _sync_installation(
                     source,
                     root / "installed" / "skill",
                     root / "installed" / "hook.py",
@@ -717,7 +1195,7 @@ class DoctorTests(unittest.TestCase):
             contract.write_text(json.dumps(value), encoding="utf-8")
 
             with self.assertRaisesRegex(doctor.DoctorError, "registrationDelivery.*stale"):
-                doctor.sync_installation(
+                _sync_installation(
                     source,
                     root / "installed" / "skill",
                     root / "installed" / "hook.py",
@@ -738,7 +1216,7 @@ class DoctorTests(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(doctor.DoctorError, "guidance is stale"):
-                doctor.sync_installation(
+                _sync_installation(
                     source,
                     root / "installed" / "skill",
                     root / "installed" / "hook.py",
@@ -761,7 +1239,7 @@ class DoctorTests(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(doctor.DoctorError, "guidance is stale"):
-                doctor.sync_installation(
+                _sync_installation(
                     source,
                     root / "installed" / "skill",
                     root / "installed" / "hook.py",
@@ -782,7 +1260,7 @@ class DoctorTests(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(doctor.DoctorError, "guidance is stale"):
-                doctor.sync_installation(
+                _sync_installation(
                     source,
                     root / "installed" / "skill",
                     root / "installed" / "hook.py",
@@ -803,7 +1281,7 @@ class DoctorTests(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(doctor.DoctorError, "guidance is stale"):
-                doctor.sync_installation(
+                _sync_installation(
                     source,
                     root / "installed" / "skill",
                     root / "installed" / "hook.py",

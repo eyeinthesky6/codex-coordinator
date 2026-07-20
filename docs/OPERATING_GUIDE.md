@@ -145,29 +145,41 @@ These checks are not interchangeable:
 
 | Check | What it proves | What it does not prove |
 |---|---|---|
-| Doctor | The installed global Coordinator contract, skill, helper, and hook match a trusted package and pass bounded installation checks | Mission Control behavior, source-repository quality, release readiness, or user success |
+| Doctor | The installed Coordinator contract, skill, helper, and hook match an immutable package receipt; manual packages also match a separately published version and receipt SHA-256 | Mission Control behavior, source-repository quality, release readiness, or user success |
 | Repository tests | The checked-out source passes its automated behavior and package contracts | A clean install on another machine or a successful public release |
 | Mission Control | Current local observation and dashboard behavior | Canonical ownership or task permission |
 | Fresh-machine UAT | A user can install and reach first value in a clean environment | Ongoing compatibility with every future Codex release |
 
 ### Doctor: read-only check
 
-From the trusted source checkout:
+Run Doctor from the exact trusted release/package. For a manual package, copy the version and receipt
+SHA-256 from the separately published release metadata. A dirty developer checkout is rejected:
 
 ```powershell
-python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py --check
+python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py `
+  --installation-kind manual `
+  --expected-package-version <version> `
+  --expected-receipt-sha256 <sha256> `
+  --check
 ```
 
 For a compact automation-friendly result:
 
 ```powershell
-python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py --compact --check
+python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py `
+  --installation-kind manual `
+  --expected-package-version <version> `
+  --expected-receipt-sha256 <sha256> `
+  --compact --check
 ```
 
 For a private visual projection of the same result:
 
 ```powershell
 python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py `
+  --installation-kind manual `
+  --expected-package-version <version> `
+  --expected-receipt-sha256 <sha256> `
   --check `
   --mermaid-out C:\private\coordinator-doctor.mmd
 ```
@@ -177,15 +189,26 @@ the hook smoke test remain the proof.
 
 ### Doctor: approved repair
 
-`--apply` writes to the configured installed skill and hook. Use it only after the source checkout is
-the exact trusted package you intend to install:
+Marketplace-managed installations must use the supported plugin update or reinstall path; Doctor
+never rewrites their cache. For a supported legacy/manual installation, `--apply` replaces only files
+declared by the immutable receipt and restores the captured last-known-good bytes if validation fails:
 
 ```powershell
-python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py --apply
-python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py --check
+python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py `
+  --installation-kind manual `
+  --expected-package-version <version> `
+  --expected-receipt-sha256 <sha256> `
+  --apply
+python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py `
+  --installation-kind manual `
+  --expected-package-version <version> `
+  --expected-receipt-sha256 <sha256> `
+  --check
 ```
 
-Start a new Codex task after an installed-skill update so the new instructions are loaded. Doctor
+Read `integrityState` and `recoveryState` together: they distinguish healthy, local modification,
+trusted repair available, reinstall required, repair failure with last-good restored, and manual action
+required. Start a new Codex task after an installed-skill update so the new instructions are loaded. Doctor
 does not change project ownership, application code, Git state, configuration, environment files,
 or Mission Control.
 
@@ -206,9 +229,14 @@ state; an update must not reset its work or ownership.
 
 The provider-consent, complete delivery-summary, and scheduled-task reconciliation behavior is owned
 by the global plugin package and capability contract, not by project markers or local state. The
-current `v0.3.0` marketplace stays pinned and does not receive unreleased source changes. Distribution
-requires a separately authorised tag and release; existing installations then use the README's normal
-marketplace replacement and plugin reinstall flow. No project-state migration is part of this update.
+current `v0.3.0` marketplace stays pinned and does not receive unreleased source changes. The manifest
+retains `0.3.0` as that public baseline, while package state `development` and receipt version
+`0.0.0-unreleased` identify the source bytes; Doctor will not use them as a manual repair source.
+Release preparation separately chooses a real version, gives the manifest and receipt that same version,
+marks the package `release`, regenerates the receipt, and publishes the exact version and receipt SHA-256
+in release metadata outside the archive. The tag, release, marketplace update, and installation remain separately authorised.
+Existing installations then use the README's normal marketplace replacement and plugin reinstall flow.
+No project-state migration is part of this update.
 
 First success is a real bounded goal that is easier to follow because Coordinator kept ownership and
 status clear. Installation alone, an empty demo, a green Doctor result, or an open dashboard is not

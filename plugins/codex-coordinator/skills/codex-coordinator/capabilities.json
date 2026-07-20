@@ -1,5 +1,5 @@
 {
-  "contractVersion": 19,
+  "contractVersion": 21,
   "capabilities": {
     "workerCreation": "full-assignment-first-turn",
     "coordinatorRole": "control-first",
@@ -17,6 +17,7 @@
     "providerMonitoring": "bounded-read-reconcile-at-start-change-closure",
     "providerMutationConsent": "exact-current-consent-immutable-target-revalidation",
     "scheduledTaskReconciliation": "exact-project-binding-major-change-direct-decision",
+    "installedCoreIntegrity": "external-receipt-pin-marketplace-reinstall-manual-rollback",
     "modelDefault": "inherit-unless-user-overrides",
     "reasoningDefault": "low-or-medium",
     "registrationDelivery": "document-only-no-ack",

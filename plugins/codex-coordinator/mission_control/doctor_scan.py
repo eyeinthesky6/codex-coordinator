@@ -174,6 +174,49 @@ def _parse_time(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def resolve_plugin_root(source: Path) -> Path:
+    """Resolve one bounded, identity-checked Coordinator package shape."""
+    try:
+        resolved = Path(source).resolve(strict=False)
+    except (OSError, RuntimeError, ValueError) as error:
+        raise RuntimeError(f"COORDINATOR_PACKAGE_IDENTITY_ERROR: invalid source path: {error}") from error
+    start = resolved.parent if resolved.suffix else resolved
+    candidates: list[Path] = []
+    for current in (start, *list(start.parents)[:6]):
+        candidates.extend((current, current / "plugins" / "codex-coordinator"))
+
+    matches: dict[str, Path] = {}
+    for candidate in candidates:
+        manifest_path = candidate / ".codex-plugin" / "plugin.json"
+        helper = (
+            candidate
+            / "skills"
+            / "codex-coordinator"
+            / "scripts"
+            / "coordination_state.py"
+        )
+        scanner = candidate / "mission_control" / "doctor_scan.py"
+        try:
+            manifest = json.loads(_read_bounded(manifest_path, MAX_MARKER_BYTES))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if (
+            isinstance(manifest, dict)
+            and manifest.get("name") == "codex-coordinator"
+            and helper.is_file()
+            and scanner.is_file()
+        ):
+            root = candidate.resolve(strict=False)
+            matches[_path_key(root)] = root
+    if len(matches) != 1:
+        shape = "none" if not matches else "multiple"
+        raise RuntimeError(
+            "COORDINATOR_PACKAGE_IDENTITY_ERROR: "
+            f"{shape} trusted Coordinator package shapes found within the bounded source path"
+        )
+    return next(iter(matches.values()))
+
+
 def _database(codex_home: Path) -> Path | None:
     try:
         candidates = list(codex_home.glob("state_*.sqlite"))
@@ -279,8 +322,7 @@ def discover_project_roots(
 class DeterministicDoctorScanner:
     def __init__(self, source_root: Path, codex_home: Path):
         self.source_root = source_root.resolve(strict=False)
-        candidate = self.source_root / "plugins" / "codex-coordinator"
-        self.plugin_root = candidate if candidate.is_dir() else self.source_root
+        self.plugin_root = resolve_plugin_root(source_root)
         self.codex_home = codex_home.resolve(strict=False)
         self.state = self._load_state_helper()
         self.reads = {
@@ -1062,13 +1104,13 @@ def compact_report(report: dict[str, Any]) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the zero-model Coordinator project Doctor.")
-    parser.add_argument("--source-root", type=Path, default=Path(__file__).resolve().parents[2])
+    parser.add_argument("--source-root", type=Path, default=Path(__file__).resolve())
     parser.add_argument("--codex-home", type=Path, default=Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
     parser.add_argument("--project-root", type=Path, action="append", default=[])
     parser.add_argument("--write-findings", action="store_true")
     parser.add_argument("--compact", action="store_true")
     args = parser.parse_args(argv)
-    seeds = [*args.project_root, args.source_root]
+    seeds = list(args.project_root) if args.project_root else [args.source_root]
     roots = discover_project_roots(
         args.codex_home,
         seeds,

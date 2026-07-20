@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import re
 import unittest
@@ -19,6 +20,38 @@ def _operations(skill_root: Path) -> str:
 
 
 class PackageContractTests(unittest.TestCase):
+    def test_integrity_receipt_exactly_covers_doctor_managed_files(self) -> None:
+        manifest = json.loads(
+            (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        receipt_path = PLUGIN / manifest["integrityReceipt"]
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        self.assertEqual(receipt["schemaVersion"], 2)
+        self.assertEqual(receipt["pluginName"], manifest["name"])
+        self.assertEqual(manifest["version"], "0.3.0")
+        self.assertEqual(receipt["packageVersion"], "0.0.0-unreleased")
+        self.assertEqual(manifest["packageState"], "development")
+        self.assertEqual(receipt["packageState"], "development")
+        self.assertNotEqual(receipt["packageId"], "codex-coordinator-package@0.3.0+contract20")
+
+        declared = set()
+        for item in receipt["managedFiles"]:
+            source = PLUGIN / item["sourcePath"]
+            self.assertTrue(source.is_file(), item["sourcePath"])
+            self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), item["sha256"])
+            declared.add(item["sourcePath"])
+
+        skill = PLUGIN / "skills" / "codex-coordinator"
+        actual = {
+            path.relative_to(PLUGIN).as_posix()
+            for path in skill.rglob("*")
+            if path.is_file()
+            and "__pycache__" not in path.relative_to(skill).parts
+            and path.suffix.lower() not in {".pyc", ".pyo"}
+        }
+        actual.add("scripts/codex_coordinator_session_start.py")
+        self.assertEqual(declared, actual)
+
     def test_marketplace_resolves_to_matching_plugin(self) -> None:
         manifest = json.loads(
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
@@ -396,8 +429,10 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("does not bypass Codex plan availability", readme)
         self.assertIn("explicit delegation without Ultra", manifest["description"])
         self.assertEqual(manifest["version"], "0.3.0")
-        self.assertIn(f"@v{manifest['version']}", readme)
-        self.assertIn(f"## {manifest['version']} - ", changelog)
+        self.assertEqual(manifest["packageState"], "development")
+        self.assertIn("@v0.3.0", readme)
+        self.assertIn("## 0.3.0 - ", changelog)
+        self.assertIn("identify these source bytes truthfully", readme)
 
     def test_generated_tasks_inherit_model_but_default_to_low_or_medium_reasoning(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
@@ -488,13 +523,16 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Reconcile scheduled work", operating_guide)
         self.assertIn("Before every user-visible final update", readme)
         self.assertIn("currently unreleased source work", readme)
-        self.assertIn("separately authorised tag and release", operating_guide)
-        self.assertIn("capability contract to version 19", changelog)
-        self.assertIn("CAPABILITY_CONTRACT_VERSION = 19", doctor)
+        self.assertIn("tag, release, marketplace update, and installation remain separately authorised", operating_guide)
+        self.assertIn("capability contract to version 21", changelog)
+        self.assertIn("CAPABILITY_CONTRACT_VERSION = 21", doctor)
+        self.assertIn("--expected-package-version", doctor)
+        self.assertIn("--expected-receipt-sha256", doctor)
+        self.assertIn("separately published release metadata", operating_guide)
         self.assertIn("GitHub monitoring and provider consent", doctor)
         self.assertIn("Project-related scheduled-task reconciliation", doctor)
         self.assertIn("Before every user-visible Coordinator final response", doctor)
-        self.assertEqual(contract["contractVersion"], 19)
+        self.assertEqual(contract["contractVersion"], 21)
         self.assertEqual(
             contract["capabilities"]["deliverySummary"],
             "complete-ledger-sections-every-user-visible-final",
@@ -510,6 +548,10 @@ class PackageContractTests(unittest.TestCase):
         self.assertEqual(
             contract["capabilities"]["scheduledTaskReconciliation"],
             "exact-project-binding-major-change-direct-decision",
+        )
+        self.assertEqual(
+            contract["capabilities"]["installedCoreIntegrity"],
+            "external-receipt-pin-marketplace-reinstall-manual-rollback",
         )
 
     def test_coordinator_cannot_claim_user_authority(self) -> None:
@@ -610,7 +652,7 @@ class PackageContractTests(unittest.TestCase):
             (PLUGIN / "scripts" / "codex_coordinator_doctor.py").is_file()
         )
         contract = json.loads((skill_root / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 19)
+        self.assertEqual(contract["contractVersion"], 21)
         self.assertEqual(
             contract["capabilities"]["missionControlLifecycle"],
             "bundled-autostart-user-disable-chat-control",

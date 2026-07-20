@@ -32,6 +32,11 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 Also parse changed JSON/YAML where practical and verify that relative package paths remain inside `plugins/codex-coordinator/`.
 
+## Product development boundary
+
+- An agent changing Coordinator product source must be explicitly user-authorised as a Maintainer with bounded source ownership.
+- Installed global, local, legacy, cached, or marketplace-managed Coordinator core is never a product-development write target. Use the supported release update, reinstall, or Doctor recovery path instead.
+
 ## Codex Coordinator
 
 - This repository is Codex Coordinator-enabled.
