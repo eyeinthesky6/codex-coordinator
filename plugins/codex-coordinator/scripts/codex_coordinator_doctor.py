@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import ctypes
 import hashlib
 import html
 import json
 import os
 import re
+import secrets
 import stat
 import subprocess
 import sys
@@ -200,6 +203,554 @@ class RepairFailed(DoctorError):
     def __init__(self, message: str, report: dict[str, Any]):
         super().__init__(message)
         self.report = report
+
+
+class _InstalledTargetAccess:
+    """Race-resistant access to the two authorised installed destinations."""
+
+    def __init__(self, skill_root: Path, hook_path: Path):
+        self.skill_root = _absolute_path(skill_root)
+        self.hook_path = _absolute_path(hook_path)
+        self._windows = os.name == "nt"
+        if self._windows:
+            self._configure_windows_api()
+        elif not (
+            os.open in os.supports_dir_fd
+            and os.mkdir in os.supports_dir_fd
+            and os.rename in os.supports_dir_fd
+            and os.unlink in os.supports_dir_fd
+            and hasattr(os, "O_NOFOLLOW")
+        ):
+            raise DoctorError(
+                "This platform has no safe installed-target traversal primitive; manual action is required before installed-target content access"
+            )
+
+    def _authorised_path(self, path: Path) -> Path:
+        absolute = _absolute_path(path)
+        try:
+            absolute.relative_to(self.skill_root)
+            return absolute
+        except ValueError:
+            pass
+        if absolute == self.hook_path:
+            return absolute
+        raise DoctorError(f"Installed target is outside the authorised destinations: {path}")
+
+    def read_bytes(self, path: Path) -> bytes:
+        target = self._authorised_path(path)
+        if self._windows:
+            return self._windows_read(target)
+        return self._unix_read(target)
+
+    def exists(self, path: Path) -> bool:
+        try:
+            self.read_bytes(path)
+        except FileNotFoundError:
+            return False
+        return True
+
+    def atomic_write(self, path: Path, data: bytes) -> None:
+        target = self._authorised_path(path)
+        if self._windows:
+            self._windows_atomic_write(target, data)
+        else:
+            self._unix_atomic_write(target, data)
+
+    def unlink(self, path: Path, *, missing_ok: bool = False) -> None:
+        target = self._authorised_path(path)
+        if self._windows:
+            self._windows_unlink(target, missing_ok=missing_ok)
+        else:
+            self._unix_unlink(target, missing_ok=missing_ok)
+
+    @contextlib.contextmanager
+    def _unix_parent(self, path: Path, *, create: bool) -> Any:
+        absolute = self._authorised_path(path)
+        anchor = absolute.anchor
+        if not anchor:
+            raise DoctorError(f"Installed target is not absolute: {path}")
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        descriptor = os.open(anchor, flags)
+        try:
+            current = Path(anchor)
+            for part in absolute.parent.parts[len(Path(anchor).parts) :]:
+                current /= part
+                try:
+                    child = os.open(part, flags, dir_fd=descriptor)
+                except FileNotFoundError:
+                    if not create:
+                        raise
+                    os.mkdir(part, mode=0o755, dir_fd=descriptor)
+                    child = os.open(part, flags, dir_fd=descriptor)
+                metadata = os.fstat(child)
+                if not stat.S_ISDIR(metadata.st_mode):
+                    os.close(child)
+                    raise DoctorError(
+                        f"Installed target component is not a directory: {current}"
+                    )
+                os.close(descriptor)
+                descriptor = child
+            yield descriptor, absolute.name
+        finally:
+            os.close(descriptor)
+
+    def _unix_read(self, path: Path) -> bytes:
+        with self._unix_parent(path, create=False) as (parent, name):
+            descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent)
+            try:
+                metadata = os.fstat(descriptor)
+                if not stat.S_ISREG(metadata.st_mode):
+                    raise DoctorError(f"Installed target is not a regular file: {path}")
+                chunks: list[bytes] = []
+                while True:
+                    chunk = os.read(descriptor, 1024 * 1024)
+                    if not chunk:
+                        return b"".join(chunks)
+                    chunks.append(chunk)
+            finally:
+                os.close(descriptor)
+
+    def _unix_atomic_write(self, path: Path, data: bytes) -> None:
+        with self._unix_parent(path, create=True) as (parent, name):
+            temporary = f".{name}.{secrets.token_hex(12)}.tmp"
+            descriptor = -1
+            try:
+                descriptor = os.open(
+                    temporary,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                    0o600,
+                    dir_fd=parent,
+                )
+                view = memoryview(data)
+                while view:
+                    written = os.write(descriptor, view)
+                    if written <= 0:
+                        raise OSError("Installed-target temporary write made no progress")
+                    view = view[written:]
+                os.fsync(descriptor)
+                os.close(descriptor)
+                descriptor = -1
+                os.rename(temporary, name, src_dir_fd=parent, dst_dir_fd=parent)
+            finally:
+                if descriptor >= 0:
+                    os.close(descriptor)
+                try:
+                    os.unlink(temporary, dir_fd=parent)
+                except FileNotFoundError:
+                    pass
+
+    def _unix_unlink(self, path: Path, *, missing_ok: bool) -> None:
+        try:
+            with self._unix_parent(path, create=False) as (parent, name):
+                os.unlink(name, dir_fd=parent)
+        except FileNotFoundError:
+            if not missing_ok:
+                raise
+
+    def _configure_windows_api(self) -> None:
+        try:
+            self._kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            self._ntdll = ctypes.WinDLL("ntdll")
+        except (AttributeError, OSError) as error:
+            raise DoctorError(
+                "Windows handle APIs are unavailable; manual action is required before installed-target content access"
+            ) from error
+
+        class UnicodeString(ctypes.Structure):
+            _fields_ = [
+                ("Length", ctypes.c_ushort),
+                ("MaximumLength", ctypes.c_ushort),
+                ("Buffer", ctypes.c_wchar_p),
+            ]
+
+        class ObjectAttributes(ctypes.Structure):
+            _fields_ = [
+                ("Length", ctypes.c_ulong),
+                ("RootDirectory", ctypes.c_void_p),
+                ("ObjectName", ctypes.POINTER(UnicodeString)),
+                ("Attributes", ctypes.c_ulong),
+                ("SecurityDescriptor", ctypes.c_void_p),
+                ("SecurityQualityOfService", ctypes.c_void_p),
+            ]
+
+        class IoStatusBlock(ctypes.Structure):
+            _fields_ = [("Status", ctypes.c_void_p), ("Information", ctypes.c_size_t)]
+
+        class ByHandleFileInformation(ctypes.Structure):
+            _fields_ = [
+                ("dwFileAttributes", ctypes.c_ulong),
+                ("ftCreationTimeLow", ctypes.c_ulong),
+                ("ftCreationTimeHigh", ctypes.c_ulong),
+                ("ftLastAccessTimeLow", ctypes.c_ulong),
+                ("ftLastAccessTimeHigh", ctypes.c_ulong),
+                ("ftLastWriteTimeLow", ctypes.c_ulong),
+                ("ftLastWriteTimeHigh", ctypes.c_ulong),
+                ("dwVolumeSerialNumber", ctypes.c_ulong),
+                ("nFileSizeHigh", ctypes.c_ulong),
+                ("nFileSizeLow", ctypes.c_ulong),
+                ("nNumberOfLinks", ctypes.c_ulong),
+                ("nFileIndexHigh", ctypes.c_ulong),
+                ("nFileIndexLow", ctypes.c_ulong),
+            ]
+
+        class RenameInformation(ctypes.Structure):
+            _fields_ = [
+                ("ReplaceIfExists", ctypes.c_ubyte),
+                ("RootDirectory", ctypes.c_void_p),
+                ("FileNameLength", ctypes.c_ulong),
+                ("FileName", ctypes.c_wchar * 1),
+            ]
+
+        class DispositionInformation(ctypes.Structure):
+            _fields_ = [("DeleteFile", ctypes.c_int)]
+
+        self._UnicodeString = UnicodeString
+        self._ObjectAttributes = ObjectAttributes
+        self._IoStatusBlock = IoStatusBlock
+        self._ByHandleFileInformation = ByHandleFileInformation
+        self._RenameInformation = RenameInformation
+        self._DispositionInformation = DispositionInformation
+
+        self._kernel32.CreateFileW.argtypes = [
+            ctypes.c_wchar_p,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+            ctypes.c_void_p,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+            ctypes.c_void_p,
+        ]
+        self._kernel32.CreateFileW.restype = ctypes.c_void_p
+        self._kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        self._kernel32.CloseHandle.restype = ctypes.c_int
+        self._kernel32.GetFinalPathNameByHandleW.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_wchar_p,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+        ]
+        self._kernel32.GetFinalPathNameByHandleW.restype = ctypes.c_ulong
+        self._kernel32.GetShortPathNameW.argtypes = [
+            ctypes.c_wchar_p,
+            ctypes.c_wchar_p,
+            ctypes.c_ulong,
+        ]
+        self._kernel32.GetShortPathNameW.restype = ctypes.c_ulong
+        self._kernel32.GetLongPathNameW.argtypes = [
+            ctypes.c_wchar_p,
+            ctypes.c_wchar_p,
+            ctypes.c_ulong,
+        ]
+        self._kernel32.GetLongPathNameW.restype = ctypes.c_ulong
+        self._kernel32.GetFileInformationByHandle.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ByHandleFileInformation),
+        ]
+        self._kernel32.GetFileInformationByHandle.restype = ctypes.c_int
+        self._kernel32.ReadFile.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_ulong,
+            ctypes.POINTER(ctypes.c_ulong),
+            ctypes.c_void_p,
+        ]
+        self._kernel32.ReadFile.restype = ctypes.c_int
+        self._kernel32.WriteFile.argtypes = self._kernel32.ReadFile.argtypes
+        self._kernel32.WriteFile.restype = ctypes.c_int
+        self._kernel32.FlushFileBuffers.argtypes = [ctypes.c_void_p]
+        self._kernel32.FlushFileBuffers.restype = ctypes.c_int
+        self._kernel32.SetFileInformationByHandle.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_void_p,
+            ctypes.c_ulong,
+        ]
+        self._kernel32.SetFileInformationByHandle.restype = ctypes.c_int
+        self._ntdll.NtCreateFile.argtypes = [
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.c_ulong,
+            ctypes.POINTER(ObjectAttributes),
+            ctypes.POINTER(IoStatusBlock),
+            ctypes.c_void_p,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+            ctypes.c_void_p,
+            ctypes.c_ulong,
+        ]
+        self._ntdll.NtCreateFile.restype = ctypes.c_long
+        self._ntdll.NtSetInformationFile.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(IoStatusBlock),
+            ctypes.c_void_p,
+            ctypes.c_ulong,
+            ctypes.c_int,
+        ]
+        self._ntdll.NtSetInformationFile.restype = ctypes.c_long
+        self._ntdll.RtlNtStatusToDosError.argtypes = [ctypes.c_long]
+        self._ntdll.RtlNtStatusToDosError.restype = ctypes.c_ulong
+
+    def _windows_error(self, status: int, path: Path) -> OSError:
+        unsigned = status & 0xFFFFFFFF
+        if unsigned in {0xC000000F, 0xC0000034, 0xC000003A}:
+            return FileNotFoundError(os.fspath(path))
+        code = int(self._ntdll.RtlNtStatusToDosError(status))
+        return OSError(code, ctypes.FormatError(code), os.fspath(path))
+
+    def _windows_open_relative(
+        self,
+        parent: int,
+        name: str,
+        *,
+        directory: bool,
+        create: bool = False,
+        write: bool = False,
+        delete: bool = False,
+    ) -> int:
+        buffer = ctypes.create_unicode_buffer(name)
+        encoded_length = len(name.encode("utf-16-le"))
+        string = self._UnicodeString(encoded_length, encoded_length + 2, ctypes.cast(buffer, ctypes.c_wchar_p))
+        attributes = self._ObjectAttributes(
+            ctypes.sizeof(self._ObjectAttributes),
+            parent,
+            ctypes.pointer(string),
+            0x40,
+            None,
+            None,
+        )
+        status_block = self._IoStatusBlock()
+        handle = ctypes.c_void_p()
+        access = 0x00100000 | 0x00000080
+        if directory:
+            access |= 0x00000001 | 0x00000020
+            if write:
+                access |= 0x00000002 | 0x00000004 | 0x00000040
+        else:
+            access |= 0x00000001
+            if write:
+                access |= 0x00000002 | 0x00000004
+            if delete:
+                access |= 0x00010000
+        options = 0x00200000 | 0x00000020 | (0x00000001 if directory else 0x00000040)
+        disposition = 3 if create and directory else (2 if create else 1)
+        status = int(
+            self._ntdll.NtCreateFile(
+                ctypes.byref(handle),
+                access,
+                ctypes.byref(attributes),
+                ctypes.byref(status_block),
+                None,
+                0x10 if directory else 0x80,
+                0x1 | 0x2,
+                disposition,
+                options,
+                None,
+                0,
+            )
+        )
+        if status < 0:
+            raise self._windows_error(status, Path(name))
+        return int(handle.value)
+
+    def _windows_final_path(self, handle: int) -> Path:
+        size = 512
+        while True:
+            buffer = ctypes.create_unicode_buffer(size)
+            result = int(self._kernel32.GetFinalPathNameByHandleW(handle, buffer, size, 0))
+            if result == 0:
+                raise ctypes.WinError(ctypes.get_last_error())
+            if result < size:
+                value = buffer.value
+                if value.startswith("\\\\?\\UNC\\"):
+                    value = "\\\\" + value[8:]
+                elif value.startswith("\\\\?\\"):
+                    value = value[4:]
+                return _absolute_path(Path(value))
+            size = result + 1
+
+    def _windows_validate_handle(self, handle: int, expected: Path, *, directory: bool) -> None:
+        information = self._ByHandleFileInformation()
+        if not self._kernel32.GetFileInformationByHandle(handle, ctypes.byref(information)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        if information.dwFileAttributes & 0x400:
+            raise DoctorError(
+                f"Installation target contains a symlink or reparse-point component: {expected}"
+            )
+        is_directory = bool(information.dwFileAttributes & 0x10)
+        if is_directory != directory:
+            kind = "directory" if directory else "regular file"
+            raise DoctorError(f"Installed target is not a {kind}: {expected}")
+        actual = self._windows_final_path(handle)
+        expected_text = os.path.normcase(os.fspath(_absolute_path(expected)))
+        actual_text = os.path.normcase(os.fspath(actual))
+        expected_long = expected_text
+        long_size = int(self._kernel32.GetLongPathNameW(os.fspath(expected), None, 0))
+        if long_size:
+            long_buffer = ctypes.create_unicode_buffer(long_size)
+            if self._kernel32.GetLongPathNameW(
+                os.fspath(expected), long_buffer, long_size
+            ):
+                expected_long = os.path.normcase(long_buffer.value)
+        size = int(self._kernel32.GetShortPathNameW(os.fspath(actual), None, 0))
+        actual_short = actual_text
+        if size:
+            short_buffer = ctypes.create_unicode_buffer(size)
+            if self._kernel32.GetShortPathNameW(
+                os.fspath(actual), short_buffer, size
+            ):
+                actual_short = os.path.normcase(short_buffer.value)
+        if not {expected_text, expected_long}.intersection({actual_text, actual_short}):
+            raise DoctorError(
+                f"Opened installed target does not match its authorised path: {expected} -> {actual}"
+            )
+
+    @contextlib.contextmanager
+    def _windows_parent(self, path: Path, *, create: bool) -> Any:
+        absolute = self._authorised_path(path)
+        anchor = Path(absolute.anchor)
+        handle = int(
+            self._kernel32.CreateFileW(
+                os.fspath(anchor),
+                0x00100000 | 0x00000001 | 0x00000020 | 0x00000080,
+                0x1 | 0x2,
+                None,
+                3,
+                0x02000000 | 0x00200000,
+                None,
+            )
+        )
+        if handle == ctypes.c_void_p(-1).value:
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            self._windows_validate_handle(handle, anchor, directory=True)
+            current = anchor
+            remaining = absolute.parent.parts[len(anchor.parts) :]
+            for index, part in enumerate(remaining):
+                current /= part
+                final_parent = index == len(remaining) - 1
+                try:
+                    child = self._windows_open_relative(
+                        handle,
+                        part,
+                        directory=True,
+                        write=create and final_parent,
+                    )
+                except FileNotFoundError:
+                    if not create:
+                        raise
+                    child = self._windows_open_relative(
+                        handle,
+                        part,
+                        directory=True,
+                        create=True,
+                        write=True,
+                    )
+                try:
+                    self._windows_validate_handle(child, current, directory=True)
+                except Exception:
+                    self._kernel32.CloseHandle(child)
+                    raise
+                self._kernel32.CloseHandle(handle)
+                handle = child
+            yield handle, absolute.name
+        finally:
+            self._kernel32.CloseHandle(handle)
+
+    def _windows_read_handle(self, handle: int) -> bytes:
+        chunks: list[bytes] = []
+        while True:
+            buffer = ctypes.create_string_buffer(1024 * 1024)
+            read = ctypes.c_ulong()
+            if not self._kernel32.ReadFile(handle, buffer, len(buffer), ctypes.byref(read), None):
+                raise ctypes.WinError(ctypes.get_last_error())
+            if read.value == 0:
+                return b"".join(chunks)
+            chunks.append(buffer.raw[: read.value])
+
+    def _windows_read(self, path: Path) -> bytes:
+        with self._windows_parent(path, create=False) as (parent, name):
+            handle = self._windows_open_relative(parent, name, directory=False)
+            try:
+                self._windows_validate_handle(handle, path, directory=False)
+                return self._windows_read_handle(handle)
+            finally:
+                self._kernel32.CloseHandle(handle)
+
+    def _windows_write_handle(self, handle: int, data: bytes) -> None:
+        offset = 0
+        while offset < len(data):
+            chunk = data[offset : offset + 1024 * 1024]
+            buffer = ctypes.create_string_buffer(chunk)
+            written = ctypes.c_ulong()
+            if not self._kernel32.WriteFile(handle, buffer, len(chunk), ctypes.byref(written), None):
+                raise ctypes.WinError(ctypes.get_last_error())
+            if written.value == 0:
+                raise OSError("Installed-target temporary write made no progress")
+            offset += written.value
+        if not self._kernel32.FlushFileBuffers(handle):
+            raise ctypes.WinError(ctypes.get_last_error())
+
+    def _windows_rename(self, handle: int, parent: int, name: str) -> None:
+        encoded = name.encode("utf-16-le")
+        offset = self._RenameInformation.FileName.offset
+        buffer = ctypes.create_string_buffer(offset + len(encoded))
+        information = self._RenameInformation.from_buffer(buffer)
+        information.ReplaceIfExists = 1
+        information.RootDirectory = parent
+        information.FileNameLength = len(encoded)
+        ctypes.memmove(ctypes.addressof(buffer) + offset, encoded, len(encoded))
+        status_block = self._IoStatusBlock()
+        status = int(
+            self._ntdll.NtSetInformationFile(
+                handle,
+                ctypes.byref(status_block),
+                buffer,
+                len(buffer),
+                10,
+            )
+        )
+        if status < 0:
+            raise self._windows_error(status, Path(name))
+
+    def _windows_atomic_write(self, path: Path, data: bytes) -> None:
+        with self._windows_parent(path, create=True) as (parent, name):
+            temporary = f".{name}.{secrets.token_hex(12)}.tmp"
+            handle = self._windows_open_relative(
+                parent, temporary, directory=False, create=True, write=True, delete=True
+            )
+            renamed = False
+            try:
+                self._windows_validate_handle(handle, path.parent / temporary, directory=False)
+                self._windows_write_handle(handle, data)
+                self._windows_rename(handle, parent, name)
+                renamed = True
+            finally:
+                if not renamed:
+                    disposition = self._DispositionInformation(1)
+                    self._kernel32.SetFileInformationByHandle(
+                        handle, 4, ctypes.byref(disposition), ctypes.sizeof(disposition)
+                    )
+                self._kernel32.CloseHandle(handle)
+
+    def _windows_unlink(self, path: Path, *, missing_ok: bool) -> None:
+        try:
+            with self._windows_parent(path, create=False) as (parent, name):
+                handle = self._windows_open_relative(
+                    parent, name, directory=False, delete=True
+                )
+                try:
+                    self._windows_validate_handle(handle, path, directory=False)
+                    disposition = self._DispositionInformation(1)
+                    if not self._kernel32.SetFileInformationByHandle(
+                        handle, 4, ctypes.byref(disposition), ctypes.sizeof(disposition)
+                    ):
+                        raise ctypes.WinError(ctypes.get_last_error())
+                finally:
+                    self._kernel32.CloseHandle(handle)
+        except FileNotFoundError:
+            if not missing_ok:
+                raise
 
 
 def _sha256(data: bytes) -> str:
@@ -554,12 +1105,14 @@ def _source_files(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _validate_capability_contract(
     skill_root: Path,
-    assert_target: Any | None = None,
+    read_target: Any | None = None,
 ) -> list[dict[str, str]]:
     contract_path = skill_root / CAPABILITY_CONTRACT
-    if assert_target is not None:
-        contract_path = assert_target(contract_path)
-    contract = _read_json(contract_path)
+    contract = (
+        _parse_json(contract_path, read_target(contract_path))
+        if read_target is not None
+        else _read_json(contract_path)
+    )
     if contract.get("contractVersion") != CAPABILITY_CONTRACT_VERSION:
         raise DoctorError(
             "Installed Coordinator capability contract is missing or outdated: "
@@ -582,10 +1135,12 @@ def _validate_capability_contract(
 
     for relative, required_markers in REQUIRED_GUIDANCE.items():
         path = skill_root / relative
-        if assert_target is not None:
-            path = assert_target(path)
         try:
-            text = path.read_text(encoding="utf-8")
+            text = (
+                read_target(path).decode("utf-8")
+                if read_target is not None
+                else path.read_text(encoding="utf-8")
+            )
         except (OSError, UnicodeError) as error:
             raise DoctorError(f"Cannot read installed capability guidance {path}: {error}") from error
         for marker in required_markers:
@@ -600,10 +1155,13 @@ def _validate_capability_contract(
                 )
 
     state_tool = skill_root / str(REQUIRED_CAPABILITIES["stateTool"])
-    if assert_target is not None:
-        state_tool = assert_target(state_tool)
     try:
-        compile(state_tool.read_text(encoding="utf-8"), str(state_tool), "exec")
+        state_text = (
+            read_target(state_tool).decode("utf-8")
+            if read_target is not None
+            else state_tool.read_text(encoding="utf-8")
+        )
+        compile(state_text, str(state_tool), "exec")
     except (OSError, UnicodeError, SyntaxError) as error:
         raise DoctorError(f"Installed Coordinator state helper is invalid: {state_tool}: {error}") from error
     return [
@@ -619,18 +1177,16 @@ def _validate_capability_contract(
 def _validate_skill_package(
     skill_root: Path,
     managed_markdown: list[Path],
-    assert_target: Any | None = None,
+    read_target: Any | None = None,
 ) -> list[dict[str, str]]:
-    canonical_skill_root = (
-        assert_target(skill_root).resolve(strict=False)
-        if assert_target is not None
-        else skill_root.resolve(strict=False)
-    )
+    canonical_skill_root = _absolute_path(skill_root)
     skill_path = skill_root / "SKILL.md"
-    if assert_target is not None:
-        skill_path = assert_target(skill_path)
     try:
-        skill_text = skill_path.read_text(encoding="utf-8")
+        skill_text = (
+            read_target(skill_path).decode("utf-8")
+            if read_target is not None
+            else skill_path.read_text(encoding="utf-8")
+        )
     except (OSError, UnicodeError) as error:
         raise DoctorError(f"Cannot read installed skill {skill_path}: {error}") from error
     frontmatter = re.match(r"\A---\s*\n(.*?)\n---(?:\s*\n|\Z)", skill_text, re.DOTALL)
@@ -639,29 +1195,35 @@ def _validate_skill_package(
     ):
         raise DoctorError(f"Installed skill has invalid Coordinator frontmatter: {skill_path}")
 
-    capability_checks = _validate_capability_contract(skill_root, assert_target)
+    capability_checks = _validate_capability_contract(skill_root, read_target)
     checked_links = 0
     for markdown in sorted(managed_markdown):
-        if assert_target is not None:
-            markdown = assert_target(markdown)
         try:
-            text = markdown.read_text(encoding="utf-8")
+            text = (
+                read_target(markdown).decode("utf-8")
+                if read_target is not None
+                else markdown.read_text(encoding="utf-8")
+            )
         except (OSError, UnicodeError) as error:
             raise DoctorError(f"Cannot read installed skill document {markdown}: {error}") from error
         for raw_target in re.findall(r"\[[^\]]*\]\(([^)]+)\)", text):
             target = raw_target.strip().strip("<>").split("#", 1)[0].strip()
             if not target or target.startswith("#") or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target):
                 continue
-            resolved = markdown.parent / target
-            if assert_target is not None:
-                resolved = assert_target(resolved)
-            resolved = resolved.resolve(strict=False)
+            resolved = _absolute_path(markdown.parent / target)
             try:
                 resolved.relative_to(canonical_skill_root)
             except ValueError as error:
                 raise DoctorError(f"Installed skill link escapes its package: {markdown} -> {target}") from error
-            if not resolved.is_file():
-                raise DoctorError(f"Installed skill link is missing: {markdown} -> {target}")
+            try:
+                if read_target is not None:
+                    read_target(resolved)
+                elif not resolved.is_file():
+                    raise FileNotFoundError(resolved)
+            except FileNotFoundError as error:
+                raise DoctorError(
+                    f"Installed skill link is missing: {markdown} -> {target}"
+                ) from error
             checked_links += 1
     return capability_checks + [
         {"name": "skill-frontmatter", "status": "passed"},
@@ -671,22 +1233,21 @@ def _validate_skill_package(
 
 def _validate_installed_hook(
     hook_path: Path,
-    assert_target: Any | None = None,
+    read_target: Any | None = None,
 ) -> list[dict[str, str]]:
-    if assert_target is not None:
-        hook_path = assert_target(hook_path)
     try:
-        hook_text = hook_path.read_text(encoding="utf-8")
+        hook_bytes = read_target(hook_path) if read_target is not None else hook_path.read_bytes()
+        hook_text = hook_bytes.decode("utf-8")
         compile(hook_text, str(hook_path), "exec")
     except (OSError, UnicodeError, SyntaxError) as error:
         raise DoctorError(f"Installed SessionStart hook is invalid: {hook_path}: {error}") from error
 
     try:
-        if assert_target is not None:
-            hook_path = assert_target(hook_path)
         with tempfile.TemporaryDirectory(prefix="codex-coordinator-doctor-") as directory:
+            verified_hook = Path(directory) / HOOK_NAME
+            verified_hook.write_bytes(hook_bytes)
             completed = subprocess.run(
-                [sys.executable, str(hook_path)],
+                [sys.executable, str(verified_hook)],
                 input=json.dumps({"cwd": directory, "session_id": "doctor-smoke"}),
                 text=True,
                 encoding="utf-8",
@@ -711,12 +1272,12 @@ def _validate_installation(
     skill_root: Path,
     hook_path: Path,
     managed_markdown: list[Path],
-    assert_skill_target: Any | None = None,
-    assert_hook_target: Any | None = None,
+    read_skill_target: Any | None = None,
+    read_hook_target: Any | None = None,
 ) -> list[dict[str, str]]:
     return _validate_skill_package(
-        skill_root, managed_markdown, assert_skill_target
-    ) + _validate_installed_hook(hook_path, assert_hook_target)
+        skill_root, managed_markdown, read_skill_target
+    ) + _validate_installed_hook(hook_path, read_hook_target)
 
 
 def _atomic_write(path: Path, data: bytes, assert_safe: Any | None = None) -> None:
@@ -1031,6 +1592,14 @@ def sync_installation(
             "The installed skill directory must not overlap the SessionStart hook destination"
         )
 
+    installed = _InstalledTargetAccess(_absolute_path(skill_root), _absolute_path(hook_path))
+
+    def read_skill_target(path: Path) -> bytes:
+        return installed.read_bytes(assert_skill_target(path))
+
+    def read_hook_target(path: Path) -> bytes:
+        return installed.read_bytes(assert_hook_target(path))
+
     kind = _installation_kind(source_plugin, skill_root, hook_path, installation_kind)
     files: list[dict[str, Any]] = []
     planned: list[dict[str, Any]] = []
@@ -1047,7 +1616,7 @@ def sync_installation(
         source_bytes = source_entry["sourceBytes"]
         source_hash = source_entry["sourceHash"]
         try:
-            target_bytes = target.read_bytes()
+            target_bytes = installed.read_bytes(target)
         except FileNotFoundError:
             target_bytes = None
         except OSError as error:
@@ -1122,19 +1691,17 @@ def sync_installation(
                 # depend on the helper returning successfully.
                 applied.append(item)
                 item["assertTarget"](item["target"])
-                _atomic_write(
-                    item["target"], item["sourceBytes"], item["assertTarget"]
-                )
+                installed.atomic_write(item["target"], item["sourceBytes"])
             for item in applied:
                 item["assertTarget"](item["target"])
-                if _sha256(item["target"].read_bytes()) != item["sourceHash"]:
+                if _sha256(installed.read_bytes(item["target"])) != item["sourceHash"]:
                     raise DoctorError(f"Installation verification failed for {item['target']}")
             installation_checks = _validate_installation(
                 skill_root,
                 hook_path,
                 managed_markdown,
-                assert_skill_target,
-                assert_hook_target,
+                read_skill_target,
+                read_hook_target,
             )
         except (DoctorError, OSError) as error:
             rollback_errors: list[str] = []
@@ -1142,20 +1709,16 @@ def sync_installation(
                 try:
                     item["assertTarget"](item["target"])
                     if item["targetBytes"] is None:
-                        item["target"].unlink(missing_ok=True)
+                        installed.unlink(item["target"], missing_ok=True)
                         item["assertTarget"](item["target"])
-                        if item["target"].exists():
+                        if installed.exists(item["target"]):
                             raise DoctorError(
                                 f"Last-good target should be absent after rollback: {item['target']}"
                             )
                     else:
-                        _atomic_write(
-                            item["target"],
-                            item["targetBytes"],
-                            item["assertTarget"],
-                        )
+                        installed.atomic_write(item["target"], item["targetBytes"])
                         item["assertTarget"](item["target"])
-                        restored_bytes = item["target"].read_bytes()
+                        restored_bytes = installed.read_bytes(item["target"])
                         item["assertTarget"](item["target"])
                         if restored_bytes != item["targetBytes"]:
                             raise DoctorError(
@@ -1182,8 +1745,8 @@ def sync_installation(
             skill_root,
             hook_path,
             managed_markdown,
-            assert_skill_target,
-            assert_hook_target,
+            read_skill_target,
+            read_hook_target,
         )
 
     return {

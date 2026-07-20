@@ -993,6 +993,203 @@ class DoctorTests(unittest.TestCase):
             self.assertTrue((skill_root / "references" / "operations.md").is_file())
             self.assertTrue((skill_root / "scripts" / "coordination_state.py").is_file())
 
+    def test_missing_safe_platform_primitive_requires_manual_action_before_access(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "installed" / "skill" / "SKILL.md"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(b"must-not-be-read")
+            unavailable = (
+                mock.patch.object(
+                    doctor.ctypes,
+                    "WinDLL",
+                    side_effect=OSError("simulated missing Windows handle API"),
+                )
+                if os.name == "nt"
+                else mock.patch.object(doctor.os, "supports_dir_fd", set())
+            )
+            with unavailable, mock.patch.object(Path, "read_bytes") as read_bytes:
+                with self.assertRaisesRegex(
+                    doctor.DoctorError,
+                    "manual action is required before installed-target content access",
+                ):
+                    doctor._InstalledTargetAccess(
+                        target.parent, root / "installed" / "hook.py"
+                    )
+            read_bytes.assert_not_called()
+
+    @unittest.skipUnless(os.name == "nt", "Windows handle-race regression")
+    def test_windows_held_parent_blocks_read_component_swap(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            skill_root = root / "installed" / "skill"
+            scripts = skill_root / "scripts"
+            scripts.mkdir(parents=True)
+            target = scripts / "coordination_state.py"
+            target.write_bytes(b"installed-local")
+            hook_path = root / "installed" / "hook.py"
+            hook_path.write_bytes(b"hook-local")
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / target.name).write_bytes(b"outside-secret")
+            access = doctor._InstalledTargetAccess(skill_root, hook_path)
+            original_open = access._windows_open_relative
+            blocked_swaps: set[str] = set()
+
+            def attempt_swap(
+                parent: int,
+                name: str,
+                **kwargs: object,
+            ) -> int:
+                handle = original_open(parent, name, **kwargs)
+                if name == target.name and not kwargs.get("directory"):
+                    try:
+                        scripts.rename(skill_root / "saved-scripts")
+                    except PermissionError:
+                        blocked_swaps.add("parent")
+                    try:
+                        target.rename(scripts / "saved-state.py")
+                    except PermissionError:
+                        blocked_swaps.add("file")
+                return handle
+
+            with mock.patch.object(access, "_windows_open_relative", side_effect=attempt_swap):
+                self.assertEqual(access.read_bytes(target), b"installed-local")
+
+            self.assertEqual(blocked_swaps, {"parent", "file"})
+            self.assertEqual((outside / target.name).read_bytes(), b"outside-secret")
+
+    @unittest.skipUnless(os.name == "nt", "Windows handle-race regression")
+    def test_windows_held_parent_blocks_write_replace_and_cleanup_swaps(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            skill_root = root / "installed" / "skill"
+            scripts = skill_root / "scripts"
+            scripts.mkdir(parents=True)
+            target = scripts / "coordination_state.py"
+            target.write_bytes(b"last-good")
+            hook_path = root / "installed" / "hook.py"
+            hook_path.write_bytes(b"hook-local")
+            outside = root / "outside"
+            outside.mkdir()
+            outside_target = outside / target.name
+            outside_target.write_bytes(b"outside-original")
+            access = doctor._InstalledTargetAccess(skill_root, hook_path)
+            original_write = access._windows_write_handle
+            blocked_attempts = 0
+
+            def attempt_swap_then_write(handle: int, data: bytes) -> None:
+                nonlocal blocked_attempts
+                try:
+                    scripts.rename(skill_root / "saved-scripts")
+                except PermissionError:
+                    blocked_attempts += 1
+                original_write(handle, data)
+
+            with mock.patch.object(
+                access, "_windows_write_handle", side_effect=attempt_swap_then_write
+            ):
+                access.atomic_write(target, b"updated-local")
+
+            self.assertGreaterEqual(blocked_attempts, 1)
+            self.assertEqual(target.read_bytes(), b"updated-local")
+            self.assertEqual(outside_target.read_bytes(), b"outside-original")
+            self.assertEqual(list(scripts.glob(".*.tmp")), [])
+
+            def attempt_swap_then_fail(handle: int, data: bytes) -> None:
+                nonlocal blocked_attempts
+                try:
+                    scripts.rename(skill_root / "saved-scripts")
+                except PermissionError:
+                    blocked_attempts += 1
+                raise OSError("simulated temporary-write failure")
+
+            with mock.patch.object(
+                access, "_windows_write_handle", side_effect=attempt_swap_then_fail
+            ):
+                with self.assertRaisesRegex(OSError, "temporary-write failure"):
+                    access.atomic_write(target, b"rollback-bytes")
+
+            self.assertEqual(target.read_bytes(), b"updated-local")
+            self.assertEqual(outside_target.read_bytes(), b"outside-original")
+            self.assertEqual(list(scripts.glob(".*.tmp")), [])
+
+    @unittest.skipUnless(os.name != "nt", "Unix descriptor-race regression")
+    def test_unix_held_parent_keeps_read_write_and_cleanup_off_redirect(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            skill_root = root / "installed" / "skill"
+            scripts = skill_root / "scripts"
+            scripts.mkdir(parents=True)
+            target = scripts / "coordination_state.py"
+            target.write_bytes(b"installed-local")
+            hook_path = root / "installed" / "hook.py"
+            hook_path.write_bytes(b"hook-local")
+            outside = root / "outside"
+            outside.mkdir()
+            outside_target = outside / target.name
+            outside_target.write_bytes(b"outside-secret")
+            access = doctor._InstalledTargetAccess(skill_root, hook_path)
+            original_open = os.open
+            redirected = False
+
+            def swap_before_file_open(path: object, flags: int, *args: object, **kwargs: object) -> int:
+                nonlocal redirected
+                if path == target.name and kwargs.get("dir_fd") is not None and not redirected:
+                    scripts.rename(skill_root / "saved-scripts")
+                    scripts.symlink_to(outside, target_is_directory=True)
+                    redirected = True
+                return original_open(path, flags, *args, **kwargs)
+
+            with mock.patch.object(os, "open", side_effect=swap_before_file_open):
+                self.assertEqual(access.read_bytes(target), b"installed-local")
+
+            self.assertTrue(redirected)
+            self.assertEqual(outside_target.read_bytes(), b"outside-secret")
+
+            scripts.unlink()
+            saved_scripts = skill_root / "saved-scripts"
+            saved_scripts.rename(scripts)
+            redirected = False
+            original_write = os.write
+
+            def swap_during_temp_write(descriptor: int, data: object) -> int:
+                nonlocal redirected
+                if not redirected:
+                    scripts.rename(saved_scripts)
+                    scripts.symlink_to(outside, target_is_directory=True)
+                    redirected = True
+                return original_write(descriptor, data)
+
+            with mock.patch.object(os, "write", side_effect=swap_during_temp_write):
+                access.atomic_write(target, b"updated-local")
+
+            self.assertEqual((saved_scripts / target.name).read_bytes(), b"updated-local")
+            self.assertEqual(outside_target.read_bytes(), b"outside-secret")
+            self.assertEqual(list(saved_scripts.glob(".*.tmp")), [])
+
+            scripts.unlink()
+            saved_scripts.rename(scripts)
+            redirected = False
+
+            def swap_during_failed_temp_write(descriptor: int, data: object) -> int:
+                nonlocal redirected
+                if not redirected:
+                    scripts.rename(saved_scripts)
+                    scripts.symlink_to(outside, target_is_directory=True)
+                    redirected = True
+                raise OSError("simulated Unix temporary-write failure")
+
+            with mock.patch.object(
+                os, "write", side_effect=swap_during_failed_temp_write
+            ):
+                with self.assertRaisesRegex(OSError, "temporary-write failure"):
+                    access.atomic_write(target, b"rollback-bytes")
+
+            self.assertEqual((saved_scripts / target.name).read_bytes(), b"updated-local")
+            self.assertEqual(outside_target.read_bytes(), b"outside-secret")
+            self.assertEqual(list(saved_scripts.glob(".*.tmp")), [])
+
     def test_duplicate_json_keys_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1056,19 +1253,21 @@ class DoctorTests(unittest.TestCase):
                 "# Old operations\n", encoding="utf-8"
             )
             hook_path.write_text("print('old hook')\n", encoding="utf-8")
-            original_write = doctor._atomic_write
+            original_write = doctor._InstalledTargetAccess.atomic_write
             writes = 0
 
             def fail_second_write(
-                path: Path, data: bytes, assert_safe: object = None
+                access: object, path: Path, data: bytes
             ) -> None:
                 nonlocal writes
                 writes += 1
                 if writes == 2:
                     raise OSError("simulated later write failure")
-                original_write(path, data, assert_safe)
+                original_write(access, path, data)
 
-            with mock.patch.object(doctor, "_atomic_write", side_effect=fail_second_write):
+            with mock.patch.object(
+                doctor._InstalledTargetAccess, "atomic_write", new=fail_second_write
+            ):
                 with self.assertRaises(doctor.RepairFailed) as failure:
                     _sync_installation(source, skill_root, hook_path, apply=True)
 
@@ -1100,20 +1299,22 @@ class DoctorTests(unittest.TestCase):
             (skill_root / "SKILL.md").write_text("# Old skill\n", encoding="utf-8")
             hook_path.parent.mkdir(parents=True, exist_ok=True)
             hook_path.write_text("print('old hook')\n", encoding="utf-8")
-            original_write = doctor._atomic_write
+            original_write = doctor._InstalledTargetAccess.atomic_write
             writes = 0
 
             def fail_update_and_restore(
-                path: Path, data: bytes, assert_safe: object = None
+                access: object, path: Path, data: bytes
             ) -> None:
                 nonlocal writes
                 writes += 1
                 if writes in {2, 3}:
                     raise OSError("simulated update or restore failure")
-                original_write(path, data, assert_safe)
+                original_write(access, path, data)
 
             with mock.patch.object(
-                doctor, "_atomic_write", side_effect=fail_update_and_restore
+                doctor._InstalledTargetAccess,
+                "atomic_write",
+                new=fail_update_and_restore,
             ):
                 with self.assertRaises(doctor.RepairFailed) as failure:
                     _sync_installation(source, skill_root, hook_path, apply=True)
@@ -1192,22 +1393,25 @@ class DoctorTests(unittest.TestCase):
             outside_target = outside / "coordination_state.py"
             outside_target.write_bytes(b"outside-original")
             saved_scripts = skill_root / "saved-scripts"
-            original_replace = Path.replace
+            original_write = doctor._InstalledTargetAccess.atomic_write
             redirected = False
 
-            def swap_after_replace(path: Path, target: Path) -> Path:
+            def swap_after_replace(access: object, path: Path, data: bytes) -> None:
                 nonlocal redirected
-                result = original_replace(path, target)
-                if Path(target) == state_tool and not redirected:
+                original_write(access, path, data)
+                if Path(path) == state_tool and not redirected:
                     scripts.rename(saved_scripts)
                     _redirect_directory(scripts, outside)
                     _remove_redirect_directory(scripts)
                     saved_scripts.rename(scripts)
                     redirected = True
                     raise OSError("simulated post-replace directory swap")
-                return result
 
-            with mock.patch.object(Path, "replace", swap_after_replace):
+            with mock.patch.object(
+                doctor._InstalledTargetAccess,
+                "atomic_write",
+                new=swap_after_replace,
+            ):
                 with self.assertRaises(doctor.RepairFailed) as failure:
                     _sync_installation(source, skill_root, hook_path, apply=True)
 
@@ -1238,19 +1442,18 @@ class DoctorTests(unittest.TestCase):
             outside_target = outside / "coordination_state.py"
             outside_target.write_bytes(b"outside-original")
             saved_scripts = skill_root / "saved-scripts"
-            original_replace = Path.replace
+            original_write = doctor._InstalledTargetAccess.atomic_write
             original_read_bytes = Path.read_bytes
             outside_reads: list[Path] = []
             redirected = False
 
-            def redirect_after_replace(path: Path, target: Path) -> Path:
+            def redirect_after_replace(access: object, path: Path, data: bytes) -> None:
                 nonlocal redirected
-                result = original_replace(path, target)
-                if Path(target) == state_tool and not redirected:
+                original_write(access, path, data)
+                if Path(path) == state_tool and not redirected:
                     scripts.rename(saved_scripts)
                     _redirect_directory(scripts, outside)
                     redirected = True
-                return result
 
             def track_read(path: Path) -> bytes:
                 try:
@@ -1262,7 +1465,9 @@ class DoctorTests(unittest.TestCase):
                 return original_read_bytes(path)
 
             with mock.patch.object(
-                Path, "replace", redirect_after_replace
+                doctor._InstalledTargetAccess,
+                "atomic_write",
+                new=redirect_after_replace,
             ), mock.patch.object(Path, "read_bytes", track_read):
                 with self.assertRaises(doctor.RepairFailed) as failure:
                     _sync_installation(source, skill_root, hook_path, apply=True)
