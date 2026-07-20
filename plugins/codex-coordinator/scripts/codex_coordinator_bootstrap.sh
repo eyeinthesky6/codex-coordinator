@@ -14,7 +14,7 @@ try_python() {
     candidate=$1
     [ -n "$candidate" ] || return 1
     [ -x "$candidate" ] || return 1
-    if "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' >/dev/null 2>&1; then
+    if "$candidate" -I -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' >/dev/null 2>&1; then
         python_bin=$candidate
         return 0
     fi
@@ -77,4 +77,4 @@ if [ -z "$python_bin" ]; then
     exit 0
 fi
 
-exec "$python_bin" "$hook_path"
+exec "$python_bin" -I "$hook_path"

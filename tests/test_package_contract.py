@@ -24,13 +24,14 @@ class PackageContractTests(unittest.TestCase):
         manifest = json.loads(
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
-        receipt_path = PLUGIN / manifest["integrityReceipt"]
+        receipt_path = PLUGIN / "release-receipt.json"
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
         self.assertEqual(receipt["schemaVersion"], 2)
         self.assertEqual(receipt["pluginName"], manifest["name"])
         self.assertEqual(manifest["version"], "0.3.0")
         self.assertEqual(receipt["packageVersion"], "0.0.0-unreleased")
-        self.assertEqual(manifest["packageState"], "development")
+        self.assertNotIn("packageState", manifest)
+        self.assertNotIn("integrityReceipt", manifest)
         self.assertEqual(receipt["packageState"], "development")
         self.assertNotEqual(receipt["packageId"], "codex-coordinator-package@0.3.0+contract20")
 
@@ -429,7 +430,8 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("does not bypass Codex plan availability", readme)
         self.assertIn("explicit delegation without Ultra", manifest["description"])
         self.assertEqual(manifest["version"], "0.3.0")
-        self.assertEqual(manifest["packageState"], "development")
+        self.assertNotIn("packageState", manifest)
+        self.assertNotIn("integrityReceipt", manifest)
         self.assertIn("@v0.3.0", readme)
         self.assertIn("## 0.3.0 - ", changelog)
         self.assertIn("identify these source bytes truthfully", readme)

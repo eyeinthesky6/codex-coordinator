@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
 import os
@@ -159,8 +160,6 @@ def _source_plugin(root: Path, *, name: str = "codex-coordinator") -> Path:
             {
                 "name": name,
                 "version": "1.0.0",
-                doctor.PACKAGE_STATE_KEY: doctor.RELEASE_PACKAGE_STATE,
-                doctor.RECEIPT_MANIFEST_KEY: "release-receipt.json",
             }
         ),
         encoding="utf-8",
@@ -321,6 +320,39 @@ def _remove_redirect_directory(path: Path) -> None:
 
 
 class DoctorTests(unittest.TestCase):
+    def test_hook_smoke_uses_the_same_isolated_import_boundary_as_startup(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = root / "shadow-executed.txt"
+            (root / "json.py").write_text(
+                "import os\n"
+                "open(os.environ['CODEX_SHADOW_MARKER'], 'w', encoding='utf-8').write(__file__)\n"
+                "raise RuntimeError('shadow json executed')\n",
+                encoding="utf-8",
+            )
+            hook = (
+                REPOSITORY
+                / "plugins"
+                / "codex-coordinator"
+                / "scripts"
+                / doctor.HOOK_NAME
+            )
+            environment = {
+                "CODEX_COORDINATOR_DISABLE_MISSION_CONTROL_AUTOSTART": "1",
+                "CODEX_SHADOW_MARKER": str(marker),
+                "PYTHONPATH": str(root),
+            }
+
+            with mock.patch.object(
+                doctor.tempfile,
+                "TemporaryDirectory",
+                return_value=contextlib.nullcontext(str(root)),
+            ), mock.patch.dict(os.environ, environment, clear=False):
+                checks = doctor._validate_installed_hook(hook)
+
+            self.assertFalse(marker.exists())
+            self.assertIn({"name": "hook-smoke", "status": "passed"}, checks)
+
     def test_mermaid_projection_shows_verified_states_without_private_paths(self) -> None:
         report = {
             "status": "drift",
@@ -803,14 +835,14 @@ class DoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = _source_plugin(root)
-            manifest_path = source / ".codex-plugin" / "plugin.json"
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            manifest[doctor.PACKAGE_STATE_KEY] = "development"
-            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            receipt_path = source / "release-receipt.json"
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            receipt[doctor.PACKAGE_STATE_KEY] = "development"
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
             skill_root = root / "installed" / "skill"
             hook_path = root / "installed" / "hook.py"
 
-            with self.assertRaisesRegex(doctor.DoctorError, "not a release package"):
+            with self.assertRaisesRegex(doctor.DoctorError, "not a release receipt"):
                 doctor.sync_installation(
                     source,
                     skill_root,
@@ -860,7 +892,7 @@ class DoctorTests(unittest.TestCase):
                 installation_kind="manual",
             )
 
-            self.assertEqual(report["status"], "drift")
+            self.assertEqual(report["status"], "error")
             self.assertEqual(report["recoveryState"], "reinstall_required")
             self.assertEqual(report["installationKind"], "marketplace")
             self.assertFalse(skill_root.exists())
@@ -895,7 +927,7 @@ class DoctorTests(unittest.TestCase):
                         installation_kind="manual",
                     )
 
-                    self.assertEqual(report["status"], "drift")
+                    self.assertEqual(report["status"], "error")
                     self.assertEqual(report["recoveryState"], "reinstall_required")
                     self.assertEqual(report["installationKind"], "marketplace")
                     self.assertFalse(skill_root.exists())
@@ -925,6 +957,132 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(report["installationKind"], "marketplace")
             self.assertFalse(skill_root.exists())
             self.assertFalse(hook_path.exists())
+
+    def test_marketplace_health_requires_and_accepts_external_release_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "codex-home" / "plugins" / "cache")
+            skill_root = source / "skills" / "codex-coordinator"
+            hook_path = source / "scripts" / doctor.HOOK_NAME
+
+            report = doctor.sync_installation(
+                source,
+                skill_root,
+                hook_path,
+                apply=True,
+                installation_kind="marketplace",
+                **_release_identity(source),
+            )
+
+            self.assertEqual(report["status"], "current")
+            self.assertEqual(report["integrityState"], "healthy")
+            self.assertEqual(report["recoveryState"], "not_needed")
+            self.assertEqual(report["installationKind"], "marketplace")
+            self.assertEqual(report["changedFiles"], 0)
+
+    def test_marketplace_missing_malformed_or_mismatched_identity_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "codex-home" / "plugins" / "cache")
+            skill_root = source / "skills" / "codex-coordinator"
+            hook_path = source / "scripts" / doctor.HOOK_NAME
+            cases = (
+                ("missing", {}),
+                (
+                    "malformed",
+                    {
+                        "expected_package_version": "not-a-version",
+                        "expected_receipt_sha256": "not-a-sha",
+                    },
+                ),
+                (
+                    "mismatch",
+                    {
+                        "expected_package_version": "9.9.9",
+                        "expected_receipt_sha256": "0" * 64,
+                    },
+                ),
+            )
+
+            for label, identity in cases:
+                with self.subTest(label=label), mock.patch.object(
+                    doctor, "_InstalledTargetAccess"
+                ) as target_access:
+                    report = doctor.sync_installation(
+                        source,
+                        skill_root,
+                        hook_path,
+                        apply=True,
+                        installation_kind="marketplace",
+                        **identity,
+                    )
+
+                    self.assertEqual(report["status"], "error")
+                    self.assertEqual(report["recoveryState"], "reinstall_required")
+                    self.assertEqual(report["installationKind"], "marketplace")
+                    self.assertEqual(report["changedFiles"], 0)
+                    self.assertEqual(report["files"], [])
+                    target_access.assert_not_called()
+
+    def test_marketplace_package_and_receipt_cotamper_cannot_self_attest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root / "codex-home" / "plugins" / "cache")
+            identity = _release_identity(source)
+            skill_root = source / "skills" / "codex-coordinator"
+            hook_path = source / "scripts" / doctor.HOOK_NAME
+            skill_path = skill_root / "SKILL.md"
+            tampered = b"co-tampered package and receipt\n"
+            skill_path.write_bytes(tampered)
+            _refresh_receipt(source)
+
+            with mock.patch.object(doctor, "_InstalledTargetAccess") as target_access:
+                report = doctor.sync_installation(
+                    source,
+                    skill_root,
+                    hook_path,
+                    apply=True,
+                    installation_kind="marketplace",
+                    **identity,
+                )
+
+            self.assertEqual(report["status"], "error")
+            self.assertNotEqual(report["integrityState"], "healthy")
+            self.assertEqual(report["recoveryState"], "reinstall_required")
+            self.assertEqual(report["installationKind"], "marketplace")
+            self.assertEqual(report["changedFiles"], 0)
+            self.assertEqual(report["files"], [])
+            self.assertEqual(skill_path.read_bytes(), tampered)
+            target_access.assert_not_called()
+
+    def test_manifest_cannot_redirect_the_fixed_release_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            manifest_path = source / ".codex-plugin" / "plugin.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["integrityReceipt"] = "attacker-controlled-receipt.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            (source / "attacker-controlled-receipt.json").write_text(
+                json.dumps({"packageState": "release", "managedFiles": []}),
+                encoding="utf-8",
+            )
+
+            report = doctor.sync_installation(
+                source,
+                source / "skills" / "codex-coordinator",
+                source / "scripts" / doctor.HOOK_NAME,
+                apply=False,
+                installation_kind="marketplace",
+                **_release_identity(source),
+            )
+
+            self.assertEqual(report["status"], "current")
+            self.assertEqual(
+                report["trustedReceipt"]["packageId"],
+                f"{doctor.PLUGIN_NAME}-package@1.0.0"
+                f"+contract{doctor.CAPABILITY_CONTRACT_VERSION}",
+            )
 
     def test_wrong_plugin_source_is_rejected_without_writes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1462,6 +1620,62 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(hook_path.read_bytes(), hook_last_good)
             self.assertEqual(skill_path.read_bytes(), source_skill)
             self.assertFalse(missing_path.exists())
+
+    @unittest.skipUnless(os.name == "nt", "manual rollback requires handle-bound replace")
+    def test_unproven_native_temp_cleanup_requires_manual_action(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_plugin(root)
+            skill_root = root / "installed" / "skill"
+            hook_path = root / "installed" / "hook.py"
+            _sync_installation(source, skill_root, hook_path, apply=True)
+            skill_path = skill_root / "SKILL.md"
+            last_good = b"# Locally modified last-good skill\n"
+            skill_path.write_bytes(last_good)
+            original_atomic_write = doctor._InstalledTargetAccess._windows_atomic_write
+            failed_once = False
+
+            def fail_first_temp_write_and_cleanup(
+                access: object, path: Path, data: bytes
+            ) -> None:
+                nonlocal failed_once
+                if failed_once:
+                    original_atomic_write(access, path, data)
+                    return
+                failed_once = True
+                with mock.patch.object(
+                    access,
+                    "_windows_write_handle",
+                    side_effect=RuntimeError("simulated first temporary write failure"),
+                ), mock.patch.object(
+                    access._kernel32,
+                    "SetFileInformationByHandle",
+                    return_value=0,
+                ):
+                    original_atomic_write(access, path, data)
+
+            with mock.patch.object(
+                doctor._InstalledTargetAccess,
+                "_windows_atomic_write",
+                new=fail_first_temp_write_and_cleanup,
+            ):
+                with self.assertRaises(doctor.RepairFailed) as failure:
+                    _sync_installation(source, skill_root, hook_path, apply=True)
+
+            residuals = list(skill_path.parent.glob(f".{skill_path.name}.*.tmp"))
+            report = failure.exception.report
+            self.assertTrue(failed_once)
+            self.assertEqual(report["recoveryState"], "manual_action_required")
+            self.assertFalse(report["rollback"]["lastGoodRestored"])
+            self.assertEqual(len(report["rollback"]["errors"]), 1)
+            self.assertEqual(len(residuals), 1)
+            self.assertIn(str(residuals[0]), report["rollback"]["errors"][0])
+            self.assertIn(
+                "SetFileInformationByHandle returned 0",
+                report["rollback"]["errors"][0],
+            )
+            self.assertIn("simulated first temporary write failure", report["error"])
+            self.assertEqual(skill_path.read_bytes(), last_good)
 
     @unittest.skipUnless(os.name == "nt", "manual rollback requires handle-bound replace")
     def test_failed_last_good_restore_requires_manual_action(self) -> None:
