@@ -151,7 +151,14 @@ class DeterministicDoctorTests(unittest.TestCase):
         self.assertEqual(resolve_plugin_root(compatibility), PLUGIN)
 
         with tempfile.TemporaryDirectory() as directory:
-            installed = Path(directory) / "plugins" / "cache" / "codex-coordinator"
+            installed = (
+                Path(directory)
+                / "plugins"
+                / "cache"
+                / "openai-curated-remote"
+                / "codex-coordinator"
+                / "0.1.2"
+            )
             shutil.copytree(PLUGIN, installed)
             self.assertEqual(resolve_plugin_root(installed), installed.resolve())
             self.assertEqual(
@@ -172,7 +179,7 @@ class DeterministicDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             fixture = DoctorFixture(Path(directory), active=False)
             compatibility = REPOSITORY / "apps" / "mission_control" / "doctor_scan.py"
-            installed = Path(directory) / "installed" / "codex-coordinator"
+            installed = Path(directory) / "installed" / "codex-coordinator" / "0.1.2"
             shutil.copytree(PLUGIN, installed)
             for source in (
                 REPOSITORY,
