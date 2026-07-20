@@ -322,15 +322,55 @@ function setDoctorHealth(state) {
   icon.className = `doctor-health-icon is-${state}`;
 }
 
+function setDeepReviewBullets(items) {
+  const summary = document.getElementById("deep-review-summary");
+  const safeItems = items.filter(Boolean).slice(0, 12);
+  summary.replaceChildren(...safeItems.map((item) => element("li", "", item)));
+}
+
+function renderDeepReview(review = {}, doctorRunning = false) {
+  const button = document.getElementById("deep-review-button");
+  const label = document.getElementById("deep-review-button-label");
+  const status = document.getElementById("deep-review-status");
+  const lastRun = document.getElementById("deep-review-last-run");
+  const result = review.lastResult || "never";
+  button.disabled = Boolean(doctorRunning || review.running);
+  button.classList.toggle("is-running", Boolean(review.running));
+  label.textContent = review.running ? "AI Review running" : "AI Review";
+  if (review.running) {
+    status.textContent = "Model running · Low";
+    setDeepReviewBullets(["Reviewing only the allowlisted task-contract packet."]);
+  } else if (result === "success") {
+    status.textContent = review.health === "review" ? "Candidates need review" : "No candidates";
+    setDeepReviewBullets(Array.isArray(review.bullets) && review.bullets.length
+      ? review.bullets
+      : [review.summary || "Semantic review completed."]);
+  } else if (result === "failed") {
+    status.textContent = "Review could not finish";
+    setDeepReviewBullets([review.error || "AI Review did not return a valid result."]);
+  } else {
+    status.textContent = "User-triggered only";
+    setDeepReviewBullets(["Click AI Review only when wording or task scope needs a second look."]);
+  }
+  if (!review.lastRunAt) {
+    lastRun.textContent = "Never run · zero tokens";
+  } else if (review.taskCount > 0) {
+    lastRun.textContent = `Last run · ${relativeTime(review.lastRunAt)} · configured model · Low · ${compactNumber(review.tokensUsed)} tokens · ${compactNumber(review.packetBytes)} B packet${review.truncated ? " · capped" : ""} · candidate only`;
+  } else {
+    lastRun.textContent = `Last run · ${relativeTime(review.lastRunAt)} · no model call · zero tokens`;
+  }
+}
+
 function renderDoctor(doctor = {}) {
   const button = document.getElementById("doctor-run-button");
   const label = document.getElementById("doctor-button-label");
   const status = document.getElementById("doctor-status");
   const lastRun = document.getElementById("doctor-last-run");
+  const deepReview = doctor.deepReview || {};
   const result = doctor.lastResult || "never";
-  button.disabled = Boolean(doctor.running);
+  button.disabled = Boolean(doctor.running || deepReview.running);
   button.classList.toggle("is-running", Boolean(doctor.running));
-  button.title = "Project review uses GPT-5.6 Sol · Medium reasoning";
+  button.title = "Deterministic local checks · zero model calls";
   label.textContent = doctor.running ? "Doctor running" : "Run Doctor";
   if (doctor.running) {
     setDoctorHealth("running");
@@ -352,13 +392,14 @@ function renderDoctor(doctor = {}) {
     setDoctorBullets(["Validate the installed Coordinator and enabled projects."]);
     status.textContent = "Ready";
   }
-  const configuredModel = "gpt-5.6-sol";
-  const doctorModels = {"gpt-5.6-sol": "GPT-5.6 Sol", "gpt-5.5": "GPT-5.5"};
+  const configuredModel = "deterministic-local";
+  const doctorModels = {"deterministic-local": "Local deterministic"};
   const modelLabel = doctorModels[doctor.model] || doctor.model || "";
   const historicalModel = Boolean(doctor.lastRunAt && doctor.model && doctor.model !== configuredModel);
   lastRun.textContent = doctor.lastRunAt
-    ? `${historicalModel ? "Previous result" : "Last run"} · ${relativeTime(doctor.lastRunAt)}${modelLabel ? ` · ${modelLabel} · ${doctor.reasoning || "medium"}` : ""}`
-    : "Next project review · GPT-5.6 Sol · medium";
+    ? `${historicalModel ? "Previous result" : "Last run"} · ${relativeTime(doctor.lastRunAt)}${modelLabel ? ` · ${modelLabel}${doctor.reasoning && doctor.reasoning !== "none" ? ` · ${doctor.reasoning}` : ""}` : ""}`
+    : "Next project review · local deterministic · zero model";
+  renderDeepReview(deepReview, Boolean(doctor.running));
 }
 
 function renderFreshness(snapshot) {
@@ -379,7 +420,7 @@ function render(snapshot) {
   renderActions(view);
   renderDoctor(snapshot.doctor);
   renderFreshness(snapshot);
-  if (snapshot.doctor?.running) scheduleDoctorPolling();
+  if (snapshot.doctor?.running || snapshot.doctor?.deepReview?.running) scheduleDoctorPolling();
 }
 
 function setFilter(filter, shouldScroll = false) {
@@ -445,7 +486,7 @@ function scheduleDoctorPolling() {
     try {
       const snapshot = await request("/api/snapshot");
       render(snapshot);
-      if (!snapshot.doctor?.running) {
+      if (!snapshot.doctor?.running && !snapshot.doctor?.deepReview?.running) {
         window.clearInterval(state.doctorTimer);
         state.doctorTimer = null;
       }
@@ -476,6 +517,27 @@ async function runDoctor() {
     setDoctorHealth("failed");
     setDoctorBullets([error.message]);
     document.getElementById("doctor-status").textContent = "Doctor could not start";
+  }
+}
+
+async function runDeepReview() {
+  const button = document.getElementById("deep-review-button");
+  button.disabled = true;
+  document.getElementById("deep-review-button-label").textContent = "Starting…";
+  document.getElementById("deep-review-status").textContent = "Starting AI Review";
+  setDeepReviewBullets(["Preparing the small allowlisted task-contract packet."]);
+  try {
+    const snapshot = await request("/api/doctor/deep-review", {
+      method: "POST",
+      body: JSON.stringify({ confirmation: "user-triggered-model-review" }),
+    });
+    render(snapshot);
+    scheduleDoctorPolling();
+  } catch (error) {
+    button.disabled = false;
+    document.getElementById("deep-review-button-label").textContent = "AI Review";
+    document.getElementById("deep-review-status").textContent = "Review could not start";
+    setDeepReviewBullets([error.message]);
   }
 }
 
@@ -520,6 +582,7 @@ document.querySelectorAll(".metric").forEach((button) => {
 
 document.getElementById("refresh-button").addEventListener("click", refreshNow);
 document.getElementById("doctor-run-button").addEventListener("click", runDoctor);
+document.getElementById("deep-review-button").addEventListener("click", runDeepReview);
 document.getElementById("settings-button").addEventListener("click", openSettings);
 document.getElementById("save-settings").addEventListener("click", saveSettings);
 

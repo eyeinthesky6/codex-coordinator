@@ -329,6 +329,17 @@ def validate_current(path: Path) -> dict[str, Any]:
     }
 
 
+def inspect_current(path: Path) -> dict[str, Any]:
+    """Return validated Coordinator fields and tables for deterministic local checks."""
+    report = validate_current(path)
+    text = path.read_text(encoding="utf-8")
+    inspected: dict[str, list[dict[str, str]]] = {}
+    for heading in TABLES:
+        headers, rows = _table(text, heading)
+        inspected[heading] = [dict(zip(headers, row)) for row in rows]
+    return {**report, "tables": inspected}
+
+
 def normalize_current(path: Path) -> dict[str, Any]:
     report = validate_current(path)
     if not report["normalizations"]:
@@ -681,6 +692,9 @@ def main(argv: list[str] | None = None) -> int:
     validate.add_argument("path", type=Path)
     validate.add_argument("--write-normalized", action="store_true")
 
+    inspect = commands.add_parser("inspect-current")
+    inspect.add_argument("path", type=Path)
+
     reconciliation = commands.add_parser("validate-reconciliation")
     reconciliation.add_argument("path", type=Path)
 
@@ -706,6 +720,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "validate-current":
             report = normalize_current(args.path) if args.write_normalized else validate_current(args.path)
+        elif args.command == "inspect-current":
+            report = inspect_current(args.path)
         elif args.command == "validate-reconciliation":
             report = validate_reconciliation(args.path)
         elif args.command == "create-file":

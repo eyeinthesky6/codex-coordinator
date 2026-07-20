@@ -14,7 +14,7 @@ Any trial must use only a supported host surface, default off, avoid private Cod
 
 ## Mission Control
 
-The optional Mission Control companion is distributed through the tagged source repository. Its standard-library server binds to localhost and reads bounded local Codex task receipts plus Coordinator project records. Its only model-backed action is the explicit **Run Doctor** control; it is not part of the plugin hook and does not become project authority.
+The optional Mission Control companion is distributed through the tagged source repository. Its standard-library server binds to localhost and reads bounded local Codex task receipts plus Coordinator project records. **Run Doctor** repairs the installed package and performs a deterministic zero-model structured-state check; it is not part of the plugin hook and does not become project authority. The separate user-triggered **Deep Review** sends only a capped allowlisted task-contract packet to the configured model at Low reasoning and returns candidate-only semantic review with no project write authority.
 
 ## Git
 
