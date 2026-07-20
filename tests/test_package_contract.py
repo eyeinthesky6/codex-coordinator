@@ -245,9 +245,17 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Terminal-task inventory and independent review", operations)
         self.assertIn("keep it closed", operations)
         self.assertIn("Never reactivate a terminal, non-accepting session", operations)
+        self.assertIn("Carry forward the exact unmet outcome", operations)
+        self.assertIn("`AWAITING_USER_DECISION`", operations)
+        self.assertIn("Do not make the user inspect old task windows", operations)
         self.assertIn("one stable commit, immutable diff, release artifact", operations)
         self.assertIn("no writer or Git-integration ownership", operations)
         self.assertIn("A terminal task with nothing left to do stays closed", readme)
+        operating_guide = (REPOSITORY / "docs" / "OPERATING_GUIDE.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Reconcile historical tasks", operating_guide)
+        self.assertIn("closed, continued, deferred or not", operating_guide)
 
     def test_direct_user_override_and_durable_inbox(self) -> None:
         skill_root = PLUGIN / "skills" / "codex-coordinator"
@@ -628,6 +636,10 @@ class PackageContractTests(unittest.TestCase):
         self.assertEqual(
             contract["capabilities"]["taskTitlePolicy"],
             "rename-generic-once-preserve-user-title",
+        )
+        self.assertEqual(
+            contract["capabilities"]["historicalTaskReconciliation"],
+            "current-goal-authority-and-disposition",
         )
         self.assertTrue((skill_root / "scripts" / "coordination_state.py").is_file())
 

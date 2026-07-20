@@ -36,6 +36,7 @@
     "waitingClassification": "canonical-evidence-only",
     "delegationDecision": "reuse-first-recorded",
     "taskTitlePolicy": "rename-generic-once-preserve-user-title",
+    "historicalTaskReconciliation": "current-goal-authority-and-disposition",
     "taskLifecycle": [
       "pin-coordinator",
       "rename-worker",

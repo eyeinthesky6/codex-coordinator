@@ -46,6 +46,24 @@ Coordinator-generated tasks inherit the user's configured model. They use Low re
 deterministic work or Medium for normal work unless managed policy or the user explicitly overrides
 it. Expensive reasoning is not required for coordination.
 
+### Reconcile historical tasks
+
+Old task windows are evidence, not a backlog. `idle`, `notLoaded`, or elapsed time alone does not say
+that work is complete, waiting, authorised, or still needed. Before restarting anything, Coordinator
+compares the recorded outcome and unmet acceptance criteria with the current objective:
+
+- completed and accepted work stays closed and releases ownership;
+- still-required work for the same objective may continue under its existing authority after scope,
+  dependency, ownership, and native-status checks;
+- optional, superseded, materially expanded, conflicting, costly, destructive, or external work waits
+  for a user decision;
+- unclear relevance or authority is recorded as awaiting a user decision and produces one concise
+  prioritised question.
+
+The consolidated update reports how many historical items were closed, continued, deferred or not
+needed, and left awaiting a decision. Coordinator never makes the user inspect old task windows and
+never repurposes an old task for a different core goal.
+
 ### Observe current work
 
 Mission Control is optional. It reads local Codex and Coordinator records and displays a local

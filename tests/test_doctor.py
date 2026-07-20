@@ -51,6 +51,8 @@ Use the two-phase inbox hash checkpoint.
 Full filesystem access is capability, not user authority.
 Before the first intentional write in a turn outside the current Git common repository, notify the user.
 Deactivation and normal uninstall are dry-run-first and preserve project history.
+Mark unclear relevance or authority `AWAITING_USER_DECISION`.
+In the update, count material historical items closed, continued, deferred or not needed.
 """
 
 OPERATIONS_TEXT = """# Source operations
@@ -72,6 +74,8 @@ Do not use a lane when its coordination cost exceeds its value.
 Record the delegation decision before ordinary implementation starts.
 Rename a generated generic title once.
 The Coordinator may place an independent writer in a bounded linked worktree.
+Carry forward the exact unmet outcome.
+Do not make the user inspect old task windows.
 """
 
 RECONCILIATION_TEXT = """# Source reconciliation

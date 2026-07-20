@@ -52,6 +52,7 @@ REQUIRED_CAPABILITIES: dict[str, Any] = {
     "waitingClassification": "canonical-evidence-only",
     "delegationDecision": "reuse-first-recorded",
     "taskTitlePolicy": "rename-generic-once-preserve-user-title",
+    "historicalTaskReconciliation": "current-goal-authority-and-disposition",
 }
 REQUIRED_TASK_LIFECYCLE = {
     "pin-coordinator",
@@ -84,6 +85,8 @@ REQUIRED_GUIDANCE = {
         "record the reuse-first choice",
         "one rename of a generated generic task title",
         "dry-run-first and preserve project history",
+        "Mark unclear relevance or authority `AWAITING_USER_DECISION`",
+        "count material historical items closed, continued, deferred or not needed",
     ),
     "references/operations.md": (
         "[execution.md](execution.md)",
@@ -102,6 +105,8 @@ REQUIRED_GUIDANCE = {
         "Record the delegation decision before ordinary implementation starts",
         "Rename a generated generic title once",
         "Coordinator may place an independent writer in a bounded linked worktree",
+        "Carry forward the exact unmet outcome",
+        "Do not make the user inspect old task windows",
     ),
     "references/reconciliation.md": (
         "scan-inbox",
