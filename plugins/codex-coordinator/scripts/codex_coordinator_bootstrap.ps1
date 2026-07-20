@@ -115,5 +115,24 @@ if (-not $python) {
 }
 
 $payload = [Console]::In.ReadToEnd()
-$payload | & $python $HookPath
-exit $LASTEXITCODE
+$process = New-Object System.Diagnostics.Process
+$process.StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+$process.StartInfo.FileName = $python
+$process.StartInfo.Arguments = '"' + $HookPath.Replace('"', '\"') + '"'
+$process.StartInfo.UseShellExecute = $false
+$process.StartInfo.RedirectStandardInput = $true
+$process.StartInfo.RedirectStandardOutput = $true
+$process.StartInfo.RedirectStandardError = $true
+$process.StartInfo.CreateNoWindow = $true
+if (-not $process.Start()) {
+    Write-Notice "The selected Python runtime could not start the SessionStart hook."
+    exit 1
+}
+$process.StandardInput.Write($payload)
+$process.StandardInput.Close()
+$stdout = $process.StandardOutput.ReadToEnd()
+$stderr = $process.StandardError.ReadToEnd()
+$process.WaitForExit()
+[Console]::Out.Write($stdout)
+[Console]::Error.Write($stderr)
+exit $process.ExitCode
