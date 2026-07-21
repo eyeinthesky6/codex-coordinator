@@ -2,6 +2,23 @@
 
 Codex Coordinator adds a small coordination layer around Codex's native tasks. It does not run a daemon, own Git operations, or replace Codex agents.
 
+> [!IMPORTANT]
+> **Accepted target:** The user approved a boundary-board architecture that removes the resident Coordinator, persistent heartbeat, all-task management, Doctor self-repair, and Mission Control autostart from the core. The evidence, retained protections, capability history, failure analysis, migration gates, and rollback plan are recorded in [the 2026-07-21 boundary-board simplification review](2026-07-21_boundary-board-simplification_architectural_review.md). Implementation has not started; the sections labelled legacy-current below document source behavior that must be removed or demoted during realignment.
+
+## Accepted target and change guardrail
+
+The core product answers a narrow set of questions: which active task owns a bounded goal, which paths or exclusive actions it claims, whether another task depends on it, and whether the claim is active or released. Each task owns its own compact record. Native Codex remains the task, execution, messaging, and transcript system.
+
+Retain exact identity, bounded ownership, overlap detection, sparse dependency or collision notices, immediate user stop, external-write consent, task-count limits, truthful failure reporting, and evidence-based stale-claim recovery.
+
+The following are outside the core: a permanent lead task, heartbeat, whole-project reconciliation, transcript or tool-output storage, automatic task creation from diagnostics, mandatory pull requests, provider or schedule monitoring, Mission Control autostart, and installed-file self-repair. Mission Control and a compatibility checker may exist only as optional manual tools with no task authority.
+
+Any change that adds one of those mechanisms back to the normal task path is an architecture change, not a small feature. It requires explicit user approval and an update to the decision record before implementation.
+
+## Legacy-current implementation
+
+The remaining architecture describes the source and released behavior at the start of realignment. It is retained so migration does not erase why earlier protections existed. It is not the implementation target.
+
 ## Decision and state route
 
 Most Coordinator behavior is an instruction-driven state machine, not one Python call stack. Solid boxes below are decisions agents must follow from the skill; blue boxes are the executable checks that make state parsing and installation safer.

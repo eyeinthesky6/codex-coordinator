@@ -32,10 +32,21 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 Also parse changed JSON/YAML where practical and verify that relative package paths remain inside `plugins/codex-coordinator/`.
 
-## Codex Coordinator
+## Accepted product direction
 
-- This repository is Codex Coordinator-enabled.
-- Project identity is in `.codex/coordination/project.yaml`; current coordination state is in `.codex/coordination/CURRENT.md`.
-- Load the globally installed `codex-coordinator` skill at the start of every task in this repository; all same-repository tasks are managed by default unless the user explicitly excludes one.
-- Respect the project ID and assigned task boundary; reject missing or mismatched cross-thread project bindings.
-- Treat Coordinator internals as protected; only an explicitly user-authorised `COORDINATOR_MAINTAINER` may modify them.
+The accepted target is a small, repository-scoped task boundary and visibility layer. The full reasoning, retained protections, rejected mechanisms, migration gates, and rollback plan are recorded in [the boundary-board simplification review](docs/codebase/2026-07-21_boundary-board-simplification_architectural_review.md).
+
+Until that realignment is implemented and the user explicitly re-enables this repository, keep `.codex/coordination/project.yaml` set to `coordination_enabled: false`.
+
+Future changes must preserve these boundaries:
+
+- Native Codex tasks remain the execution and transcript authority.
+- One normal task is the default. Extra durable tasks are for explicit decomposition or independently useful parallel work, not routine commands, checks, or reviews.
+- Tasks publish only bounded active ownership metadata. Do not store transcripts, reasoning, prompts, tool output, or full-turn ledgers.
+- Keep exact task identity, overlap detection, narrow scope, sparse notices, immediate user stop, external-write consent, and evidence-based stale-claim recovery.
+- Do not add a resident Coordinator, persistent heartbeat, all-task reconciliation loop, automatic task-window creation, or mandatory pull-request workflow.
+- Mission Control, if retained, is a separately installed, manually started, read-only observer with no task authority.
+- Doctor, if retained, is a manual read-only compatibility check. Recovery is normal plugin update or reinstall, not in-place repair or rollback.
+- SessionStart must remain bounded and must not launch processes, install Python, scan archives, inspect private Codex databases, or start optional tools.
+
+Treat any proposal that reintroduces orchestration, background monitoring, transcript mirroring, provider or schedule reconciliation, or a second state authority as an architecture change requiring explicit user approval and an update to the decision record.
