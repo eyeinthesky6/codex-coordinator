@@ -25,6 +25,9 @@
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-8B5CF6?style=flat-square&amp;labelColor=081326"></a>
 </p>
 
+> [!IMPORTANT]
+> **Accepted development direction (2026-07-21):** Codex Coordinator is being simplified into an opt-in task-boundary and visibility layer. The target core has no resident Coordinator task, persistent heartbeat, all-task reconciliation, automatic Mission Control startup, or Doctor self-repair. Native Codex tasks remain responsible for execution and transcripts. The released package and much of this README still describe the legacy-current behavior while realignment is underway; do not treat those mechanisms as the future architecture. See the [boundary-board simplification decision](docs/codebase/2026-07-21_boundary-board-simplification_architectural_review.md).
+
 ## What is Codex Coordinator?
 
 Codex Coordinator is a free, open-source plugin for coordinating multiple OpenAI Codex tasks in the same Git repository. It helps prevent duplicated work and overlapping ownership, preserves useful handoffs after pauses or restarts, and returns one checked project update.

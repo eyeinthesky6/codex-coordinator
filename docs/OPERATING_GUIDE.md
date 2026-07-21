@@ -3,6 +3,9 @@
 Use this page to choose the smallest tool that matches the job. You do not need to run Coordinator,
 Mission Control, Doctor, and the test suite for every change: they answer different questions.
 
+> [!IMPORTANT]
+> **Realignment status:** The accepted target is an opt-in task-boundary and visibility layer. It does not use a resident Coordinator, persistent heartbeat, all-task reconciliation, Mission Control autostart, or Doctor self-repair. Those behaviors below document the legacy-current source and stable release until implementation and migration are complete; they are not approved patterns for new development. Coordinator remains disabled in maintainer projects during this work. See the [boundary-board simplification decision](codebase/2026-07-21_boundary-board-simplification_architectural_review.md).
+
 ## Choose by outcome
 
 | What you need | Use | How |

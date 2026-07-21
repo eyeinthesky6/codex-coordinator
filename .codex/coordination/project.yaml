@@ -1,5 +1,5 @@
 schema_version: 1
-coordination_enabled: true
+coordination_enabled: false
 project_id: codex-coordinator
 project_name: Codex Coordinator
 task_prefix: CC
