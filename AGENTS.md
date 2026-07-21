@@ -36,11 +36,3 @@ Also parse changed JSON/YAML where practical and verify that relative package pa
 
 - An agent changing Coordinator product source must be explicitly user-authorised as a Maintainer with bounded source ownership.
 - Installed global, local, legacy, cached, or marketplace-managed Coordinator core is never a product-development write target. Use the supported release update, reinstall, or Doctor recovery path instead.
-
-## Codex Coordinator
-
-- This repository is Codex Coordinator-enabled.
-- Project identity is in `.codex/coordination/project.yaml`; current coordination state is in `.codex/coordination/CURRENT.md`.
-- Load the globally installed `codex-coordinator` skill at the start of every task in this repository; all same-repository tasks are managed by default unless the user explicitly excludes one.
-- Respect the project ID and assigned task boundary; reject missing or mismatched cross-thread project bindings.
-- Treat Coordinator internals as protected; only an explicitly user-authorised `COORDINATOR_MAINTAINER` may modify them.
