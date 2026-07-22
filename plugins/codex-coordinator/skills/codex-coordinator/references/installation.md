@@ -49,7 +49,7 @@ Do not ignore all of `.codex`, the root `AGENTS.md`, or project configuration.
 Add only this exact block and preserve every unrelated instruction:
 
 ```markdown
-## Codex Coordinator
+## Codex task-boundary board
 
 - This repository uses the opt-in Codex task-boundary board in `.codex/coordination/project.yaml`.
 - Before substantial writes, load the installed `codex-coordinator` skill, list active claims from the primary worktree, and publish only this task's bounded claim.

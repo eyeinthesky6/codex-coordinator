@@ -645,7 +645,7 @@ Measured on Windows with Python 3.13, including normal local process-start cost 
 
 The process measurements include normal Windows process-start and local security-scanning cost; no Coordinator process remains running after the hook exits. Forty accumulated cold receipts did not change the empty-board read path. A fresh isolated-package workflow covering Doctor, init, SessionStart, two disjoint claims, one rejected overlap, both releases, and disable completed in about 2.5 seconds.
 
-The full standard-library suite ran 84 tests in about 14.0 seconds and passed. Two expected checks skipped: optional property testing because its development-only dependency was absent, and real directory-symlink creation because the Windows account lacked that privilege. Link/junction rejection remains implemented; the skipped test does not weaken ordinary collision, concurrency, privacy, size, hook, Doctor, lifecycle, or end-to-end coverage.
+The full standard-library suite ran 85 tests in about 22.3 seconds and passed. Two expected checks skipped: optional property testing because its development-only dependency was absent, and real directory-symlink creation because the Windows account lacked that privilege. Link/junction rejection remains implemented; the skipped test does not weaken ordinary collision, concurrency, privacy, size, hook, Doctor, lifecycle, or end-to-end coverage.
 
 Hot-path code and guidance changed as follows relative to the pre-realignment source head:
 
@@ -656,7 +656,7 @@ Hot-path code and guidance changed as follows relative to the pre-realignment so
 | Skill Markdown total | 1,169 lines | 387 lines | -782 |
 | Python bootstrap scripts | 228 lines | 0 | -228 |
 | State helper | 762 lines | 764 lines | +2 |
-| Manual project lifecycle | 487 lines | 864 lines | +377 |
+| Manual project lifecycle | 487 lines | 868 lines | +381 |
 
 The state helper did not shrink by line count because the new decentralized path keeps strict schema, containment, concurrency, and rollback protections. Its measured empty read remains under 2.3 ms at p95 and does not touch legacy or archive history. The manual lifecycle helper grew because it safely preserves and migrates legacy schema-1 state and now initialises a fresh project; it is dry-run-first and absent from SessionStart and ordinary claim/list/release work.
 

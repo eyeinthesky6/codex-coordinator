@@ -170,6 +170,42 @@ class ProjectLifecycleTests(unittest.TestCase):
             self.assertFalse((root / "AGENTS.md").exists())
             self.assertFalse((root / ".gitignore").exists())
 
+    def test_init_and_deactivate_preserve_an_unrelated_coordinator_section(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            root.mkdir()
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+            original = "# Project guide\n\n## Codex Coordinator\n\nArchitecture notes.\n"
+            agents = root / "AGENTS.md"
+            agents.write_text(original, encoding="utf-8")
+            args = (
+                "project",
+                "init",
+                "--project-root",
+                str(root),
+                "--project-id",
+                "sample",
+                "--project-name",
+                "Sample Project",
+                "--task-prefix",
+                "SAMPLE",
+                "--apply",
+            )
+
+            code, initialized = self._run(*args)
+            self.assertEqual(code, 0)
+            self.assertEqual(initialized["status"], "applied")
+            enabled = agents.read_text(encoding="utf-8")
+            self.assertIn(original, enabled)
+            self.assertEqual(enabled.count(lifecycle.DISCOVERY_HEADING), 1)
+
+            code, deactivated = self._run(
+                "project", "deactivate", "--project-root", str(root), "--apply"
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(deactivated["status"], "applied")
+            self.assertEqual(agents.read_text(encoding="utf-8"), original)
+
     def test_schema_two_deactivate_is_dry_run_first_and_has_no_native_lifecycle(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = self._repository(directory)
@@ -194,7 +230,7 @@ class ProjectLifecycleTests(unittest.TestCase):
                 "coordination_enabled: false",
                 (root / ".codex" / "coordination" / "project.yaml").read_text(encoding="utf-8"),
             )
-            self.assertNotIn("## Codex Coordinator", (root / "AGENTS.md").read_text(encoding="utf-8"))
+            self.assertNotIn(lifecycle.DISCOVERY_HEADING, (root / "AGENTS.md").read_text(encoding="utf-8"))
             self.assertTrue(receipt.is_file())
 
             code, restored = self._run(
@@ -386,7 +422,7 @@ class ProjectLifecycleTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertFalse(coordination.exists())
             self.assertFalse((root / ".codex" / "coordination.codex-coordinator-purge").exists())
-            self.assertFalse((root / "AGENTS.md").read_text(encoding="utf-8").find("## Codex Coordinator") >= 0)
+            self.assertNotIn(lifecycle.DISCOVERY_HEADING, (root / "AGENTS.md").read_text(encoding="utf-8"))
             self.assertNotIn(lifecycle.IGNORE_BLOCK, (root / ".gitignore").read_text(encoding="utf-8"))
             self.assertFalse(applied["historyPreserved"])
 
