@@ -4,15 +4,14 @@ Notable changes to Codex Coordinator will be recorded here.
 
 ## Unreleased
 
-- Advanced the installed capability contract to version 19 for provider monitoring and mutation consent, complete every-turn delivery summaries, and project-related scheduled-task reconciliation. Doctor now rejects a trusted package that omits any required capability or operating marker and repairs stale managed installations through its existing atomic, rollback-validated update path.
-- Kept this behavior in the global plugin package rather than project state. The currently published `v0.3.0` marketplace remains pinned and does not receive these unreleased bytes until a separate tag/release is authorised; existing installations then use the documented marketplace replacement and plugin reinstall flow.
-- Added dry-run-first project deactivation, reactivation, verified global-uninstall planning, history-preserving defaults, and a separately confirmed project purge with isolated tests.
-- Allowed Coordinator to select bounded worktrees for independent writers when isolation shortens the critical path while one primary canonical-state owner and one Git integration owner remain explicit.
-- Made Mission Control derive Waiting only from recorded dependencies, pauses, commands, decisions, or ownership conflicts; native idle, notLoaded, and unstarted messages remain historical or idle.
-- Made reuse-first delegation decisions and one-time generated-title cleanup explicit while preserving meaningful user-written task titles and the existing worker ceilings.
-- Reconciled historical tasks against the current objective and existing authority instead of treating idle history as a backlog, with explicit closed, continued, deferred, and awaiting-decision dispositions.
-- Replaced Doctor's model-backed signal summary with a deterministic structured-state scanner that reads no application code, parses no transcript bodies, emits compact JSON, writes deduplicated findings, and uses zero model tokens for project diagnosis.
-- Added a separate user-triggered Mission Control Deep Review for the two semantic checks deterministic Doctor defers. It uses the configured model at Low reasoning over a capped allowlisted packet, records actual token use, and can return candidates but cannot write Doctor findings or coordination state.
+- Realigned the unreleased source around schema 2: a repository-scoped active-claim board owned directly by native Codex tasks, with no resident Coordinator, heartbeat, polling, full-turn reconciliation, transcript mirroring, automatic task creation, or mandatory pull-request workflow.
+- Replaced the central `CURRENT.md`/task/inbox helper with bounded per-task JSON claims, revision checks, case-insensitive ancestor overlap detection, exact exclusive-action conflicts, a three-task normal limit, twelve-task hard limit, atomic writes under a short OS lock, and compact cold receipts.
+- Reduced SessionStart to a five-second marker-only hint. Removed Python bootstrap scripts and all process, browser, Mission Control, history, archive, and private-Codex-data work from startup.
+- Replaced Doctor self-repair, project scanning, findings, diagrams, and semantic review with a manual read-only package compatibility check whose only failure action is normal update or reinstall.
+- Kept lifecycle changes dry-run-first. Schema 2 creates no Coordinator task, pin, heartbeat, schedule, or Mission Control action; legacy schema-1 projects can be disabled but cannot be reactivated without deliberate migration.
+- Rewrote the capability contract, guidance, tests, and public docs around one-task-first execution, sparse non-executable peer notices, exact external-write consent, evidence-based stale recovery, direct-commit default, and optional PRs.
+- Preserved the reasons and security lessons behind the superseded orchestration, Doctor, and Mission Control work in the boundary-board architectural review and Git history. The old Mission Control source remains inert pending a separate-package or removal decision.
+- Kept the repository and all previously suspended projects disabled. The currently published `v0.3.0` remains the legacy orchestration release and is not changed by these unreleased source edits.
 
 ## 0.3.0 - 2026-07-17
 

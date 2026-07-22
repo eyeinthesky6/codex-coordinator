@@ -1,757 +1,758 @@
 #!/usr/bin/env python3
-"""Deterministic helpers for local Codex Coordinator state files."""
+"""Read and update the local Codex task-boundary board.
+
+The board stores one small JSON claim per active Codex task. It never reads or
+stores task transcripts, prompts, reasoning, tool output, or full-turn logs.
+"""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
 import sys
 import tempfile
 import unicodedata
-from datetime import datetime
-from pathlib import Path
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 
-REQUIRED_FIELDS = (
-    "Project ID",
-    "Coordination epoch",
-    "Coordination mode",
-    "Shared goal",
-    "Last reconciliation",
-    "Coordinator thread ID",
-    "Coordinator thread name",
-    "Coordinator status",
-    "Accepts project messages",
-)
+MARKER_SCHEMA_VERSION = 2
+CLAIM_SCHEMA_VERSION = 1
+DEFAULT_ACTIVE_LIMIT = 3
+HARD_ACTIVE_LIMIT = 12
+MAX_RECORD_BYTES = 4096
+MAX_PATHS = 32
+MAX_ACTIONS = 16
+MAX_DEPENDENCIES = 16
 
-TABLES: dict[str, tuple[str, ...]] = {
-    "Registered sessions": (
-        "Thread ID",
-        "Thread name",
-        "Scope kind",
-        "Role",
-        "Task ID",
-        "Status",
-        "Accepts project messages",
-    ),
-    "Active tasks": ("Task ID", "Owner", "Role", "Status"),
-    "Pending commands": (
-        "Task ID",
-        "Message ID",
-        "Recipient thread ID",
-        "Message type",
-        "Status",
-    ),
-    "Paused work": ("Task ID", "Owner", "Reason", "Resume condition", "Status"),
-    "Resume queue": ("Task ID", "Message ID", "Resume condition", "Status"),
-    "Blocked decisions": ("Decision ID", "Task ID", "Decision needed", "Status"),
-    "Excluded tasks": ("Thread ID", "Thread name", "Excluded by", "Reason", "Status"),
+PROJECT_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
+THREAD_ID = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+)
+ACTION = re.compile(r"[a-z][a-z0-9-]{0,63}")
+CLAIM_KEYS = {
+    "schemaVersion",
+    "projectId",
+    "threadId",
+    "title",
+    "goal",
+    "status",
+    "revision",
+    "createdAt",
+    "updatedAt",
+    "paths",
+    "actions",
+    "blockedBy",
+    "limitOverride",
 }
 
-TASKLESS = {"", "-", "none", "n/a", "not applicable"}
-NO_ACTIVE_GOAL = TASKLESS | {"no active coordinated goal", "no active coordinated goal."}
-RECONCILIATION_FIELDS = (
-    "type",
-    "project_id",
-    "coordination_epoch",
-    "message_id",
-    "reported_by_thread",
-    "related_task_id",
-    "state",
-)
-LEDGER_HEADER = (
-    "Task or promise",
-    "Relationship to shared goal",
-    "Status",
-    "Evidence or remaining work",
-    "Recommended disposition",
-)
-LEDGER_STATUSES = {
-    "DONE",
-    "REMAINS_IN_CURRENT_TASK",
-    "DEPENDENT_TASK",
-    "NEEDS_USER_APPROVAL",
-    "BLOCKED",
-    "NOT_NEEDED",
-}
-PROJECT = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
-TOKEN = re.compile(r"[A-Z0-9][A-Z0-9_-]{0,63}")
-THREAD = re.compile(
-    r"(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|NONE|UNAVAILABLE)"
-)
-EPOCH = re.compile(r"\d{1,9}")
-BOOL = re.compile(r"(?:true|false)")
-SHA256 = re.compile(r"[0-9a-f]{64}")
-CACHE_SCHEMA_VERSION = 1
-MAX_INBOX_RECORD_BYTES = 4 * 1024 * 1024
+
+class BoardError(RuntimeError):
+    """Raised when board state is invalid or a requested write is unsafe."""
 
 
-class StateError(RuntimeError):
-    pass
+class ClaimConflict(BoardError):
+    """Raised when a proposed claim overlaps another active claim."""
+
+    def __init__(self, conflicts: list[dict[str, Any]]):
+        super().__init__("The requested boundary overlaps an active task claim")
+        self.conflicts = conflicts
 
 
-def _normalize_header(value: str) -> str:
-    return " ".join(re.findall(r"[a-z0-9]+", value.strip().strip("`").lower()))
-
-
-def _split_row(line: str) -> list[str]:
-    return [cell.strip().strip("`") for cell in line.strip().strip("|").split("|")]
-
-
-def _separator(cells: list[str]) -> bool:
-    return bool(cells) and all(cell and set(cell) <= {"-", ":", " "} for cell in cells)
-
-
-def _field_matches(text: str, label: str) -> list[re.Match[str]]:
-    return list(
-        re.finditer(
-            rf"(?m)^\s*\*\*{re.escape(label)}:\*\*\s*`?([^`\r\n]*)`?\s*$",
-            text,
-        )
+def _is_linklike(path: Path) -> bool:
+    return path.is_symlink() or (
+        hasattr(path, "is_junction") and path.exists() and path.is_junction()
     )
 
 
-def _valid_reconciliation(value: str) -> bool:
-    if not 1 <= len(value) <= 64 or "T" not in value:
-        return False
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, child in pairs:
+        if key in value:
+            raise BoardError(f"Duplicate JSON key: {key}")
+        value[key] = child
+    return value
+
+
+def _read_json(path: Path, *, maximum: int = MAX_RECORD_BYTES) -> dict[str, Any]:
+    try:
+        raw = path.read_bytes()
+    except OSError as error:
+        raise BoardError(f"Cannot read board record {path.name}: {error}") from error
+    if len(raw) > maximum:
+        raise BoardError(f"Board record exceeds {maximum} bytes: {path.name}")
+    try:
+        value = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_object)
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise BoardError(f"Cannot parse board record {path.name}: {error}") from error
+    if not isinstance(value, dict):
+        raise BoardError(f"Board record is not a JSON object: {path.name}")
+    return value
+
+
+def _marker_value(text: str, key: str) -> str:
+    matches = re.findall(
+        rf"(?mi)^\s*{re.escape(key)}\s*:\s*([^#\r\n]+?)\s*(?:#.*)?$",
+        text,
+    )
+    if len(matches) != 1:
+        raise BoardError(f"Marker must contain exactly one {key}")
+    return matches[0].strip().strip("`\"'")
+
+
+def _load_marker(project_root: Path, *, require_enabled: bool = True) -> dict[str, Any]:
+    project_root = project_root.resolve(strict=True)
+    marker_path = project_root / ".codex" / "coordination" / "project.yaml"
+    coordination_path = marker_path.parent
+    if _is_linklike(project_root / ".codex") or _is_linklike(coordination_path):
+        raise BoardError("The coordination path must not be a symlink or junction")
+    if _is_linklike(marker_path):
+        raise BoardError("The project marker must not be a symlink or junction")
+    try:
+        raw = marker_path.read_bytes()
+    except OSError as error:
+        raise BoardError(f"Cannot read project marker: {error}") from error
+    if len(raw) > 16_384:
+        raise BoardError("Project marker exceeds 16384 bytes")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeError as error:
+        raise BoardError("Project marker is not valid UTF-8") from error
+
+    schema = _marker_value(text, "schema_version")
+    enabled = _marker_value(text, "coordination_enabled").lower()
+    project_id = _marker_value(text, "project_id")
+    if schema != str(MARKER_SCHEMA_VERSION):
+        raise BoardError(
+            f"Unsupported marker schema {schema!r}; expected {MARKER_SCHEMA_VERSION}. "
+            "Keep Coordinator disabled and run the documented migration."
+        )
+    if enabled not in {"true", "false"}:
+        raise BoardError("coordination_enabled must be true or false")
+    if require_enabled and enabled != "true":
+        raise BoardError("The task-boundary board is disabled for this project")
+    if not PROJECT_ID.fullmatch(project_id):
+        raise BoardError("project_id is invalid")
+    if _marker_value(text, "cross_project_task_access") != "false":
+        raise BoardError("cross_project_task_access must be false")
+    if _marker_value(text, "cross_project_state_changes") != "false":
+        raise BoardError("cross_project_state_changes must be false")
+    if _marker_value(text, "active") != ".codex/coordination/active":
+        raise BoardError("Marker active path is incompatible")
+    if _marker_value(text, "archive") != ".codex/coordination/archive":
+        raise BoardError("Marker archive path is incompatible")
+
+    coordination_root = marker_path.parent.resolve(strict=False)
+    active_root = (project_root / ".codex" / "coordination" / "active").resolve(
+        strict=False
+    )
+    archive_root = (project_root / ".codex" / "coordination" / "archive").resolve(
+        strict=False
+    )
+    for label, path in (("active", active_root), ("archive", archive_root)):
+        try:
+            path.relative_to(coordination_root)
+        except ValueError as error:
+            raise BoardError(f"Marker {label} path escapes the coordination root") from error
+    for label, lexical in (
+        ("active", coordination_path / "active"),
+        ("archive", coordination_path / "archive"),
+    ):
+        if _is_linklike(lexical):
+            raise BoardError(f"The {label} board path must not be a symlink or junction")
+
+    return {
+        "projectRoot": project_root,
+        "coordinationRoot": coordination_root,
+        "activeRoot": active_root,
+        "archiveRoot": archive_root,
+        "projectId": project_id,
+        "enabled": enabled == "true",
+    }
+
+
+def _valid_text(value: Any, *, label: str, maximum: int) -> str:
+    if not isinstance(value, str):
+        raise BoardError(f"{label} must be text")
+    value = value.strip()
+    if not 1 <= len(value) <= maximum:
+        raise BoardError(f"{label} must contain 1 to {maximum} characters")
+    if any(
+        character in {"\r", "\n", "\u2028", "\u2029"}
+        or unicodedata.category(character) in {"Cc", "Cs"}
+        for character in value
+    ):
+        raise BoardError(f"{label} contains unsupported control text")
+    return value
+
+
+def _timestamp(value: Any, *, label: str) -> str:
+    value = _valid_text(value, label=label, maximum=40)
     candidate = value[:-1] + "+00:00" if value.endswith("Z") else value
     try:
-        return datetime.fromisoformat(candidate).utcoffset() is not None
-    except ValueError:
-        return False
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError as error:
+        raise BoardError(f"{label} is not ISO-8601") from error
+    if parsed.utcoffset() is None or "T" not in value:
+        raise BoardError(f"{label} must include a timezone")
+    return value
 
 
-def _valid_text(value: str, *, maximum: int) -> bool:
-    return (
-        1 <= len(value) <= maximum
-        and "|" not in value
-        and not any(
-            character in {"\r", "\n", "\u2028", "\u2029"}
-            or unicodedata.category(character) in {"Cc", "Cs"}
-            for character in value
-        )
-    )
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def _valid_address(value: str) -> bool:
-    if THREAD.fullmatch(value):
-        return value not in {"NONE", "UNAVAILABLE"}
-    return _valid_text(value, maximum=120)
+def _normalize_path(value: str) -> str:
+    value = _valid_text(value, label="claim path", maximum=240).replace("\\", "/")
+    if value == ".":
+        return value
+    if any(character in value for character in "*?[]") or ":" in value:
+        raise BoardError(f"Claim path must be a concrete repository-relative path: {value}")
+    if any(part in {"", ".", ".."} for part in value.split("/")):
+        raise BoardError(f"Claim path escapes or ambiguously names the repository: {value}")
+    path = PurePosixPath(value)
+    if path.is_absolute():
+        raise BoardError(f"Claim path escapes or ambiguously names the repository: {value}")
+    return path.as_posix()
 
 
-def _validate_required_field(label: str, value: str) -> None:
-    patterns = {
-        "Project ID": PROJECT,
-        "Coordination epoch": EPOCH,
-        "Coordination mode": TOKEN,
-        "Coordinator thread ID": THREAD,
-        "Coordinator status": TOKEN,
-        "Accepts project messages": BOOL,
-    }
-    pattern = patterns.get(label)
-    if pattern is not None and not pattern.fullmatch(value):
-        raise StateError(f"Invalid required {label!r} field")
-    if label == "Shared goal" and not _valid_text(value, maximum=512):
-        raise StateError("Invalid required 'Shared goal' field")
-    if label == "Last reconciliation" and not _valid_reconciliation(value):
-        raise StateError("Invalid required 'Last reconciliation' field")
-    if label == "Coordinator thread name" and not _valid_text(value, maximum=120):
-        raise StateError("Invalid required 'Coordinator thread name' field")
-
-
-def _section(text: str, heading: str) -> tuple[str, int, int]:
-    matches = list(re.finditer(rf"(?im)^##\s+{re.escape(heading)}\s*$", text))
-    if len(matches) != 1:
-        raise StateError(f"Expected exactly one {heading!r} section, found {len(matches)}")
-    start = matches[0].end()
-    next_heading = re.search(r"(?im)^##\s+", text[start:])
-    end = start + next_heading.start() if next_heading else len(text)
-    return text[start:end], start, end
-
-
-def _table(text: str, heading: str) -> tuple[list[str], list[list[str]]]:
-    section, _, _ = _section(text, heading)
-    lines = [line for line in section.splitlines() if line.lstrip().startswith("|")]
-    if len(lines) < 2:
-        raise StateError(f"{heading!r} must retain its table header and separator")
-    headers = _split_row(lines[0])
-    normalized = [_normalize_header(value) for value in headers]
-    required = [_normalize_header(value) for value in TABLES[heading]]
-    if len(set(normalized)) != len(normalized) or set(normalized) != set(required):
-        raise StateError(f"{heading!r} has missing, duplicate, or unknown columns")
-    rows: list[list[str]] = []
-    for line in lines[1:]:
-        cells = _split_row(line)
-        if _separator(cells):
-            continue
-        if len(cells) != len(headers):
-            raise StateError(f"{heading!r} contains an incomplete row")
-        rows.append(cells)
-    return headers, rows
-
-
-def _validate_table_rows(heading: str, headers: list[str], rows: list[list[str]]) -> None:
-    indexes = {_normalize_header(value): index for index, value in enumerate(headers)}
-
-    def cell(row: list[str], column: str) -> str:
-        return row[indexes[_normalize_header(column)]]
-
-    def token(value: str) -> bool:
-        return bool(TOKEN.fullmatch(value))
-
-    validators: dict[str, dict[str, Any]] = {
-        "Registered sessions": {
-            "Thread ID": lambda value: bool(THREAD.fullmatch(value)),
-            "Thread name": lambda value: _valid_text(value, maximum=120),
-            "Scope kind": token,
-            "Role": token,
-            "Task ID": lambda value: value.strip().lower() in TASKLESS or token(value),
-            "Status": token,
-            "Accepts project messages": lambda value: bool(BOOL.fullmatch(value)),
-        },
-        "Active tasks": {
-            "Task ID": token,
-            "Owner": _valid_address,
-            "Role": token,
-            "Status": token,
-        },
-        "Pending commands": {
-            "Task ID": token,
-            "Message ID": token,
-            "Recipient thread ID": _valid_address,
-            "Message type": token,
-            "Status": token,
-        },
-        "Paused work": {
-            "Task ID": token,
-            "Owner": _valid_address,
-            "Reason": lambda value: _valid_text(value, maximum=512),
-            "Resume condition": lambda value: _valid_text(value, maximum=512),
-            "Status": token,
-        },
-        "Resume queue": {
-            "Task ID": token,
-            "Message ID": token,
-            "Resume condition": lambda value: _valid_text(value, maximum=512),
-            "Status": token,
-        },
-        "Blocked decisions": {
-            "Decision ID": token,
-            "Task ID": token,
-            "Decision needed": lambda value: _valid_text(value, maximum=512),
-            "Status": token,
-        },
-        "Excluded tasks": {
-            "Thread ID": lambda value: bool(THREAD.fullmatch(value)) and value not in {"NONE", "UNAVAILABLE"},
-            "Thread name": lambda value: _valid_text(value, maximum=120),
-            "Excluded by": lambda value: value == "DIRECT_USER",
-            "Reason": lambda value: _valid_text(value, maximum=512),
-            "Status": lambda value: value in {"ACTIVE", "REMOVED"},
-        },
-    }
-    unique_columns = {
-        "Active tasks": "Task ID",
-        "Pending commands": "Message ID",
-        "Paused work": "Task ID",
-        "Resume queue": "Message ID",
-        "Blocked decisions": "Decision ID",
-        "Excluded tasks": "Thread ID",
-    }
-    seen_rows: set[tuple[str, ...]] = set()
-    seen_keys: set[str] = set()
-    for row in rows:
-        row_key = tuple(row)
-        if row_key in seen_rows:
-            raise StateError(f"{heading!r} contains a duplicate row")
-        seen_rows.add(row_key)
-        for column, validator in validators[heading].items():
-            value = cell(row, column)
-            if not validator(value):
-                raise StateError(f"{heading!r} contains an invalid {column!r} value")
-
-        if heading == "Registered sessions":
-            thread_id = cell(row, "Thread ID")
-            unique_key = thread_id if thread_id not in {"NONE", "UNAVAILABLE"} else cell(
-                row, "Thread name"
-            )
-        elif heading in unique_columns:
-            unique_key = cell(row, unique_columns[heading])
-        else:
-            continue
-        if unique_key in seen_keys:
-            raise StateError(f"{heading!r} contains a duplicate identity: {unique_key}")
-        seen_keys.add(unique_key)
-
-
-def validate_current(path: Path) -> dict[str, Any]:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as error:
-        raise StateError(f"Cannot read {path}: {error}") from error
-
-    fields: dict[str, str] = {}
-    normalizations: list[dict[str, str]] = []
-    for label in REQUIRED_FIELDS:
-        matches = _field_matches(text, label)
-        if len(matches) != 1:
-            raise StateError(f"Expected exactly one {label!r} field, found {len(matches)}")
-        fields[label] = matches[0].group(1).strip()
-        _validate_required_field(label, fields[label])
-
-    if fields["Shared goal"].strip().lower() in NO_ACTIVE_GOAL:
-        if fields["Shared goal"] != "none":
-            normalizations.append(
-                {"field": "Shared goal", "from": fields["Shared goal"], "to": "none"}
-            )
-        fields["Shared goal"] = "none"
-
-    tables: dict[str, int] = {}
-    for heading in TABLES:
-        headers, rows = _table(text, heading)
-        _validate_table_rows(heading, headers, rows)
-        tables[heading] = len(rows)
-        if heading != "Registered sessions":
-            continue
-        task_index = [_normalize_header(value) for value in headers].index("task id")
-        for index, row in enumerate(rows, start=1):
-            if row[task_index].strip().lower() in TASKLESS and row[task_index] != "NONE":
-                normalizations.append(
-                    {
-                        "section": heading,
-                        "row": str(index),
-                        "column": "Task ID",
-                        "from": row[task_index],
-                        "to": "NONE",
-                    }
-                )
-
-    return {
-        "status": "valid",
-        "path": str(path.resolve(strict=False)),
-        "fields": fields,
-        "tableRows": tables,
-        "normalizations": normalizations,
-    }
-
-
-def inspect_current(path: Path) -> dict[str, Any]:
-    """Return validated Coordinator fields and tables for deterministic local checks."""
-    report = validate_current(path)
-    text = path.read_text(encoding="utf-8")
-    inspected: dict[str, list[dict[str, str]]] = {}
-    for heading in TABLES:
-        headers, rows = _table(text, heading)
-        inspected[heading] = [dict(zip(headers, row)) for row in rows]
-    return {**report, "tables": inspected}
-
-
-def normalize_current(path: Path) -> dict[str, Any]:
-    report = validate_current(path)
-    if not report["normalizations"]:
-        report["status"] = "current"
-        return report
-
-    with path.open("r", encoding="utf-8", newline="") as stream:
-        text = stream.read()
-    shared_matches = _field_matches(text, "Shared goal")
-    shared_value = shared_matches[0].group(1).strip()
-    if shared_value.lower() in NO_ACTIVE_GOAL and shared_value != "none":
-        text = (
-            text[: shared_matches[0].start(1)]
-            + "none"
-            + text[shared_matches[0].end(1) :]
-        )
-
-    section, start, end = _section(text, "Registered sessions")
-    lines = section.splitlines(keepends=True)
-    table_indexes = [index for index, line in enumerate(lines) if line.lstrip().startswith("|")]
-    if table_indexes:
-        headers = _split_row(lines[table_indexes[0]])
-        task_index = [_normalize_header(value) for value in headers].index("task id")
-        for line_index in table_indexes[1:]:
-            cells = _split_row(lines[line_index])
-            if _separator(cells) or len(cells) != len(headers):
-                continue
-            if cells[task_index].strip().lower() in TASKLESS:
-                cells[task_index] = "NONE"
-                ending = (
-                    "\r\n"
-                    if lines[line_index].endswith("\r\n")
-                    else ("\n" if lines[line_index].endswith("\n") else "")
-                )
-                lines[line_index] = "| " + " | ".join(cells) + " |" + ending
-    text = text[:start] + "".join(lines) + text[end:]
-    _atomic_replace(path, text.encode("utf-8"))
-    updated = validate_current(path)
-    updated["status"] = "normalized"
-    return updated
-
-
-def validate_reconciliation(path: Path) -> dict[str, Any]:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as error:
-        raise StateError(f"Cannot read {path}: {error}") from error
-
-    values: dict[str, str] = {}
-    for key in RECONCILIATION_FIELDS:
-        matches = re.findall(rf"(?m)^{re.escape(key)}:\s*(.*?)\s*$", text)
-        if len(matches) != 1 or not matches[0]:
-            raise StateError(f"Expected exactly one non-empty {key!r} field")
-        values[key] = matches[0]
-    if values["type"] != "TURN_RECONCILIATION":
-        raise StateError("Record is not a TURN_RECONCILIATION")
-    if not PROJECT.fullmatch(values["project_id"]):
-        raise StateError("Invalid reconciliation project_id")
-    if not EPOCH.fullmatch(values["coordination_epoch"]):
-        raise StateError("Invalid reconciliation coordination_epoch")
-    if values["state"] != "REPORTING":
-        raise StateError("Invalid reconciliation state; expected REPORTING")
-    if not TOKEN.fullmatch(values["message_id"]):
-        raise StateError("Invalid reconciliation message_id")
-    if not _valid_address(values["reported_by_thread"]):
-        raise StateError("Invalid reconciliation reported_by_thread")
-    if not TOKEN.fullmatch(values["related_task_id"]):
-        raise StateError("Invalid reconciliation related_task_id")
-
-    table_lines = [line for line in text.splitlines() if line.lstrip().startswith("|")]
-    if len(table_lines) < 3:
-        raise StateError("Reconciliation ledger is missing")
-    headers = _split_row(table_lines[0])
-    if tuple(headers) != LEDGER_HEADER:
-        raise StateError("Reconciliation ledger header is invalid")
-    rows = []
-    seen_rows: set[tuple[str, ...]] = set()
-    for line in table_lines[1:]:
-        cells = _split_row(line)
-        if _separator(cells):
-            continue
-        if len(cells) != len(headers):
-            raise StateError("Reconciliation ledger contains an incomplete row")
-        if any(not _valid_text(cell, maximum=4096) for cell in cells):
-            raise StateError("Reconciliation ledger contains an empty or invalid cell")
-        if cells[2] not in LEDGER_STATUSES:
-            raise StateError(f"Unknown reconciliation status: {cells[2]}")
-        row_key = tuple(cells)
-        if row_key in seen_rows:
-            raise StateError("Reconciliation ledger contains a duplicate row")
-        seen_rows.add(row_key)
-        rows.append(dict(zip(headers, cells, strict=True)))
-    if not rows:
-        raise StateError("Reconciliation ledger has no rows")
-    return {
-        "status": "valid",
-        "path": str(path.resolve(strict=False)),
-        "record": values,
-        "ledgerRows": rows,
-    }
-
-
-def _atomic_replace(path: Path, data: bytes) -> None:
-    temporary_name = ""
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="wb", delete=False, dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
-        ) as temporary:
-            temporary.write(data)
-            temporary.flush()
-            os.fsync(temporary.fileno())
-            temporary_name = temporary.name
-        Path(temporary_name).replace(path)
-    finally:
-        if temporary_name:
-            Path(temporary_name).unlink(missing_ok=True)
-
-
-def _inbox_scope(project_id: str, coordination_epoch: int, coordinator_id: str) -> dict[str, Any]:
-    if not PROJECT.fullmatch(project_id):
-        raise StateError("Invalid inbox-cache project ID")
-    if coordination_epoch < 0 or coordination_epoch > 999_999_999:
-        raise StateError("Invalid inbox-cache coordination epoch")
-    if not THREAD.fullmatch(coordinator_id) or coordinator_id in {"NONE", "UNAVAILABLE"}:
-        raise StateError("Invalid inbox-cache Coordinator thread ID")
-    return {
-        "projectId": project_id,
-        "coordinationEpoch": coordination_epoch,
-        "coordinatorThreadId": coordinator_id,
-    }
-
-
-def _hash_inbox_file(path: Path) -> dict[str, Any]:
-    size = path.stat().st_size
-    if size > MAX_INBOX_RECORD_BYTES:
-        raise StateError(
-            f"Inbox record exceeds the {MAX_INBOX_RECORD_BYTES}-byte checkpoint limit: {path.name}"
-        )
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(64 * 1024), b""):
-            digest.update(chunk)
-    return {"sha256": digest.hexdigest(), "bytes": size}
-
-
-def _inbox_files(root: Path) -> tuple[dict[str, dict[str, Any]], list[str]]:
-    inbox = root / "inbox"
-    if not inbox.exists():
-        return {}, []
-    if not inbox.is_dir() or inbox.is_symlink():
-        raise StateError("Coordination inbox must be a real directory")
-
-    files: dict[str, dict[str, Any]] = {}
-    warnings: list[str] = []
-    for path in sorted(inbox.iterdir(), key=lambda value: value.name.lower()):
-        if path.suffix.lower() != ".md":
-            continue
-        if path.is_symlink():
-            warnings.append(f"unsafe_symlink:{path.name}")
-            continue
-        if not path.is_file():
-            warnings.append(f"unsafe_non_file:{path.name}")
-            continue
-        try:
-            files[path.name] = _hash_inbox_file(path)
-        except (OSError, StateError) as error:
-            warnings.append(f"unreadable:{path.name}:{error}")
-    return files, warnings
-
-
-def _load_inbox_index(
-    path: Path, scope: dict[str, Any]
-) -> tuple[dict[str, dict[str, Any]], str]:
-    if not path.exists():
-        return {}, "missing"
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(value, dict) or value.get("schemaVersion") != CACHE_SCHEMA_VERSION:
-            return {}, "outdated"
-        if value.get("scope") != scope:
-            return {}, "scope_changed"
-        acknowledged = value.get("acknowledged")
-        if not isinstance(acknowledged, dict):
-            return {}, "corrupt"
-        validated: dict[str, dict[str, Any]] = {}
-        for name, record in acknowledged.items():
-            if (
-                not isinstance(name, str)
-                or Path(name).name != name
-                or not name.lower().endswith(".md")
-                or not isinstance(record, dict)
-                or not SHA256.fullmatch(str(record.get("sha256", "")))
-                or not isinstance(record.get("bytes"), int)
-                or record["bytes"] < 0
-                or record["bytes"] > MAX_INBOX_RECORD_BYTES
-            ):
-                return {}, "corrupt"
-            validated[name] = {
-                "sha256": record["sha256"],
-                "bytes": record["bytes"],
-            }
-        return validated, "current"
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return {}, "corrupt"
-
-
-def scan_inbox(
-    root: Path,
-    *,
-    project_id: str,
-    coordination_epoch: int,
-    coordinator_id: str,
-) -> dict[str, Any]:
-    """Return unacknowledged inbox records without advancing the checkpoint."""
-    root = root.resolve(strict=False)
-    scope = _inbox_scope(project_id, coordination_epoch, coordinator_id)
-    cache_path = root / "cache" / "inbox-index.json"
-    acknowledged, cache_status = _load_inbox_index(cache_path, scope)
-    current, warnings = _inbox_files(root)
-
-    pending: list[dict[str, Any]] = []
-    acknowledged_count = 0
-    for name, record in current.items():
-        previous = acknowledged.get(name)
-        if previous == record:
-            acknowledged_count += 1
-            continue
-        reason = "changed" if previous is not None else "new"
-        pending.append({"path": f"inbox/{name}", **record, "reason": reason})
-        if reason == "changed":
-            warnings.append(f"acknowledged_record_changed:{name}")
-
-    stale = sorted(name for name in acknowledged if name not in current)
-    warnings.extend(f"acknowledged_record_missing:{name}" for name in stale)
-    return {
-        "status": "pending" if pending or warnings else "current",
-        "cacheStatus": cache_status,
-        "cachePath": str(cache_path),
-        "pendingRecords": pending,
-        "acknowledgedCount": acknowledged_count,
-        "staleAcknowledgements": [f"inbox/{name}" for name in stale],
-        "warnings": warnings,
-    }
-
-
-def _parse_acknowledgements(values: list[str]) -> dict[str, str]:
-    records: dict[str, str] = {}
+def _deduplicate(values: list[str], *, label: str) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
     for value in values:
-        relative, separator, digest = value.rpartition("=")
-        path = Path(relative)
-        if (
-            not separator
-            or path.is_absolute()
-            or path.parts[:1] != ("inbox",)
-            or len(path.parts) != 2
-            or path.suffix.lower() != ".md"
-            or ".." in path.parts
-            or not SHA256.fullmatch(digest)
-        ):
-            raise StateError("Acknowledgement must be inbox/<record>.md=<sha256>")
-        if path.name in records:
-            raise StateError(f"Duplicate inbox acknowledgement: {path.name}")
-        records[path.name] = digest
+        key = value.casefold()
+        if key in seen:
+            raise BoardError(f"Duplicate {label}: {value}")
+        seen.add(key)
+        result.append(value)
+    return result
+
+
+def _string_items(value: Any, *, label: str, maximum: int) -> list[str]:
+    if not isinstance(value, list) or len(value) > maximum:
+        raise BoardError(f"Claim has too many {label}s")
+    if any(not isinstance(item, str) for item in value):
+        raise BoardError(f"Every claim {label} must be text")
+    return value
+
+
+def _validate_claim(value: dict[str, Any], *, project_id: str, filename: str) -> dict[str, Any]:
+    unknown = set(value) - CLAIM_KEYS
+    missing = CLAIM_KEYS - set(value)
+    if unknown:
+        raise BoardError(
+            f"Claim {filename} contains unsupported fields: {', '.join(sorted(unknown))}"
+        )
+    if missing:
+        raise BoardError(f"Claim {filename} is missing fields: {', '.join(sorted(missing))}")
+    if value["schemaVersion"] != CLAIM_SCHEMA_VERSION:
+        raise BoardError(f"Claim {filename} has an unsupported schema")
+    if value["projectId"] != project_id:
+        raise BoardError(f"Claim {filename} belongs to another project")
+    thread_id = value["threadId"]
+    if not isinstance(thread_id, str) or not THREAD_ID.fullmatch(thread_id):
+        raise BoardError(f"Claim {filename} has an invalid threadId")
+    if filename != f"{thread_id}.json":
+        raise BoardError(f"Claim filename does not match its threadId: {filename}")
+    title = _valid_text(value["title"], label="title", maximum=120)
+    goal = _valid_text(value["goal"], label="goal", maximum=320)
+    status = value["status"]
+    if status not in {"active", "blocked"}:
+        raise BoardError(f"Claim {filename} has an invalid status")
+    revision = value["revision"]
+    if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
+        raise BoardError(f"Claim {filename} has an invalid revision")
+    created_at = _timestamp(value["createdAt"], label="createdAt")
+    updated_at = _timestamp(value["updatedAt"], label="updatedAt")
+
+    paths = _string_items(value["paths"], label="path", maximum=MAX_PATHS)
+    actions = _string_items(value["actions"], label="action", maximum=MAX_ACTIONS)
+    blocked_by = _string_items(
+        value["blockedBy"], label="dependency", maximum=MAX_DEPENDENCIES
+    )
+    paths = _deduplicate([_normalize_path(item) for item in paths], label="path")
+    actions = _deduplicate(actions, label="action")
+    for action in actions:
+        if not ACTION.fullmatch(action):
+            raise BoardError(f"Claim {filename} has an invalid action: {action}")
+    dependencies = _deduplicate(blocked_by, label="dependency")
+    for dependency in dependencies:
+        if not THREAD_ID.fullmatch(dependency) or dependency == thread_id:
+            raise BoardError(f"Claim {filename} has an invalid dependency")
+    if not paths and not actions:
+        raise BoardError(f"Claim {filename} must own at least one path or action")
+    if not isinstance(value["limitOverride"], bool):
+        raise BoardError(f"Claim {filename} has an invalid limitOverride")
+    return {
+        **value,
+        "title": title,
+        "goal": goal,
+        "createdAt": created_at,
+        "updatedAt": updated_at,
+        "paths": paths,
+        "actions": actions,
+        "blockedBy": dependencies,
+    }
+
+
+def _active_records(marker: dict[str, Any]) -> list[dict[str, Any]]:
+    active_root: Path = marker["activeRoot"]
+    if not active_root.exists():
+        return []
+    if not active_root.is_dir() or active_root.is_symlink():
+        raise BoardError("The active board path is not a normal directory")
+    paths = sorted(active_root.glob("*.json"), key=lambda item: item.name.casefold())
+    if len(paths) > HARD_ACTIVE_LIMIT:
+        raise BoardError(
+            f"The active board has {len(paths)} records; hard limit is {HARD_ACTIVE_LIMIT}"
+        )
+    records: list[dict[str, Any]] = []
+    for path in paths:
+        if path.is_symlink() or not path.is_file():
+            raise BoardError(f"Active claim is not a normal file: {path.name}")
+        records.append(
+            _validate_claim(
+                _read_json(path), project_id=marker["projectId"], filename=path.name
+            )
+        )
     return records
 
 
-def acknowledge_inbox(
-    root: Path,
-    *,
-    project_id: str,
-    coordination_epoch: int,
-    coordinator_id: str,
-    records: dict[str, str],
-) -> dict[str, Any]:
-    """Advance checkpoints only for exact record hashes already reconciled by the caller."""
-    if not records:
-        raise StateError("At least one inbox record acknowledgement is required")
-    root = root.resolve(strict=False)
-    scope = _inbox_scope(project_id, coordination_epoch, coordinator_id)
-    cache_path = root / "cache" / "inbox-index.json"
-    acknowledged, cache_status = _load_inbox_index(cache_path, scope)
-    current, warnings = _inbox_files(root)
-    if warnings:
-        raise StateError("Cannot advance inbox checkpoint while inbox scan warnings exist")
+def _path_overlap(left: str, right: str) -> bool:
+    if left == "." or right == ".":
+        return True
+    left_parts = tuple(part.casefold() for part in PurePosixPath(left).parts)
+    right_parts = tuple(part.casefold() for part in PurePosixPath(right).parts)
+    common = min(len(left_parts), len(right_parts))
+    return left_parts[:common] == right_parts[:common]
 
-    for name, expected_digest in records.items():
-        current_record = current.get(name)
-        if current_record is None:
-            raise StateError(f"Inbox record is missing or unsafe: {name}")
-        if current_record["sha256"] != expected_digest:
-            raise StateError(f"Inbox record changed before acknowledgement: {name}")
 
-    acknowledged = {
-        name: record for name, record in acknowledged.items() if name in current
-    }
-    for name in records:
-        acknowledged[name] = current[name]
-    payload = {
-        "schemaVersion": CACHE_SCHEMA_VERSION,
-        "scope": scope,
-        "acknowledged": dict(sorted(acknowledged.items())),
-    }
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_replace(
-        cache_path,
-        (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8"),
-    )
+def _conflicts(candidate: dict[str, Any], records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    conflicts: list[dict[str, Any]] = []
+    for record in records:
+        if record["threadId"] == candidate["threadId"]:
+            continue
+        path_pairs = sorted(
+            {
+                (left, right)
+                for left in candidate["paths"]
+                for right in record["paths"]
+                if _path_overlap(left, right)
+            }
+        )
+        action_overlap = sorted(
+            set(candidate["actions"]).intersection(record["actions"])
+        )
+        if path_pairs or action_overlap:
+            conflicts.append(
+                {
+                    "threadId": record["threadId"],
+                    "title": record["title"],
+                    "goal": record["goal"],
+                    "pathOverlaps": [
+                        {"requested": left, "owned": right} for left, right in path_pairs
+                    ],
+                    "actionOverlaps": action_overlap,
+                }
+            )
+    return conflicts
+
+
+def _atomic_write(path: Path, payload: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if _is_linklike(path.parent):
+        raise BoardError(
+            f"Refusing to write through a linked board directory: {path.parent}"
+        )
+    temporary_name: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
+        ) as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+            temporary_name = stream.name
+        os.replace(temporary_name, path)
+    except OSError as error:
+        if temporary_name:
+            try:
+                Path(temporary_name).unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise BoardError(f"Cannot write board record {path.name}: {error}") from error
+
+
+@contextmanager
+def _board_write_lock(marker: dict[str, Any]):
+    """Serialize claim mutations without creating another state authority."""
+
+    active_root: Path = marker["activeRoot"]
+    active_root.mkdir(parents=True, exist_ok=True)
+    if _is_linklike(active_root) or not active_root.is_dir():
+        raise BoardError("The active board path is not a normal directory")
+    lock_path = active_root / ".write.lock"
+    if _is_linklike(lock_path):
+        raise BoardError("The board lock must not be a symlink or junction")
+    try:
+        with lock_path.open("a+b") as stream:
+            if os.name == "nt":
+                import msvcrt
+
+                stream.seek(0, os.SEEK_END)
+                if stream.tell() == 0:
+                    stream.write(b"\0")
+                    stream.flush()
+                stream.seek(0)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_LOCK, 1)
+                try:
+                    yield
+                finally:
+                    stream.seek(0)
+                    msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+    except OSError as error:
+        raise BoardError(f"Cannot lock the active board: {error}") from error
+
+
+def _encode(value: dict[str, Any]) -> bytes:
+    payload = (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    if len(payload) > MAX_RECORD_BYTES:
+        raise BoardError(f"Board record exceeds {MAX_RECORD_BYTES} bytes")
+    return payload
+
+
+def list_board(project_root: Path) -> dict[str, Any]:
+    marker = _load_marker(project_root)
+    records = _active_records(marker)
+    conflicts: list[dict[str, Any]] = []
+    for record in records:
+        conflicts.extend(
+            {
+                "requestedBy": record["threadId"],
+                **conflict,
+            }
+            for conflict in _conflicts(record, records)
+            if record["threadId"] < conflict["threadId"]
+        )
     return {
-        "status": "acknowledged",
-        "cacheStatus": cache_status,
-        "cachePath": str(cache_path),
-        "acknowledgedRecords": [f"inbox/{name}" for name in sorted(records)],
-        "acknowledgedCount": len(acknowledged),
+        "status": "ok" if not conflicts else "conflict",
+        "schemaVersion": MARKER_SCHEMA_VERSION,
+        "projectId": marker["projectId"],
+        "activeCount": len(records),
+        "defaultLimit": DEFAULT_ACTIVE_LIMIT,
+        "hardLimit": HARD_ACTIVE_LIMIT,
+        "records": records,
+        "conflicts": conflicts,
     }
 
 
-def create_file(root: Path, relative: Path, content: bytes) -> dict[str, Any]:
-    root = root.resolve(strict=False)
-    if relative.is_absolute() or relative.suffix.lower() != ".md":
-        raise StateError("Relative path must be a Markdown file")
+def claim_boundary(
+    project_root: Path,
+    *,
+    thread_id: str,
+    title: str,
+    goal: str,
+    paths: list[str],
+    actions: list[str],
+    blocked_by: list[str],
+    status: str,
+    expected_revision: int,
+    user_approved_over_limit: bool,
+) -> dict[str, Any]:
+    marker = _load_marker(project_root)
+    if not THREAD_ID.fullmatch(thread_id):
+        raise BoardError("thread-id must be an exact native Codex thread UUID")
+    with _board_write_lock(marker):
+        return _claim_boundary_locked(
+            marker,
+            thread_id=thread_id,
+            title=title,
+            goal=goal,
+            paths=paths,
+            actions=actions,
+            blocked_by=blocked_by,
+            status=status,
+            expected_revision=expected_revision,
+            user_approved_over_limit=user_approved_over_limit,
+        )
+
+
+def _claim_boundary_locked(
+    marker: dict[str, Any],
+    *,
+    thread_id: str,
+    title: str,
+    goal: str,
+    paths: list[str],
+    actions: list[str],
+    blocked_by: list[str],
+    status: str,
+    expected_revision: int,
+    user_approved_over_limit: bool,
+) -> dict[str, Any]:
+    records = _active_records(marker)
+    existing = next((item for item in records if item["threadId"] == thread_id), None)
+    current_revision = existing["revision"] if existing else 0
+    if expected_revision != current_revision:
+        raise BoardError(
+            f"Claim revision changed: expected {expected_revision}, found {current_revision}"
+        )
+    if existing is None and len(records) >= HARD_ACTIVE_LIMIT:
+        raise BoardError(f"The active-task hard limit is {HARD_ACTIVE_LIMIT}")
     if (
-        not relative.parts
-        or relative.parts[0] not in {"tasks", "inbox"}
-        or ".." in relative.parts
+        existing is None
+        and len(records) >= DEFAULT_ACTIVE_LIMIT
+        and not user_approved_over_limit
     ):
-        raise StateError("File must be created under tasks/ or inbox/")
-    target = (root / relative).resolve(strict=False)
+        raise BoardError(
+            f"The default active-task limit is {DEFAULT_ACTIVE_LIMIT}; "
+            "a direct user decision is required before adding another task"
+        )
+    normalized_paths = _deduplicate(
+        [
+            _normalize_path(value)
+            for value in _string_items(paths, label="path", maximum=MAX_PATHS)
+        ],
+        label="path",
+    )
+    normalized_actions = _deduplicate(
+        _string_items(actions, label="action", maximum=MAX_ACTIONS), label="action"
+    )
+    for action in normalized_actions:
+        if not ACTION.fullmatch(action):
+            raise BoardError(f"Invalid action claim: {action}")
+    dependencies = _deduplicate(
+        _string_items(
+            blocked_by, label="dependency", maximum=MAX_DEPENDENCIES
+        ),
+        label="dependency",
+    )
+    for dependency in dependencies:
+        if not THREAD_ID.fullmatch(dependency) or dependency == thread_id:
+            raise BoardError(f"Invalid dependency thread ID: {dependency}")
+    if not normalized_paths and not normalized_actions:
+        raise BoardError("A claim must include at least one path or exclusive action")
+    if status not in {"active", "blocked"}:
+        raise BoardError("status must be active or blocked")
+
+    now = _now()
+    candidate = {
+        "schemaVersion": CLAIM_SCHEMA_VERSION,
+        "projectId": marker["projectId"],
+        "threadId": thread_id,
+        "title": _valid_text(title, label="title", maximum=120),
+        "goal": _valid_text(goal, label="goal", maximum=320),
+        "status": status,
+        "revision": current_revision + 1,
+        "createdAt": existing["createdAt"] if existing else now,
+        "updatedAt": now,
+        "paths": normalized_paths,
+        "actions": normalized_actions,
+        "blockedBy": dependencies,
+        "limitOverride": bool(
+            (existing and existing["limitOverride"]) or user_approved_over_limit
+        ),
+    }
+    candidate = _validate_claim(
+        candidate, project_id=marker["projectId"], filename=f"{thread_id}.json"
+    )
+    conflicts = _conflicts(candidate, records)
+    if conflicts:
+        raise ClaimConflict(conflicts)
+
+    target = marker["activeRoot"] / f"{thread_id}.json"
+    if _is_linklike(target):
+        raise BoardError("The task claim must not be a symlink or junction")
+    previous = target.read_bytes() if target.is_file() else None
+    _atomic_write(target, _encode(candidate))
     try:
-        normalized_relative = target.relative_to(root)
-    except ValueError as error:
-        raise StateError("Target escapes the coordination root") from error
-    if not normalized_relative.parts or normalized_relative.parts[0] not in {"tasks", "inbox"}:
-        raise StateError("Target escapes the task and inbox record directories")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        with target.open("xb") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-    except FileExistsError as error:
-        raise StateError(f"Refusing to overwrite existing record: {target}") from error
-    return {"status": "created", "path": str(target), "bytes": len(content)}
+        post_records = _active_records(marker)
+        post_conflicts = _conflicts(candidate, post_records)
+        if post_conflicts:
+            if previous is None:
+                target.unlink(missing_ok=True)
+            else:
+                _atomic_write(target, previous)
+            raise ClaimConflict(post_conflicts)
+    except (BoardError, OSError):
+        if previous is None and target.exists():
+            try:
+                target.unlink()
+            except OSError:
+                pass
+        elif previous is not None:
+            try:
+                _atomic_write(target, previous)
+            except BoardError:
+                pass
+        raise
+
+    return {
+        "status": "claimed" if existing is None else "updated",
+        "projectId": marker["projectId"],
+        "record": candidate,
+        "activeCount": len(post_records),
+    }
 
 
-def main(argv: list[str] | None = None) -> int:
+def release_boundary(
+    project_root: Path,
+    *,
+    thread_id: str,
+    expected_revision: int,
+    final_status: str,
+) -> dict[str, Any]:
+    marker = _load_marker(project_root)
+    if not THREAD_ID.fullmatch(thread_id):
+        raise BoardError("thread-id must be an exact native Codex thread UUID")
+    with _board_write_lock(marker):
+        return _release_boundary_locked(
+            marker,
+            thread_id=thread_id,
+            expected_revision=expected_revision,
+            final_status=final_status,
+        )
+
+
+def _release_boundary_locked(
+    marker: dict[str, Any],
+    *,
+    thread_id: str,
+    expected_revision: int,
+    final_status: str,
+) -> dict[str, Any]:
+    records = _active_records(marker)
+    record = next((item for item in records if item["threadId"] == thread_id), None)
+    if record is None:
+        raise BoardError("No active claim exists for this thread")
+    if record["revision"] != expected_revision:
+        raise BoardError(
+            f"Claim revision changed: expected {expected_revision}, found {record['revision']}"
+        )
+    if final_status not in {
+        "completed",
+        "stopped",
+        "superseded",
+        "stale-owner-confirmed",
+    }:
+        raise BoardError("Invalid final status")
+
+    closed_at = _now()
+    receipt = {
+        "schemaVersion": CLAIM_SCHEMA_VERSION,
+        "projectId": marker["projectId"],
+        "threadId": thread_id,
+        "title": record["title"],
+        "goal": record["goal"],
+        "finalStatus": final_status,
+        "lastRevision": record["revision"],
+        "closedAt": closed_at,
+    }
+    archive_root: Path = marker["archiveRoot"]
+    archive_root.mkdir(parents=True, exist_ok=True)
+    if _is_linklike(archive_root):
+        raise BoardError("The archive path must not be a symlink or junction")
+    stamp = closed_at.replace(":", "").replace("-", "")
+    archive_path = archive_root / f"{thread_id}-{stamp}.json"
+    payload = _encode(receipt)
+    try:
+        with archive_path.open("xb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        (marker["activeRoot"] / f"{thread_id}.json").unlink()
+    except OSError as error:
+        try:
+            archive_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise BoardError(f"Cannot release claim safely: {error}") from error
+    return {
+        "status": "released",
+        "projectId": marker["projectId"],
+        "receipt": receipt,
+    }
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
 
-    validate = commands.add_parser("validate-current")
-    validate.add_argument("path", type=Path)
-    validate.add_argument("--write-normalized", action="store_true")
+    listing = commands.add_parser("list", help="read the bounded active board")
+    listing.add_argument("--project-root", required=True, type=Path)
 
-    inspect = commands.add_parser("inspect-current")
-    inspect.add_argument("path", type=Path)
+    claim = commands.add_parser("claim", help="create or update this task's claim")
+    claim.add_argument("--project-root", required=True, type=Path)
+    claim.add_argument("--thread-id", required=True)
+    claim.add_argument("--title", required=True)
+    claim.add_argument("--goal", required=True)
+    claim.add_argument("--path", action="append", default=[])
+    claim.add_argument("--action", action="append", default=[])
+    claim.add_argument("--blocked-by", action="append", default=[])
+    claim.add_argument("--status", choices=("active", "blocked"), default="active")
+    claim.add_argument("--expected-revision", required=True, type=int)
+    claim.add_argument("--user-approved-over-limit", action="store_true")
 
-    reconciliation = commands.add_parser("validate-reconciliation")
-    reconciliation.add_argument("path", type=Path)
+    release = commands.add_parser("release", help="move this task's claim to a cold receipt")
+    release.add_argument("--project-root", required=True, type=Path)
+    release.add_argument("--thread-id", required=True)
+    release.add_argument("--expected-revision", required=True, type=int)
+    release.add_argument(
+        "--status",
+        dest="final_status",
+        required=True,
+        choices=("completed", "stopped", "superseded", "stale-owner-confirmed"),
+    )
+    return parser
 
-    create = commands.add_parser("create-file")
-    create.add_argument("--coordination-root", required=True, type=Path)
-    create.add_argument("--relative-path", required=True, type=Path)
-    create.add_argument("--content-file", type=Path)
 
-    scan = commands.add_parser("scan-inbox")
-    scan.add_argument("--coordination-root", required=True, type=Path)
-    scan.add_argument("--project-id", required=True)
-    scan.add_argument("--coordination-epoch", required=True, type=int)
-    scan.add_argument("--coordinator-id", required=True)
-
-    acknowledge = commands.add_parser("ack-inbox")
-    acknowledge.add_argument("--coordination-root", required=True, type=Path)
-    acknowledge.add_argument("--project-id", required=True)
-    acknowledge.add_argument("--coordination-epoch", required=True, type=int)
-    acknowledge.add_argument("--coordinator-id", required=True)
-    acknowledge.add_argument("--record", action="append", required=True)
-
-    args = parser.parse_args(argv)
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     try:
-        if args.command == "validate-current":
-            report = normalize_current(args.path) if args.write_normalized else validate_current(args.path)
-        elif args.command == "inspect-current":
-            report = inspect_current(args.path)
-        elif args.command == "validate-reconciliation":
-            report = validate_reconciliation(args.path)
-        elif args.command == "create-file":
-            content = args.content_file.read_bytes() if args.content_file else sys.stdin.buffer.read()
-            report = create_file(args.coordination_root, args.relative_path, content)
-        elif args.command == "scan-inbox":
-            report = scan_inbox(
-                args.coordination_root,
-                project_id=args.project_id,
-                coordination_epoch=args.coordination_epoch,
-                coordinator_id=args.coordinator_id,
+        if args.command == "list":
+            report = list_board(args.project_root)
+        elif args.command == "claim":
+            report = claim_boundary(
+                args.project_root,
+                thread_id=args.thread_id,
+                title=args.title,
+                goal=args.goal,
+                paths=args.path,
+                actions=args.action,
+                blocked_by=args.blocked_by,
+                status=args.status,
+                expected_revision=args.expected_revision,
+                user_approved_over_limit=args.user_approved_over_limit,
             )
         else:
-            report = acknowledge_inbox(
-                args.coordination_root,
-                project_id=args.project_id,
-                coordination_epoch=args.coordination_epoch,
-                coordinator_id=args.coordinator_id,
-                records=_parse_acknowledgements(args.record),
+            report = release_boundary(
+                args.project_root,
+                thread_id=args.thread_id,
+                expected_revision=args.expected_revision,
+                final_status=args.final_status,
             )
-    except (OSError, UnicodeError, StateError) as error:
+    except ClaimConflict as error:
+        print(
+            json.dumps(
+                {"status": "conflict", "error": str(error), "conflicts": error.conflicts},
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return 2
+    except (BoardError, OSError, UnicodeError) as error:
         print(json.dumps({"status": "error", "error": str(error)}, indent=2))
         return 1
     print(json.dumps(report, indent=2, ensure_ascii=False))
@@ -759,4 +760,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

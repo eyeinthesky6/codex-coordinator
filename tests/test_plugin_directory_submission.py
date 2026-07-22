@@ -40,8 +40,9 @@ class PluginDirectorySubmissionTests(unittest.TestCase):
         terms = (REPOSITORY / "TERMS.md").read_text(encoding="utf-8")
 
         self.assertIn("no publisher-operated server", privacy)
-        self.assertIn("127.0.0.1", privacy)
-        self.assertIn("AI Review", privacy)
+        self.assertIn("does not read or store prompts", privacy)
+        self.assertIn("Native Codex remains responsible for task transcripts", privacy)
+        self.assertIn("never imported or started by the base runtime", privacy)
         self.assertIn("https://openai.com/policies/privacy-policy/", privacy)
         self.assertIn("MIT License", terms)
         self.assertIn("does not replace human review", terms)

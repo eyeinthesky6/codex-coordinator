@@ -2,37 +2,35 @@
 
 ## OpenAI Codex
 
-The repository is packaged as a Codex plugin. The marketplace manifest points to the plugin directory, whose manifest exposes one skill, interface metadata, brand assets, and a SessionStart hook. Users invoke the skill explicitly. Codex's native task tools create, read, message, pin, rename, archive, fork, and hand off durable user-visible tasks; native heartbeats wake the Coordinator while a goal is live. Collaboration subagents remain available inside a registered task, while their parent retains canonical ownership and reporting.
+Codex supplies native task identity, execution, messages, status, and transcripts. Coordinator consumes only an exact native thread UUID supplied when a task publishes its own claim. It never creates, pins, wakes, archives, or polls tasks automatically.
 
-Hook trust remains a user decision. Codex may skip an untrusted or changed hook until the user reviews it.
+Peer collision notices use the supported native task messenger only after same-repository and exact-recipient checks. The message is non-executable and grants no authority.
 
-### Deferred Codex Goals review
-
-The current product does not integrate with Codex Goals and does not depend on Goals for task completion or recovery. A later version may evaluate Goals as an optional, capability-detected continuity aid inside the Coordinator task. Project documents, ownership records, inbox reconciliation, native task status, and the existing heartbeat remain authoritative.
-
-Any trial must use only a supported host surface, default off, avoid private Codex databases and transport internals, require no project-schema migration, and fall back cleanly when the capability changes or disappears. It must not introduce an autonomous-completion claim. The private product roadmap contains the experiment gates and acceptance questions; this section records only the integration boundary.
-
-## Mission Control
-
-The optional Mission Control companion is distributed through the tagged source repository. Its standard-library server binds to localhost and reads bounded local Codex task receipts plus Coordinator project records. **Run Doctor** repairs the installed package and performs a deterministic zero-model structured-state check; it is not part of the plugin hook and does not become project authority. The separate user-triggered **Deep Review** sends only a capped allowlisted task-contract packet to the configured model at Low reasoning and returns candidate-only semantic review with no project write authority.
+SessionStart remains subject to Codex hook trust. It reads only a bounded project marker and launches no process.
 
 ## Git
 
-The plugin uses Git only for repository and worktree context. The restart hook runs a bounded `git worktree list --porcelain -z` query to locate the primary worktree. It does not create branches, commits, or worktrees.
+Git identifies the repository and primary worktree. The skill resolves the first worktree from `git worktree list --porcelain`; the state helper itself receives the already resolved project root.
+
+The board does not create branches, worktrees, commits, pushes, merges, or pull requests. With multiple writers, one task owns the `git-integration` action. Direct commit/push is the default for one owner; PRs are optional policy.
 
 ## GitHub
 
-The canonical repository is `https://github.com/eyeinthesky6/codex-coordinator`. It includes GitHub Actions, Dependabot configuration, a bug form, Discussion routes, a pull-request template, releases, and a static Pages front door.
+GitHub hosts source, CI, releases, Discussions, security reporting, and the static site. It is not a runtime dependency or a surface Coordinator monitors automatically.
 
-The public repository uses a protected `main` branch with four required Python matrix checks plus the required Secret scan. Force pushes and branch deletion are disabled, conversations must be resolved, default workflow permissions are read-only, private vulnerability reporting is available, and Discussions are enabled with Q&A and Ideas routes.
+Current provider settings, checks, protections, releases, and PR state can change independently. Read them through their owning interface when the user's task specifically requires them.
 
-`.github/workflows/pages.yml` assembles `site/`, `llms.txt`, and the canonical plugin logo into one GitHub Pages artifact. The workflow uses pinned actions and grants write and identity permissions only to the deploy job. The site is not part of the plugin runtime.
+## Mission Control
 
-Provider controls can change independently of the repository. Read them back before a release instead of treating this document as proof of current settings.
+There is no supported schema-2 integration. Legacy source remains inert pending a separate-package or removal decision. A future observer must use only the public board, start manually, remain read-only, and have no private Codex, Doctor, model, task, provider, schedule, or write integration.
+
+## Doctor and plugin manager
+
+Doctor reads only files inside one installed plugin root and runs no child process. It reports compatibility. The normal plugin manager owns update, reinstall, and rollback.
 
 ## Network and external services
 
-The distributed plugin has no service, database, telemetry client, or network call. Mission Control is a separate opt-in localhost process with no product login, cloud service, or telemetry. GitHub is repository hosting and automation, not a plugin runtime dependency.
+The schema-2 core has no service, database, telemetry, account, or network call. Enabling the board grants no permission to use providers, deploy, publish, spend, change a database or environment, or modify a schedule.
 
 ## Evidence
 
@@ -40,7 +38,5 @@ The distributed plugin has no service, database, telemetry client, or network ca
 - `plugins/codex-coordinator/.codex-plugin/plugin.json`
 - `plugins/codex-coordinator/hooks/hooks.json`
 - `plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`
-- `apps/mission_control/`
-- `.github/`
-- `.github/workflows/pages.yml`
-- `site/`
+- `plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`
+- `plugins/codex-coordinator/skills/codex-coordinator/scripts/coordination_state.py`

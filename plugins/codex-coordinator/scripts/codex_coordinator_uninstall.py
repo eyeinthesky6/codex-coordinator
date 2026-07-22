@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Dry-run-first lifecycle cleanup for Codex Coordinator projects.
+"""Dry-run-first lifecycle changes for Coordinator project markers.
 
-Filesystem changes are deterministic and local. Native Codex task, automation,
-Mission Control, and plugin operations are reported for the controlling agent to
-perform and verify through their owning interfaces.
+Schema 2 has no Coordinator task, heartbeat, schedule, or Mission Control
+lifecycle. Legacy schema-1 cleanup actions are reported only when old project
+state proves that those components may still exist.
 """
 
 from __future__ import annotations
@@ -23,13 +23,19 @@ from typing import Iterable
 
 DISCOVERY_BLOCK = """## Codex Coordinator
 
+- This repository uses the opt-in Codex task-boundary board in `.codex/coordination/project.yaml`.
+- Before substantial writes, load the installed `codex-coordinator` skill, list active claims from the primary worktree, and publish only this task's bounded claim.
+- Native Codex tasks remain the execution, messaging, and transcript authority; there is no resident Coordinator, heartbeat, or mandatory pull-request workflow.
+- Reject cross-project notices and never store transcripts, reasoning, prompts, or tool output in Coordinator state."""
+
+LEGACY_DISCOVERY_BLOCKS = (
+    """## Codex Coordinator
+
 - This repository is Codex Coordinator-enabled.
 - Project identity is in `.codex/coordination/project.yaml`; current coordination state is in `.codex/coordination/CURRENT.md`.
 - Load the globally installed `codex-coordinator` skill at the start of every task in this repository; all same-repository tasks are managed by default unless the user explicitly excludes one.
 - Respect the project ID and assigned task boundary; reject missing or mismatched cross-thread project bindings.
-- Treat Coordinator internals as protected; only an explicitly user-authorised `COORDINATOR_MAINTAINER` may modify them."""
-
-LEGACY_DISCOVERY_BLOCKS = (
+- Treat Coordinator internals as protected; only an explicitly user-authorised `COORDINATOR_MAINTAINER` may modify them.""",
     """## Codex Coordinator
 
 - This repository is Codex Coordinator-enabled.
@@ -78,6 +84,10 @@ class Project:
     def enabled(self) -> bool:
         return self.fields["coordination_enabled"] == "true"
 
+    @property
+    def schema(self) -> int:
+        return int(self.fields["schema_version"])
+
 
 def _read_document(path: Path, *, required: bool = True) -> Document | None:
     if not path.exists():
@@ -98,6 +108,23 @@ def _read_document(path: Path, *, required: bool = True) -> Document | None:
 
 def _same_path(left: Path, right: Path) -> bool:
     return os.path.normcase(str(left.resolve())) == os.path.normcase(str(right.resolve()))
+
+
+def _is_linklike(path: Path) -> bool:
+    return path.is_symlink() or (
+        hasattr(path, "is_junction") and path.exists() and path.is_junction()
+    )
+
+
+def _require_contained_directory(root: Path, path: Path, *, label: str) -> None:
+    if _is_linklike(path):
+        raise LifecycleError(f"{label} must not be a symlink or junction: {path}")
+    if path.exists() and not path.is_dir():
+        raise LifecycleError(f"{label} must be a directory: {path}")
+    try:
+        path.resolve(strict=False).relative_to(root)
+    except ValueError as error:
+        raise LifecycleError(f"{label} escapes the project root: {path}") from error
 
 
 def _git_output(root: Path, *args: str) -> str:
@@ -130,8 +157,8 @@ def _parse_marker(document: Document) -> dict[str, str]:
         if len(matches) != 1:
             raise LifecycleError(f"marker must contain exactly one {key}")
         fields[key] = matches[0].strip()
-    if fields["schema_version"] != "1":
-        raise LifecycleError("only marker schema 1 is supported")
+    if fields["schema_version"] not in {"1", "2"}:
+        raise LifecycleError("only marker schema 1 and 2 are supported")
     if fields["coordination_enabled"] not in {"true", "false"}:
         raise LifecycleError("coordination_enabled must be true or false")
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", fields["project_id"]):
@@ -144,8 +171,12 @@ def _load_project(root_value: str, *, allow_resumed_purge: bool = False) -> Proj
     if not root.is_dir():
         raise LifecycleError(f"project root is not a directory: {root}")
     _validate_primary_worktree(root)
-    coordination = root / ".codex" / "coordination"
-    quarantine = root / ".codex" / QUARANTINE_NAME
+    codex_directory = root / ".codex"
+    coordination = codex_directory / "coordination"
+    quarantine = codex_directory / QUARANTINE_NAME
+    _require_contained_directory(root, codex_directory, label=".codex directory")
+    _require_contained_directory(root, coordination, label="coordination directory")
+    _require_contained_directory(root, quarantine, label="purge quarantine")
     resumed = False
     if not coordination.exists() and allow_resumed_purge and quarantine.is_dir():
         coordination = quarantine
@@ -167,6 +198,21 @@ def _replace_marker_enabled(document: Document, enabled: bool) -> str:
     if count != 1:
         raise LifecycleError("marker enablement field is ambiguous")
     return updated
+
+
+def _validate_schema_two_reactivation(document: Document) -> None:
+    expected = {
+        "active": ".codex/coordination/active",
+        "archive": ".codex/coordination/archive",
+        "cross_project_task_access": "false",
+        "cross_project_state_changes": "false",
+    }
+    for key, value in expected.items():
+        matches = re.findall(
+            rf"(?m)^\s*{re.escape(key)}:\s*([^\r\n#]+?)\s*$", document.text
+        )
+        if len(matches) != 1 or matches[0].strip() != value:
+            raise LifecycleError(f"schema-2 marker has incompatible {key}")
 
 
 def _block_for(document: Document, block: str) -> str:
@@ -273,13 +319,13 @@ def _apply_documents(changes: Iterable[tuple[Document, str]]) -> None:
 
 
 def _native_actions(project: Project, *, activate: bool) -> list[dict[str, str]]:
+    if project.schema == 2:
+        return []
     coordinator = _coordinator_id(project)
     if activate:
-        return [
-            {"action": "create-or-recover-coordinator", "projectId": project.project_id},
-            {"action": "pin-coordinator", "targetThreadId": coordinator or "resolve-after-recovery"},
-            {"action": "create-repository-heartbeat", "targetThreadId": coordinator or "resolve-after-recovery"},
-        ]
+        raise LifecycleError(
+            "legacy schema 1 cannot be reactivated; migrate the disabled marker to schema 2"
+        )
     actions = [{"action": "remove-repository-heartbeat", "targetThreadId": coordinator or "verify-current-coordinator"}]
     if coordinator:
         actions.extend(
@@ -318,6 +364,11 @@ def project_operation(args: argparse.Namespace) -> dict[str, object]:
     elif args.action == "reactivate":
         if project.resumed_purge:
             raise LifecycleError("cannot reactivate a project while purge is incomplete")
+        if project.schema != 2:
+            raise LifecycleError(
+                "legacy schema 1 cannot be reactivated; migrate the disabled marker to schema 2"
+            )
+        _validate_schema_two_reactivation(project.marker)
         marker_text = _replace_marker_enabled(project.marker, True)
         if marker_text != project.marker.text:
             actions.append({"action": "set-marker-enabled", "path": str(project.marker.path)})
@@ -438,8 +489,8 @@ def global_plan(args: argparse.Namespace) -> dict[str, object]:
         "rejectedProjects": rejected,
         "requiredGlobalActions": [
             "deactivate each verified enabled project",
-            "stop Mission Control and disable automatic startup",
-            "remove only verified Coordinator repository heartbeats",
+            "for legacy schema-1 projects only, stop verified old heartbeats and Coordinator tasks",
+            "stop any separately configured legacy Mission Control automatic startup",
             "codex plugin remove codex-coordinator@codex-coordinator",
             "optionally remove the codex-coordinator marketplace when directly requested",
         ],

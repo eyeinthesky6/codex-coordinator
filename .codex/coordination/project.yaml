@@ -1,12 +1,11 @@
-schema_version: 1
+schema_version: 2
 coordination_enabled: false
 project_id: codex-coordinator
 project_name: Codex Coordinator
 task_prefix: CC
 canonical_paths:
-  current: .codex/coordination/CURRENT.md
-  tasks: .codex/coordination/tasks
-  suggestions: .codex/coordination/suggestions
+  active: .codex/coordination/active
+  archive: .codex/coordination/archive
 access:
   cross_project_task_access: false
   cross_project_state_changes: false

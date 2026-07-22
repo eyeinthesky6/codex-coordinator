@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Codex Coordinator — Run several Codex tasks without managing every chat</title>
-  <meta name="description" content="Tell Codex what you want finished. Codex Coordinator keeps several tasks working on different parts and brings one clear result back to you.">
-  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+  <title>Codex Coordinator — A small task-boundary board for Codex</title>
+  <meta name="description" content="Keep parallel Codex tasks inside clear repository boundaries without a resident coordinator, heartbeat, or transcript mirror.">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
   <meta name="google-site-verification" content="NMvrZiG-hLYRIF4eme-25FTskwq9YfP_Yt5hhco7q2k">
   <meta name="theme-color" content="#06142f">
   <link rel="canonical" href="https://eyeinthesky6.github.io/codex-coordinator/">
@@ -13,17 +13,14 @@
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Codex Coordinator">
-  <meta property="og:locale" content="en_US">
-  <meta property="og:title" content="Codex Coordinator — Give Codex the whole job">
-  <meta property="og:description" content="Run several Codex tasks without checking every chat, repeating context, or combining the answers yourself.">
+  <meta property="og:title" content="Codex Coordinator — Task boundaries, not orchestration">
+  <meta property="og:description" content="A repository-local active-claim board for native Codex tasks.">
   <meta property="og:url" content="https://eyeinthesky6.github.io/codex-coordinator/">
   <meta property="og:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
-  <meta property="og:image:alt" content="Codex Coordinator nested opposing C logo">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Codex Coordinator — Give Codex the whole job">
-  <meta name="twitter:description" content="Run several Codex tasks without managing every chat yourself.">
+  <meta name="twitter:title" content="Codex Coordinator">
+  <meta name="twitter:description" content="Task boundaries, not an orchestration system.">
   <meta name="twitter:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
-  <meta name="twitter:image:alt" content="Codex Coordinator nested opposing C logo">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&amp;family=DM+Mono:wght@400;500&amp;family=Syne:wght@500;600;700&amp;display=swap" rel="stylesheet">
@@ -37,9 +34,8 @@
         "@id": "https://eyeinthesky6.github.io/codex-coordinator/#website",
         "url": "https://eyeinthesky6.github.io/codex-coordinator/",
         "name": "Codex Coordinator",
-        "description": "Run several OpenAI Codex tasks on one project without checking every chat, repeating context, or combining the answers yourself.",
-        "inLanguage": "en",
-        "about": { "@id": "https://eyeinthesky6.github.io/codex-coordinator/#software" }
+        "description": "A repository-local task-boundary board for native Codex tasks.",
+        "inLanguage": "en"
       },
       {
         "@type": "SoftwareApplication",
@@ -49,32 +45,14 @@
         "operatingSystem": ["Windows", "macOS", "Linux"],
         "softwareVersion": "0.3.0",
         "softwareRequirements": "OpenAI Codex with plugin and hook support; Git; Python 3.10 or newer",
-        "description": "Free, open-source Codex plugin that helps several Codex tasks work on different parts of one project and returns one clear update.",
+        "description": "Open-source task-boundary and visibility plugin for native Codex tasks.",
         "url": "https://eyeinthesky6.github.io/codex-coordinator/",
-        "mainEntityOfPage": { "@id": "https://eyeinthesky6.github.io/codex-coordinator/#website" },
         "codeRepository": "https://github.com/eyeinthesky6/codex-coordinator",
-        "downloadUrl": "https://github.com/eyeinthesky6/codex-coordinator/releases/latest",
-        "softwareHelp": "https://eyeinthesky6.github.io/codex-coordinator/faq.html",
-        "releaseNotes": "https://github.com/eyeinthesky6/codex-coordinator/releases/latest",
         "isAccessibleForFree": true,
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-        "keywords": "OpenAI Codex, Codex plugin, multi-agent coordination, parallel coding agents, developer productivity, Git workflow",
-        "featureList": [
-          "Clear jobs for each Codex task",
-          "Work remembered after pauses and restarts",
-          "Quiet scheduled follow-up while work remains",
-          "Exact native Codex task ownership and stale-message rejection",
-          "One clear project update",
-          "Zero third-party runtime dependencies",
-          "Optional local read-only Mission Control",
-          "Zero-model Doctor checks and optional AI Deep Review"
-        ],
-        "sameAs": [
-          "https://github.com/eyeinthesky6/codex-coordinator",
-          "https://t.me/+ra4BQ7-_5uM2MDY1"
-        ],
+        "offers": {"@type":"Offer","price":"0","priceCurrency":"USD"},
+        "sameAs": ["https://github.com/eyeinthesky6/codex-coordinator","https://t.me/+ra4BQ7-_5uM2MDY1"],
         "license": "https://opensource.org/license/mit",
-        "author": { "@type": "Organization", "name": "Six Ideas" }
+        "author": {"@type":"Organization","name":"Six Ideas"}
       }
     ]
   }
@@ -85,230 +63,59 @@
   <header class="site-header">
     <nav class="nav shell" aria-label="Primary navigation">
       <a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="37" height="37">Codex Coordinator</a>
-      <div class="nav-links">
-        <a href="#demo">Demo</a>
-        <a href="#follow-through">Follow-through</a>
-        <a href="#mission-control">Mission Control</a>
-        <a href="faq.html">FAQ</a>
-        <a href="developers.html">Developers</a>
-        <a href="https://github.com/eyeinthesky6/codex-coordinator" rel="me">GitHub</a>
-        <a class="nav-cta" href="#install">Install</a>
-      </div>
+      <div class="nav-links"><a href="#architecture">Architecture</a><a href="#status">Status</a><a href="faq.html">FAQ</a><a href="developers.html">Developers</a><a href="https://github.com/eyeinthesky6/codex-coordinator">GitHub</a></div>
     </nav>
   </header>
 
-  <aside class="proof-strip" aria-label="Open-source activity">
-    <div class="proof-inner shell">
-      <span class="sr-only">Live open-source activity:</span>
-      <a href="https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/eyeinthesky6/codex-coordinator/ci.yml?branch=main&amp;style=flat-square&amp;label=validation&amp;labelColor=06142F&amp;color=2ADBD6" alt="Validation status"></a>
-      <a href="https://github.com/eyeinthesky6/codex-coordinator/releases/latest"><img src="https://img.shields.io/github/v/release/eyeinthesky6/codex-coordinator?style=flat-square&amp;label=release&amp;labelColor=06142F&amp;color=8C63FF" alt="Latest release"></a>
-      <a href="https://github.com/eyeinthesky6/codex-coordinator/stargazers"><img src="https://img.shields.io/github/stars/eyeinthesky6/codex-coordinator?style=flat-square&amp;logo=github&amp;label=stars&amp;labelColor=06142F&amp;color=2ADBD6" alt="GitHub stars"></a>
-      <a href="https://github.com/eyeinthesky6/codex-coordinator/graphs/contributors"><img src="https://img.shields.io/github/contributors/eyeinthesky6/codex-coordinator?style=flat-square&amp;logo=github&amp;label=contributors&amp;labelColor=06142F&amp;color=8C63FF" alt="GitHub contributors"></a>
-    </div>
-  </aside>
+  <main id="main-content" class="shell">
+    <header class="page-hero">
+      <p class="kicker">Task boundaries, not orchestration</p>
+      <h1>Keep parallel Codex tasks <span>from crossing wires.</span></h1>
+      <p>Each native task publishes only its bounded goal, paths, and exclusive actions. No permanent manager task. No heartbeat. No transcript mirror.</p>
+    </header>
 
-  <main id="main-content">
-    <section class="hero shell">
-      <div class="hero-copy">
-        <p class="kicker">For people who keep several Codex tasks open</p>
-        <h1>Give Codex the whole job.<br><span>Get one answer back.</span></h1>
-        <p class="lede">When a job needs several Codex tasks, Coordinator keeps each one on a different part, remembers what is happening, and brings the finished work back together.</p>
-        <div class="actions">
-          <a class="button primary" href="#install">Install with Codex</a>
-          <a class="button" href="#demo">Watch It Work</a>
-        </div>
-        <p class="trust-note">Free and open source · MIT licensed · Requires Codex, Git, and Python 3.10+</p>
-      </div>
+    <section class="content-block" id="status">
+      <p class="section-label">Unreleased realignment</p>
+      <h2>The simpler schema-2 design is not released or enabled yet.</h2>
+      <p>The source implementation is under validation. Stable <code>v0.3.0</code> is preserved as the older orchestration release and should not be enabled by users seeking the new behavior. A new install command will appear only after migration, performance, and release approval are complete.</p>
+    </section>
 
-      <div class="control-wrap" aria-label="One Codex task guides three other Codex tasks and brings their work back together">
-        <div class="control">
-          <div class="control-bar"><span>Your Codex project</span><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span></div>
-          <div class="flow-board">
-            <div class="flow-goal"><small>You ask</small>Make this release ready</div>
-            <div class="flow-arrow" aria-hidden="true">↓</div>
-            <div class="coordinator-node"><small>Coordinator</small><strong>Plans who does what</strong></div>
-            <div class="flow-arrow" aria-hidden="true">↓</div>
-            <div class="worker-row">
-              <div><small>Codex task A</small><strong>Fix the app</strong></div>
-              <div><small>Codex task B</small><strong>Update the docs</strong></div>
-              <div><small>Codex task C</small><strong>Check the work</strong></div>
-            </div>
-            <div class="return-line" aria-hidden="true">work returns to Coordinator ↑</div>
-            <div class="flow-result"><small>You receive</small>One clear result</div>
-          </div>
-        </div>
+    <section class="content-block" id="architecture">
+      <p class="section-label">Small hot path</p>
+      <h2>Native Codex does the work. The board only shows planned ownership.</h2>
+      <div class="comparison-wrap">
+        <table class="comparison">
+          <thead><tr><th>Retained protection</th><th>Simplified mechanism</th></tr></thead>
+          <tbody>
+            <tr><td>No duplicate planned writers</td><td>Per-task path and action claims with overlap checks</td></tr>
+            <tr><td>No task-window explosion</td><td>One task by default; three normal, twelve hard</td></tr>
+            <tr><td>No message loops</td><td>Board first; sparse non-executable collision notices</td></tr>
+            <tr><td>No stale silent overwrite</td><td>Exact native identity, expected revisions, evidence-based recovery</td></tr>
+            <tr><td>No transcript duplication</td><td>Native Codex remains the only transcript authority</td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
 
-    <section class="demo-section viewport-section" id="demo">
-      <div class="section shell">
-        <div class="demo-heading">
-          <div>
-            <p class="section-label">See it happen in Codex</p>
-            <h2>One request goes out.<br><em>One checked answer comes back.</em></h2>
-          </div>
-          <p>These short, sanitized demos use the real Coordinator flow without showing anyone’s private projects or task messages.</p>
-        </div>
-
-        <div class="demo-tabs" role="tablist" aria-label="Codex Coordinator demo steps">
-          <button id="demo-tab-1" class="demo-tab active" type="button" role="tab" aria-selected="true" aria-controls="demo-panel-1" data-demo-tab="demo-panel-1"><span>1</span>Ask once</button>
-          <button id="demo-tab-2" class="demo-tab" type="button" role="tab" aria-selected="false" aria-controls="demo-panel-2" data-demo-tab="demo-panel-2" tabindex="-1"><span>2</span>Tasks work</button>
-          <button id="demo-tab-3" class="demo-tab" type="button" role="tab" aria-selected="false" aria-controls="demo-panel-3" data-demo-tab="demo-panel-3" tabindex="-1"><span>3</span>Get one answer</button>
-        </div>
-
-        <div class="demo-stage">
-          <figure id="demo-panel-1" class="demo-panel" role="tabpanel" aria-labelledby="demo-tab-1">
-            <img src="assets/demos/01-ask-and-split.gif" alt="A sanitized Codex demo: a user asks Coordinator to prepare a release, and Coordinator starts three focused Codex tasks" width="960" height="600" loading="lazy">
-            <figcaption><strong>Say what finished looks like.</strong> Coordinator decides how to split it and starts the focused tasks.</figcaption>
-          </figure>
-          <figure id="demo-panel-2" class="demo-panel" role="tabpanel" aria-labelledby="demo-tab-2" hidden>
-            <img src="assets/demos/02-tasks-at-work.gif" alt="A sanitized Codex demo: three focused Codex tasks fix the app, update the docs, and check the combined work" width="960" height="600" loading="lazy">
-            <figcaption><strong>Let each task stay on its part.</strong> You do not have to copy updates from one Codex task to another.</figcaption>
-          </figure>
-          <figure id="demo-panel-3" class="demo-panel" role="tabpanel" aria-labelledby="demo-tab-3" hidden>
-            <img src="assets/demos/03-one-result.gif" alt="A sanitized Codex demo: task results return to Coordinator, which gives the user one checked final update" width="960" height="600" loading="lazy">
-            <figcaption><strong>Review one update.</strong> The work returns to Coordinator before the checked result comes back to you.</figcaption>
-          </figure>
-        </div>
-      </div>
+    <section class="content-block">
+      <p class="section-label">What left the core</p>
+      <h2>No resident Coordinator, background monitor, or self-repair engine.</h2>
+      <p>SessionStart reads only a small opt-in marker and launches nothing. Doctor is read-only and tells you to update or reinstall. Pull requests are optional. Provider, schedule, release, database, and deployment actions remain with the task and user who own them.</p>
     </section>
 
-    <section class="follow-section viewport-section" id="follow-through">
-      <div class="section shell">
-        <div class="follow-heading">
-          <p class="section-label">It does not forget the open loops</p>
-          <h2>Work keeps moving <em>after the first update.</em></h2>
-          <p>Coordinator remembers what is still open, checks the right Codex tasks on a quiet schedule, and comes back when work finishes, gets stuck, or needs you.</p>
-        </div>
-        <div class="follow-grid">
-          <article>
-            <span class="feature-number">01</span>
-            <div>
-              <h3>Quiet scheduled follow-up</h3>
-              <p>While a job is unfinished, Coordinator checks only the Codex tasks that changed and any handoffs still waiting. If nothing important changed, it stays quiet.</p>
-            </div>
-          </article>
-          <article>
-            <span class="feature-number">02</span>
-            <div>
-              <h3>The right message reaches the right task</h3>
-              <p>Every part of the job stays tied to its exact Codex task. Outdated instructions from an older owner or earlier work cycle are ignored.</p>
-            </div>
-          </article>
-          <article>
-            <span class="feature-number">03</span>
-            <div>
-              <h3>Nothing disappears between windows</h3>
-              <p>Finished work, queued work, blockers, and decisions waiting for you return to the Coordinator task as one project update.</p>
-            </div>
-          </article>
-        </div>
-      </div>
+    <section class="content-block">
+      <p class="section-label">Runtime</p>
+      <h2>Zero third-party runtime dependencies</h2>
+      <p>Requires Codex, Git, and an existing Python 3.10+ interpreter. No database, daemon, queue, pip package, npm package, Python installer, or OS package-manager call.</p>
     </section>
 
-    <section class="mission-section viewport-section" id="mission-control">
-      <div class="section shell mission-layout">
-        <div class="mission-copy">
-          <p class="section-label">Optional Mission Control</p>
-          <h2>See what is moving <em>without opening every task.</em></h2>
-          <p>Mission Control is a local dashboard for the days when several Codex tasks are running. It shows what is active, what needs you, and when 2 tasks may be touching the same files.</p>
-          <div class="mission-points">
-            <div><strong>Know where to look</strong><span>One screen shows which tasks are working, waiting, or finished.</span></div>
-            <div><strong>Catch crossed wires</strong><span>It warns when active tasks may be changing the same files.</span></div>
-            <div><strong>Keep it private</strong><span>It runs on your computer. There is no Mission Control account or cloud service.</span></div>
-          </div>
-          <p class="optional-note">Completely optional. Coordinator works without the dashboard.</p>
-        </div>
-        <figure class="mission-shot">
-          <img src="assets/mission-control.png" alt="Mission Control showing active Codex tasks and tasks that need attention" width="1425" height="891" loading="lazy">
-          <figcaption>Your Codex work at a glance · local to your computer</figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <section class="doctor-section viewport-section" id="doctor">
-      <div class="section shell doctor-layout">
-        <div class="doctor-mark" aria-hidden="true"><span>+</span></div>
-        <div class="doctor-copy">
-          <p class="section-label">Doctor</p>
-          <h2>Two levels of review.<br><em>Only one uses AI.</em></h2>
-          <div class="doctor-cards">
-            <article>
-              <span>Run now or on your schedule</span>
-              <h3>Regular Doctor</h3>
-              <p>Checks the installed Coordinator, repairs trusted files when needed, and looks for concrete problems in unfinished task handoffs.</p>
-              <ul><li>Zero AI model calls</li><li>Does not read your application code or chat messages</li><li>Can run through a user-approved schedule</li></ul>
-            </article>
-            <article class="deep-review-card">
-              <span>Optional · you click it</span>
-              <h3>AI Deep Review</h3>
-              <p>Asks your configured Codex model whether a task looks too small for its own window or no longer matches the job it received.</p>
-              <ul><li>Low reasoning with a small, redacted task summary</li><li>Shows its token use</li><li>Suggests only—it cannot change or repair work</li></ul>
-            </article>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="install-section viewport-section" id="install">
-      <div class="section shell">
-        <div class="section-intro install-intro">
-          <p class="section-label">Install v0.3.0</p>
-          <h2>The easiest install is to <em>ask Codex.</em></h2>
-          <p>Codex can add the marketplace source and install the plugin for you. You only step in if Codex asks you to approve the small startup check.</p>
-        </div>
-        <div class="install-grid">
-          <article class="install-card recommended">
-            <div class="card-label">For Codex · recommended</div>
-            <h3>Paste this into any Codex task</h3>
-            <p>The agent can discover the tagged marketplace package, install it, and tell you when it is ready.</p>
-            <div class="command prompt-command"><code id="agent-install-command">Install Codex Coordinator v0.3.0 from:
-https://github.com/eyeinthesky6/codex-coordinator
-
-Use the tagged marketplace release and install the plugin. Do not change my environment settings. Ask me only if Codex needs approval to trust the startup check.</code><button class="copy" type="button" data-copy="agent-install-command">Copy Prompt</button></div>
-          </article>
-          <article class="install-card human-card">
-            <div class="card-label">For humans</div>
-            <h3>Run these 2 commands</h3>
-            <div class="command manual-command"><code id="manual-install-command">codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.3.0
-codex plugin add codex-coordinator@codex-coordinator</code><button class="copy" type="button" data-copy="manual-install-command">Copy Both</button></div>
-            <div class="human-start">
-              <strong>Then open a new Codex task</strong>
-              <p>No app restart and no Coordinator service to start. Just say what you want:</p>
-              <div class="command use-prompt"><code id="use-command">Coordinate this with multiple Codex tasks:
-
-Describe what you want finished here.</code><button class="copy" type="button" data-copy="use-command">Copy Prompt</button></div>
-            </div>
-          </article>
-        </div>
-        <div class="install-links">
-          <span>Need the full technical path?</span>
-          <a href="developers.html">Open the Developers guide →</a>
-          <a href="https://github.com/eyeinthesky6/codex-coordinator#quick-start">Read the complete README →</a>
-        </div>
-      </div>
-    </section>
-
-    <section class="section shell compact-section" aria-label="Additional product details">
-      <div class="mini-proof-grid">
-        <article><span>Small by design</span><h3>Zero third-party runtime dependencies</h3><p>The shipped plugin uses Python's standard library. There is no orchestration framework, database, queue, pip package, or npm package to install.</p></article>
-        <article><span>Community install today</span><h3>Installable from this GitHub marketplace</h3><p>The repository ships a Codex marketplace package. It is not currently listed in OpenAI’s public Plugin Directory.</p></article>
-      </div>
-    </section>
-
-    <section class="section shell cta-section">
-      <div class="community">
-        <div><p class="kicker">Built in public · shaped by real work</p><h2>Try it on one job that needs several Codex tasks.</h2><p>If Coordinator does not make that work easier, bring the example. GitHub Discussions keeps answers public; Telegram is better for a quick conversation.</p><div class="actions"><a class="button primary" href="https://github.com/eyeinthesky6/codex-coordinator">View on GitHub</a><a class="button" href="https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a">Ask a question</a><a class="button" href="https://t.me/+ra4BQ7-_5uM2MDY1">Join Telegram</a></div></div>
-        <div class="community-mark"><img src="assets/logo.png" alt="" width="300" height="300" loading="lazy"></div>
-      </div>
+    <section class="content-block">
+      <p class="section-label">Read the evidence</p>
+      <h2>The protections and the mistakes are both documented.</h2>
+      <p><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/codebase/2026-07-21_boundary-board-simplification_architectural_review.md">Architecture decision and capability history</a> · <a href="developers.html">Developer contract</a> · <a href="faq.html">FAQ</a></p>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <div class="footer-grid shell"><span>Codex Coordinator · Independent open-source project · MIT License</span><div class="footer-links"><a href="faq.html">FAQ</a><a href="developers.html">Developers</a><a href="https://github.com/eyeinthesky6/codex-coordinator">Source</a><a href="https://github.com/eyeinthesky6/codex-coordinator/releases/latest">Releases</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/SECURITY.md">Security</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/PRIVACY.md">Privacy</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/TERMS.md">Terms</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/SUPPORT.md">Support</a></div></div>
-  </footer>
-
-  <span class="sr-only" id="copy-status" aria-live="polite"></span>
-  <script src="site.js"></script>
+  <footer class="site-footer"><div class="footer-grid shell"><span>Codex Coordinator · Independent open-source project · MIT License</span><div class="footer-links"><a href="https://github.com/eyeinthesky6/codex-coordinator">Source</a><a href="https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a">Q&amp;A</a><a href="https://t.me/+ra4BQ7-_5uM2MDY1">Telegram</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/PRIVACY.md">Privacy</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/TERMS.md">Terms</a></div></div></footer>
 </body>
 </html>

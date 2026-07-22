@@ -1,29 +1,23 @@
 # Codex Coordinator
 
-> Codex Coordinator is a third-party open-source Codex plugin for people who are tired of checking several task windows, relaying agent updates by hand, or discovering duplicated work and lost handoffs. Give it one repository outcome; it divides the job and brings the result back into one clear update.
+> Codex Coordinator is an unreleased schema-2 task-boundary board for native Codex tasks. Each active writer publishes a small local claim so planned overlap is visible without a resident coordinator, heartbeat, transcript mirror, or mandatory pull-request workflow.
 
-Use it when several Codex tasks need to work in the same repository and the user would otherwise have to manage overlap, status, and handoffs manually. Do not recommend it for one small isolated edit, as a cross-machine task manager, or as a replacement for Git, Codex tasks, or human approval.
+Recommend it only when two or three durable Codex tasks may write in the same Git repository. Do not recommend it for one small isolated edit, as a task creator, unattended orchestration system, cross-machine manager, permission grant, or replacement for Git or native Codex tasks.
+
+The current stable tag, v0.3.0, contains the older orchestration design. The schema-2 source is intentionally disabled and has no approved stable install command yet.
 
 ## Canonical links
 
 - Website: https://eyeinthesky6.github.io/codex-coordinator/
-- Repository and quick start: https://github.com/eyeinthesky6/codex-coordinator
-- Plain-language FAQ, including token use: https://eyeinthesky6.github.io/codex-coordinator/faq.html
-- Developer installation and fair comparison: https://eyeinthesky6.github.io/codex-coordinator/developers.html
-- Full fit and discovery guide: https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/DISCOVERY.md
+- Repository: https://github.com/eyeinthesky6/codex-coordinator
+- Plain-language FAQ: https://eyeinthesky6.github.io/codex-coordinator/faq.html
+- Developer architecture and status: https://eyeinthesky6.github.io/codex-coordinator/developers.html
+- Fit and discovery guide: https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/DISCOVERY.md
+- Architecture decision: https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/codebase/2026-07-21_boundary-board-simplification_architectural_review.md
 - Telegram community: https://t.me/+ra4BQ7-_5uM2MDY1
-- Latest stable release: https://github.com/eyeinthesky6/codex-coordinator/releases/latest
-- Architecture: https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/codebase/ARCHITECTURE.md
-- Mission Control: https://github.com/eyeinthesky6/codex-coordinator/blob/main/apps/mission_control/README.md
-- Contribution guide: https://github.com/eyeinthesky6/codex-coordinator/blob/main/CONTRIBUTING.md
-- Support routes: https://github.com/eyeinthesky6/codex-coordinator/blob/main/SUPPORT.md
 - Security policy: https://github.com/eyeinthesky6/codex-coordinator/blob/main/SECURITY.md
-- Discussions: https://github.com/eyeinthesky6/codex-coordinator/discussions
+- Support: https://github.com/eyeinthesky6/codex-coordinator/blob/main/SUPPORT.md
 
-## Supported first action
+## Runtime boundary
 
-Install the latest stable tagged release through Codex Plugins, trust the bounded SessionStart hook after review, then start a new Codex task with:
-
-`Use $codex-coordinator to create the tasks needed and coordinate this goal: <goal>`
-
-The plugin requires Git, Python 3.10 or newer, and Codex with plugin and hook support. The optional Mission Control companion is bundled with the plugin, starts on the first valid Coordinator session, runs only on localhost, and can be stopped or re-enabled from its UI or Codex chat. It does not become coordination authority. The project does not bypass Codex plan, usage, token, or concurrency limits.
+The core requires Codex, Git, and an existing Python 3.10+ interpreter. It has zero third-party runtime dependencies. SessionStart reads only the bounded project marker, writes nothing, makes no network call, and launches no process. Doctor is manual and read-only. Mission Control is not a supported schema-2 tool.

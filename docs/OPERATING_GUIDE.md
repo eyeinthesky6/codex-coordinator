@@ -1,276 +1,160 @@
 # Codex Coordinator operating guide
 
-Use this page to choose the smallest tool that matches the job. You do not need to run Coordinator,
-Mission Control, Doctor, and the test suite for every change: they answer different questions.
+This guide describes the unreleased schema-2 boundary board. The repository remains disabled until the user reviews the completed migration and explicitly enables it.
 
-> [!IMPORTANT]
-> **Realignment status:** The accepted target is an opt-in task-boundary and visibility layer. It does not use a resident Coordinator, persistent heartbeat, all-task reconciliation, Mission Control autostart, or Doctor self-repair. Those behaviors below document the legacy-current source and stable release until implementation and migration are complete; they are not approved patterns for new development. Coordinator remains disabled in maintainer projects during this work. See the [boundary-board simplification decision](codebase/2026-07-21_boundary-board-simplification_architectural_review.md).
+## Choose the smallest path
 
-## Choose by outcome
+| Need | Use |
+|---|---|
+| One coherent result | One native Codex task; no Coordinator state |
+| Short independent help inside one task | Parent-owned subagent when allowed |
+| Two or three durable writers in one repository | Schema-2 active board |
+| One combined answer from several explicitly requested tasks | Temporary goal-scoped lead |
+| Check package compatibility | Manual read-only Doctor |
+| Repair a broken package | Normal plugin update or reinstall |
+| Observe tasks in a UI | No supported schema-2 observer yet |
 
-| What you need | Use | How |
-|---|---|---|
-| One small, isolated Codex change | A normal Codex task | Ask for the change normally. Coordinator should stay out of the way. |
-| Several substantial Codex tasks in one repository | Codex Coordinator | Ask Codex to coordinate the bounded goal, for example: `Use $codex-coordinator to coordinate the release-readiness work in this repository.` |
-| A local view of current project work | Mission Control | It starts after the first Coordinator session, or ask Codex to `Start Mission Control`. |
-| Check whether the installed Coordinator is current | Doctor check | Run the Doctor with `--check`; this is read-only. |
-| Repair a drifted manual Coordinator installation | Doctor apply | Review the trusted source package, then explicitly run the Doctor with `--apply`. |
-| Prove the source package still behaves correctly | Repository tests | Run the full Python test suite. |
-| Prove installation on a new machine | Fresh-machine UAT | Follow the stable install instructions in the README on a clean supported machine. |
-| Install or update the plugin | Marketplace install/update | Follow the pinned stable-release instructions in the README. |
-| Turn Coordinator off for one repository | Reversible project deactivation | Ask Codex to turn it off; inspect the dry run before exact project and native lifecycle changes are applied. |
-| Remove Coordinator globally | Verified global uninstall | Plan from explicitly known or indexed repositories, deactivate each safely, stop Mission Control, then remove the plugin. |
-| Delete saved Coordinator history | Explicit purge | Name the exact project or global application-data boundary and accept that recovery history will be lost. |
+Do not create a durable task for a command, small lookup, narrow review follow-up, simple test, or one-or-two-file mechanical fix.
 
-## The normal daily flow
+## Normal daily flow
 
-### Small work
+### Disabled or absent marker
 
-Open a normal Codex task and describe the result you want. No setup command is required. An enabled
-repository does not turn every small task into multi-agent work.
+Continue normal Codex work. Do not read old `CURRENT.md`, task, inbox, cache, or archive state. Do not create a Coordinator task or board record.
 
-### Coordinated work
+### Enabled schema-2 marker
 
-Give Codex one shared outcome and the important limits:
+1. Resolve the primary worktree.
+2. List active claims with the bundled state helper.
+3. Keep the request in the current task unless a real durable parallel lane exists.
+4. Before substantial writes, publish this exact native task's narrow paths and exclusive actions using expected revision `0`.
+5. Work only inside the claim. Update it only when scope, status, or a dependency changes.
+6. If a claim overlaps, pause only the conflicting part. Disjoint work continues.
+7. At completion or stop, release the claim to one compact cold receipt.
+8. Report from the native task. Do not duplicate the turn in project state.
 
-```text
-Use $codex-coordinator to coordinate this repository's release-readiness work.
-Keep the public API stable, do not publish anything, and give me one consolidated result.
-```
+The normal active limit is three. More requires a direct user decision and the explicit override flag. Twelve is a hard limit.
 
-Coordinator decides whether the work is large enough to need durable worker tasks. It should keep
-routine tests, lookups, and mechanical documentation inside the current owner instead of creating a
-new task for every command. It records whether it reused a same-area owner, retained a microtask,
-delegated substantial independent work, or created a task for a genuinely new area. It may choose a
-bounded linked worktree when an independent writer would otherwise wait, while the primary worktree
-keeps canonical coordination state and one integration owner remains named.
+## Commands
 
-Coordinator-generated tasks inherit the user's configured model. They use Low reasoning for
-deterministic work or Medium for normal work unless managed policy or the user explicitly overrides
-it. Expensive reasoning is not required for coordination.
-
-### Monitor GitHub safely
-
-Coordinator reads relevant pull requests, required checks, reviews, unresolved conversations, merge
-state, and goal-related issues at the start of a coordinated goal, after material Git changes, and
-before closure when GitHub access is available. These reads do not need repeated approval. Missing
-access is reported as a gap, and unrelated issues do not silently become project work.
-
-GitHub writes are separate. Creating or changing a pull request or issue, submitting a review,
-marking ready, merging, releasing, deploying, or changing repository settings needs exact current
-permission unless that same bounded action is already directly authorised. Before asking to merge,
-Coordinator reports the pull request, exact head and base, checks, reviews, mergeability, unresolved
-conversations, merge method, stacked-work effect, and recommendation. It checks the immutable head
-again immediately before the action and returns the provider receipt afterward.
-
-### Reconcile scheduled work
-
-Coordinator inventories project-related automations, heartbeats, changed run results, and repository
-scheduled workflows at goal start, after material automation changes, and before closure. It matches
-the exact project, working directory, target, and action boundary rather than trusting a similar
-display name. Each matching item is recorded with its purpose, status, cadence, authority, ownership,
-latest material result, dependencies, relationship to the goal, and next action.
-
-Unrelated, user-created, paused, disabled, and explicitly stopped work is preserved. Read-only
-inspection needs no repeated permission. A small reversible alignment may use existing direct
-authority only when it does not expand the action type or ownership. Enabling, disabling, deleting,
-or materially changing status, cadence, purpose, scope, target, permissions, external writes, or
-ownership requires a recorded direct user decision first. A green scheduled run proves only that
-run; it does not prove the wider product outcome.
-
-### Reconcile historical tasks
-
-Old task windows are evidence, not a backlog. `idle`, `notLoaded`, or elapsed time alone does not say
-that work is complete, waiting, authorised, or still needed. Before restarting anything, Coordinator
-compares the recorded outcome and unmet acceptance criteria with the current objective:
-
-- completed and accepted work stays closed and releases ownership;
-- still-required work for the same objective may continue under its existing authority after scope,
-  dependency, ownership, and native-status checks;
-- optional, superseded, materially expanded, conflicting, costly, destructive, or external work waits
-  for a user decision;
-- unclear relevance or authority is recorded as awaiting a user decision and produces one concise
-  prioritised question.
-
-The consolidated update reports how many historical items were closed, continued, deferred or not
-needed, and left awaiting a decision. Coordinator never makes the user inspect old task windows and
-never repurposes an old task for a different core goal.
-
-### Observe current work
-
-Mission Control is optional. It reads local Codex and Coordinator records and displays a local
-dashboard; it does not become the project authority. The bundled server starts on the first valid
-Coordinator session and later sessions reuse it without opening duplicate tabs.
-
-After Coordinator is enabled for a repository, one pinned Coordinator remains registered and all same-repository tasks are managed by default. Only the user may exclude a task. A user pause changes the project to report-only mode: observation and summaries continue, but assignment, redirection, wake, stop, resume, and ownership changes stop. Workload idle keeps the Coordinator and repository heartbeat. Each Coordinator summary and Mission Control project view shows the mode and exclusions.
-
-Before every user-visible final update, Coordinator reconciles changed task turns, local handoffs,
-ownership, acceptance evidence, GitHub state, scheduled work, retained decisions, and the full goal
-ledger. The update always includes done work, pending work, blockers or decisions, next actions, and
-the full-goal verdict, using `None` when a section is empty. It also verifies a real return path. A
-quiet heartbeat with no material change stays quiet and preserves every pending item.
-
-From chat:
-
-```text
-Start Mission Control.
-Stop Mission Control.
-```
-
-Stopping it from chat or the Settings panel disables automatic restart. An explicit chat start
-turns automatic startup back on. For source development, the direct command remains:
+List:
 
 ```powershell
-python -m apps.mission_control
+python <installed-skill>/scripts/coordination_state.py list `
+  --project-root <primary-worktree>
 ```
 
-Windows background mode:
+Claim:
 
 ```powershell
-.\apps\mission_control\start-background.ps1 -Open
-.\apps\mission_control\stop.ps1
+python <installed-skill>/scripts/coordination_state.py claim `
+  --project-root <primary-worktree> `
+  --thread-id <exact-native-thread-uuid> `
+  --title <short-title> `
+  --goal <bounded-goal> `
+  --path <repo-relative-path> `
+  --action <exclusive-action-if-any> `
+  --expected-revision <current-or-zero>
 ```
 
-Watch more than one enabled project:
+Release:
 
 ```powershell
-python -m apps.mission_control `
-  --project C:\Projects\project-one `
-  --project C:\Projects\project-two
+python <installed-skill>/scripts/coordination_state.py release `
+  --project-root <primary-worktree> `
+  --thread-id <exact-native-thread-uuid> `
+  --expected-revision <current-revision> `
+  --status completed
 ```
 
-See the [Mission Control guide](../apps/mission_control/README.md) for settings, token use, Doctor,
-and privacy boundaries.
+Allowed terminal statuses are `completed`, `stopped`, `superseded`, and `stale-owner-confirmed`.
 
-## Health, repair, and proof
+## Claims and conflicts
 
-These checks are not interchangeable:
+- Use exact repository-relative files or directories. No absolute paths, drives, traversal, or globs.
+- `.` claims the whole repository.
+- Equal paths and ancestor/descendant paths conflict case-insensitively.
+- Exclusive actions conflict only on the exact action slug.
+- Common actions include `git-integration`, `release`, `deployment`, `database-migration`, `environment`, `runtime`, and `external-write`.
+- A revision mismatch requires a fresh list. Never overwrite the newer record.
+- The board is advisory metadata, not a filesystem lock or permission grant.
 
-| Check | What it proves | What it does not prove |
-|---|---|---|
-| Doctor | The installed global Coordinator contract, skill, helper, and hook match a trusted package and pass bounded installation checks | Mission Control behavior, source-repository quality, release readiness, or user success |
-| Repository tests | The checked-out source passes its automated behavior and package contracts | A clean install on another machine or a successful public release |
-| Mission Control | Current local observation and dashboard behavior | Canonical ownership or task permission |
-| Fresh-machine UAT | A user can install and reach first value in a clean environment | Ongoing compatibility with every future Codex release |
+The helper uses a short OS file lock around mutations so concurrent writers cannot both win the same boundary. Each task can write only its own filename. Unknown fields and records above 4 KB are rejected.
 
-### Doctor: read-only check
+## Git
 
-From the trusted source checkout:
+One writer owns `git-integration` whenever multiple writers exist. Other tasks do not switch branches, stage broad changes, commit, rebase, merge, stash, reset, restore, or clean unless the user assigns that action.
+
+Direct commit and push is the default for one integration owner. Pull requests are optional.
+
+## Peer notices
+
+Send a message only when an immediate real collision or dependency would otherwise surprise the exact owner. Allowed kinds are:
+
+- `COLLISION` — sender paused one overlapping boundary;
+- `DEPENDENCY` — sender cannot finish a named result until a boundary is released;
+- `RELEASED` — that earlier condition is resolved.
+
+Notices are plain text and non-executable. They cannot assign work, relay authority, demand progress, or require an acknowledgement. Verify same project, exact sender, exact recipient, and both active claims before acting.
+
+## Stale claims
+
+Time, silence, `idle`, `notLoaded`, timeouts, and filtered search misses do not prove staleness.
+
+Inspect the exact native task. Release another owner's claim only when exact evidence shows it terminal, archived, or unusable and the current direct user request covers the same unfinished work. Use `stale-owner-confirmed`; do not edit the former owner's JSON directly.
+
+## External writes
+
+Filesystem capability is not authority. Before writing outside the current Git common repository, tell the user the exact target and reason. If the existing request does not already authorize it, wait.
+
+Provider, schedule, release, environment, database, and deployment actions remain owned by the task performing them. Board enablement grants none of those permissions and monitors none of them.
+
+## SessionStart
+
+SessionStart reads only the marker and emits a short hint for an enabled compatible project. It never reads the board, archives, native histories, private Codex databases, or legacy records. It launches no process, Python installer, browser, Mission Control, task, message, heartbeat, or schedule.
+
+## Doctor
+
+Run manually:
 
 ```powershell
-python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py --check
+python plugins/codex-coordinator/scripts/codex_coordinator_doctor.py --check
 ```
 
-For a compact automation-friendly result:
+Results are `healthy` or `broken`. Broken means update or reinstall the plugin. `--apply` is a rejected legacy option and writes nothing.
 
-```powershell
-python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py --compact --check
-```
+Doctor does not scan projects, write findings, run a model, create a diagram, start an observer, copy files, repair, or roll back.
 
-For a private visual projection of the same result:
+## Mission Control
 
-```powershell
-python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py `
-  --check `
-  --mermaid-out C:\private\coordinator-doctor.mmd
-```
+There is no supported schema-2 Mission Control in this checkpoint. The legacy source is inert because nothing in the base runtime imports or starts it. Do not use it against schema-2 state.
 
-The Mermaid file helps a person navigate the result. JSON, exit status, hashes, syntax checks, and
-the hook smoke test remain the proof.
+A future optional observer must be separately installed, manually started, read-only, and limited to the public active-board schema. It must not inspect private Codex SQLite or rollout files or have Doctor, model, task, schedule, or write authority.
 
-### Doctor: approved repair
+## Enable, disable, migrate, and purge
 
-`--apply` writes to the configured installed skill and hook. Use it only after the source checkout is
-the exact trusted package you intend to install:
+- Enablement is per repository and requires schema 2 plus direct user authority.
+- Deactivation sets the marker false and removes the exact discovery block. It preserves all state and history.
+- Schema-1 history remains preserved and ignored. It is never guessed into schema-2 ownership.
+- Schema 1 may be disabled, but not reactivated without migration.
+- Global uninstall uses explicitly known project roots; it never scans a drive.
+- Purge is separate, destructive, dry-run-first, and requires exact project-ID confirmation.
 
-```powershell
-python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py --apply
-python plugins\codex-coordinator\scripts\codex_coordinator_doctor.py --check
-```
+No project is re-enabled by install, update, Doctor, task discovery, SessionStart, or an optional tool.
 
-Start a new Codex task after an installed-skill update so the new instructions are loaded. Doctor
-does not change project ownership, application code, Git state, configuration, environment files,
-or Mission Control.
+## Validation
 
-### Repository tests
+From the repository root:
 
 ```powershell
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-Run the full suite after changes to the packaged skill, hook, Doctor, Mission Control, marketplace
-metadata, or tests. Focused tests may shorten development, but the full suite is the repository gate.
+The implementation is not ready to release until the full suite passes, performance acceptance is measured, legacy project migration is tested, optional-tool separation is resolved, docs contain no current-behavior contradictions, and the user explicitly approves release or enablement.
 
-## Install, update, and first success
+## Authority
 
-Use the [README quick start](../README.md#quick-start) for the current stable install path. After an
-update, start a new Codex task. A project with `coordination_enabled: true` reuses its existing local
-state; an update must not reset its work or ownership.
-
-The provider-consent, complete delivery-summary, and scheduled-task reconciliation behavior is owned
-by the global plugin package and capability contract, not by project markers or local state. The
-current `v0.3.0` marketplace stays pinned and does not receive unreleased source changes. Distribution
-requires a separately authorised tag and release; existing installations then use the README's normal
-marketplace replacement and plugin reinstall flow. No project-state migration is part of this update.
-
-First success is a real bounded goal that is easier to follow because Coordinator kept ownership and
-status clear. Installation alone, an empty demo, a green Doctor result, or an open dashboard is not
-user success.
-
-## Deactivation and uninstall
-
-These are different operations:
-
-| Operation | Default result |
-|---|---|
-| Pause management | Repository remains enabled in report-only mode; Coordinator observes and reports but performs no control actions. |
-| Deactivate project | Marker is disabled, exact discovery block and repository heartbeat are removed, history and configuration are preserved. |
-| Uninstall globally | Every verified intended project is deactivated independently, Mission Control is stopped, exact Coordinator heartbeats and plugin are removed, history is preserved. |
-| Purge | Exact saved project or global Coordinator data is removed only under separate explicit confirmation. |
-
-From chat, prefer:
-
-```text
-Turn Codex Coordinator off for this repository.
-Uninstall Coordinator globally but preserve project history.
-```
-
-For development or recovery, run the packaged helper without `--apply` first:
-
-```powershell
-python plugins\codex-coordinator\scripts\codex_coordinator_uninstall.py `
-  project deactivate --project-root C:\Projects\example
-
-python plugins\codex-coordinator\scripts\codex_coordinator_uninstall.py `
-  global-plan --codex-home $env:CODEX_HOME `
-  --project-root C:\Projects\example
-```
-
-The helper changes only verified project files when explicitly applied. It reports, but does not
-pretend to perform, native task archival/pinning, automation deletion, Mission Control shutdown, or
-plugin removal. Global planning never scans a drive. See the
-[uninstall and deactivation contract](codebase/UNINSTALL_AND_DEACTIVATION.md) for preservation,
-retry, purge, and disposable-VM testing boundaries.
-
-## Which document is authoritative?
-
-| Question | Source of truth |
-|---|---|
-| What users install and how they start | [README](../README.md) |
-| Coordinator behavior and boundaries | [Packaged skill](../plugins/codex-coordinator/skills/codex-coordinator/SKILL.md) and its selected reference lane |
-| Mission Control behavior | [Mission Control guide](../apps/mission_control/README.md) and its tests |
-| Current source architecture | [Architecture](codebase/ARCHITECTURE.md) and implementation |
-| Test commands and coverage | [Testing guide](codebase/TESTING.md) and `tests/` |
-| Support, bugs, community, and security routes | [Support](../SUPPORT.md) and [Security](../SECURITY.md) |
-
-When documentation and implementation disagree, do not guess. Verify the behavior, then update the
-smallest owning document and its tests.
-
-## Safety boundaries
-
-- Normal diagnosis is read-only. `--apply`, publishing, releases, external replies, and account or
-  community changes need the applicable approval.
-- Mission Control is an observer. Coordinator documents and native Codex task state retain authority.
-- Do not publish local coordination state, task messages, private plans, credentials, or recovery
-  information.
-- Do not run every tool “for safety.” Choose the check that proves the claim you need.
+- Current behavior: the packaged skill, capability contract, helper, hook, and tests.
+- Architecture decision and history: [boundary-board simplification review](codebase/2026-07-21_boundary-board-simplification_architectural_review.md).
+- Code layout: [architecture](codebase/ARCHITECTURE.md) and [structure](codebase/STRUCTURE.md).
+- Destructive lifecycle boundaries: [uninstall and deactivation](codebase/UNINSTALL_AND_DEACTIVATION.md).

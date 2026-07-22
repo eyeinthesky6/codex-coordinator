@@ -1,84 +1,23 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Codex Coordinator FAQ — Tokens, Mission Control, subagents, and control</title>
-  <meta name="description" content="Plain answers about what Codex Coordinator does, why it exists, token use, Mission Control, subagents, worktrees, privacy, and when not to use it.">
-  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
-  <meta name="theme-color" content="#06142f">
-  <link rel="canonical" href="https://eyeinthesky6.github.io/codex-coordinator/faq.html">
-  <link rel="icon" href="assets/logo.png" type="image/png">
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Codex Coordinator">
-  <meta property="og:title" content="Codex Coordinator FAQ">
-  <meta property="og:description" content="Straight answers before you install Codex Coordinator.">
-  <meta property="og:url" content="https://eyeinthesky6.github.io/codex-coordinator/faq.html">
-  <meta property="og:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
-  <meta name="twitter:card" content="summary">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&amp;family=DM+Mono:wght@400;500&amp;family=Syne:wght@500;600;700&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [
-      {"@type":"Question","name":"What does Codex Coordinator do?","acceptedAnswer":{"@type":"Answer","text":"It helps several Codex tasks work on different parts of one project, remembers what each task is doing, and brings the work back into one clear update."}},
-      {"@type":"Question","name":"Does Codex Coordinator use more tokens?","acceptedAnswer":{"@type":"Answer","text":"Running several agents usually uses more tokens than one comparable task. Coordinator does not bypass normal Codex plan, usage, token, or concurrency limits."}},
-      {"@type":"Question","name":"Is Mission Control required?","acceptedAnswer":{"@type":"Answer","text":"No. The core Coordinator works without Mission Control. Mission Control is an optional local dashboard that runs only when you start it."}},
-      {"@type":"Question","name":"Do I need Ultra?","acceptedAnswer":{"@type":"Answer","text":"No. You can explicitly ask Coordinator to split and coordinate a suitable goal. Your normal Codex plan, model, usage, and concurrency limits still apply."}},
-      {"@type":"Question","name":"Does Codex Coordinator replace Git worktrees?","acceptedAnswer":{"@type":"Answer","text":"No. Worktrees isolate branches and files. Coordinator handles task ownership, handoffs, status, and consolidation."}}
-    ]
-  }
-  </script>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Codex Coordinator FAQ — Task boundaries, privacy, and status</title><meta name="description" content="Plain answers about the schema-2 task-boundary board, release status, privacy, Git, and optional tools."><meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1"><meta name="theme-color" content="#06142f"><link rel="canonical" href="https://eyeinthesky6.github.io/codex-coordinator/faq.html"><link rel="icon" href="assets/logo.png" type="image/png"><meta property="og:type" content="website"><meta property="og:site_name" content="Codex Coordinator"><meta property="og:title" content="Codex Coordinator FAQ"><meta property="og:description" content="Straight answers about the task-boundary design."><meta property="og:url" content="https://eyeinthesky6.github.io/codex-coordinator/faq.html"><meta property="og:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png"><meta name="twitter:card" content="summary"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&amp;family=DM+Mono:wght@400;500&amp;family=Syne:wght@500;600;700&amp;display=swap" rel="stylesheet"><link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What does Codex Coordinator do?","acceptedAnswer":{"@type":"Answer","text":"It lets each active native Codex task publish a small bounded ownership claim so planned overlap is visible."}},{"@type":"Question","name":"Does it replace Git worktrees?","acceptedAnswer":{"@type":"Answer","text":"No. Worktrees isolate files and history; the board records planned task ownership."}},{"@type":"Question","name":"Is Mission Control required?","acceptedAnswer":{"@type":"Answer","text":"No. There is no supported schema-2 Mission Control in the current checkpoint."}}]}</script>
 </head>
 <body>
-  <a class="skip-link" href="#main-content">Skip to main content</a>
-  <header class="site-header">
-    <nav class="nav shell" aria-label="Primary navigation">
-      <a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="37" height="37">Codex Coordinator</a>
-      <div class="nav-links"><a href="index.html#demo">Demo</a><a href="index.html#install">Install</a><a href="faq.html" aria-current="page">FAQ</a><a href="developers.html">Developers</a><a href="https://github.com/eyeinthesky6/codex-coordinator">GitHub</a><a class="nav-cta" href="index.html#install">Install</a></div>
-    </nav>
-  </header>
-
-  <main id="main-content" class="shell">
-    <header class="page-hero">
-      <p class="kicker">Frequently asked questions</p>
-      <h1>Straight answers <span>before you install.</span></h1>
-      <p>What it does, why we made it, what it costs in tokens, and where its responsibility ends.</p>
-    </header>
-
-    <div class="content-layout">
-      <nav class="side-nav" aria-label="FAQ topics">
-        <a href="#what">What it does</a>
-        <a href="#why">Why it exists</a>
-        <a href="#tokens">Token use</a>
-        <a href="#mission-control">Mission Control</a>
-        <a href="#subagents">Subagents and Ultra</a>
-        <a href="#worktrees">Git worktrees</a>
-        <a href="#privacy">Data and servers</a>
-        <a href="#avoid">When to avoid it</a>
-      </nav>
-
-      <div class="faq-list">
-        <article class="faq-item" id="what"><h2>What does Codex Coordinator do?</h2><p>It helps several Codex tasks work on different parts of one project. It remembers what each task is doing, checks when work may overlap, and brings everything back into one clear update.</p></article>
-        <article class="faq-item" id="why"><h2>Why did you make it?</h2><p>Because several Codex tasks can create a second job for you: checking every chat, copying updates between tasks, spotting duplicated work, and rebuilding the plan after a pause. Coordinator carries that work while you stay in control of the result and important decisions.</p></article>
-        <article class="faq-item" id="tokens"><h2>Does it use more tokens?</h2><p>Usually, yes. Several Codex tasks normally use more tokens than one similar task. Coordinator still follows your normal Codex plan and limits. The benefit is less repeated work and less time spent managing tasks—not a promise of lower token use.</p></article>
-        <article class="faq-item" id="mission-control"><h2>Is Mission Control required?</h2><p>No. Coordinator works without it. Mission Control is an optional local dashboard that shows what is working, what needs you, and where 2 tasks may be changing the same files. It runs only when you start it.</p></article>
-        <article class="faq-item" id="subagents"><h2>Do I need Ultra? What about subagents?</h2><p>You do not need Ultra. Subagents are still useful for short help inside one Codex task. Coordinator is useful when several separate Codex tasks need to stay organised and return one combined result.</p></article>
-        <article class="faq-item" id="worktrees"><h2>Does it replace Git worktrees?</h2><p>No. Worktrees separate branches and files. Coordinator tracks who owns each job, what is blocked, what survived a restart, and what still needs review. They solve different problems and can be used together.</p></article>
-        <article class="faq-item" id="privacy"><h2>Does it send my code to another server?</h2><p>No extra Coordinator server is added. It uses your normal Codex tasks and small files stored with the project on your computer. Its startup check makes no network calls. Codex itself still uses the normal Codex service and account you already use.</p></article>
-        <article class="faq-item"><h2>Can agents overrule me?</h2><p>No. Coordination does not turn a suggestion into permission. Publishing, deployment, database changes, environment changes, and other important actions still follow your instructions and existing approval boundaries.</p></article>
-        <article class="faq-item"><h2>Do I need to restart Codex or start Coordinator?</h2><p>You do not need to restart the Codex app or run a Coordinator service. After installation, open a new Codex task so it can load the plugin. Then describe the result you want. Mission Control is separate and runs only if you choose to open the dashboard.</p></article>
-        <article class="faq-item"><h2>Is it in OpenAI’s Plugin Directory?</h2><p>Not currently. Today you install it from this project’s GitHub marketplace package. That package is ready for Codex agents and people to install using the steps on the homepage.</p></article>
-        <article class="faq-item" id="avoid"><h2>When should I avoid it?</h2><p>Use one Codex task for one clear job. Use subagents for quick help inside that task. Add Coordinator when several separate Codex tasks would otherwise make you copy context, check progress, and combine the answers yourself.</p></article>
-        <article class="faq-item"><h2>What does it require?</h2><p>Codex with plugin and hook support, Git, and Python 3.10 or newer. The shipped plugin has zero third-party runtime dependencies. See the <a href="developers.html">Developers guide</a> for the full installation and technical comparison.</p></article>
-      </div>
-    </div>
-  </main>
-
-  <footer class="site-footer"><div class="footer-grid shell"><span>Codex Coordinator · Independent open-source project · MIT License</span><div class="footer-links"><a href="index.html">Home</a><a href="developers.html">Developers</a><a href="https://github.com/eyeinthesky6/codex-coordinator">Source</a><a href="https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a">Ask in GitHub Q&amp;A</a><a href="https://t.me/+ra4BQ7-_5uM2MDY1">Telegram</a></div></div></footer>
+  <a class="skip-link" href="#main-content">Skip to main content</a><header class="site-header"><nav class="nav shell" aria-label="Primary navigation"><a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="37" height="37">Codex Coordinator</a><div class="nav-links"><a href="index.html">Home</a><a href="faq.html" aria-current="page">FAQ</a><a href="developers.html">Developers</a><a href="https://github.com/eyeinthesky6/codex-coordinator">GitHub</a></div></nav></header>
+  <main id="main-content" class="shell"><header class="page-hero"><p class="kicker">Frequently asked questions</p><h1>What the board does—<span>and does not do.</span></h1></header><div class="faq-list">
+    <article class="faq-item"><h2>What does Codex Coordinator do?</h2><p>It gives native Codex tasks a small repository-local place to publish their bounded goal, paths, actions, dependencies, and status. It detects planned overlap before substantial writes.</p></article>
+    <article class="faq-item"><h2>Why remove the resident Coordinator?</h2><p>The manager task, heartbeat, polling, ledgers, and repeated status checks became slower than the work. Exact task-owned claims preserve the useful ownership protection without making one chat manage every other chat.</p></article>
+    <article class="faq-item"><h2>Does it create task windows?</h2><p>No. One task is the default. Additional durable tasks are a direct user or host decision for substantial independent work. The board itself creates no task.</p></article>
+    <article class="faq-item"><h2>Does Codex Coordinator replace Git worktrees?</h2><p>No. Worktrees isolate files and Git history. The board records planned task ownership. Direct commits and pushes remain normal for one integration owner; PRs are optional.</p></article>
+    <article class="faq-item"><h2>Does it store chats or reasoning?</h2><p>No. Native Codex remains the transcript authority. Unknown claim fields are rejected and records are capped at 4 KB.</p></article>
+    <article class="faq-item"><h2>Does it keep watching in the background?</h2><p>No. There is no heartbeat or background task. SessionStart reads only the marker and launches nothing.</p></article>
+    <article class="faq-item"><h2>Is Mission Control required?</h2><p>No. There is no supported schema-2 observer yet. Legacy source is inert. Any future observer must be separately installed, manual, read-only, and limited to the public board.</p></article>
+    <article class="faq-item"><h2>Can Doctor repair the installation?</h2><p>No. Doctor only checks package compatibility. Broken packages are updated or reinstalled through the normal plugin manager.</p></article>
+    <article class="faq-item"><h2>Can I install schema 2 now?</h2><p>Not as a stable release. The source is still being validated and projects remain disabled. Stable v0.3.0 contains the older orchestration design.</p></article>
+    <article class="faq-item"><h2>What does it require?</h2><p>Codex with plugin and hook support, Git, and an existing Python 3.10+ interpreter. The core has zero third-party runtime dependencies.</p></article>
+  </div></main>
+  <footer class="site-footer"><div class="footer-grid shell"><span>Codex Coordinator · Independent open-source project · MIT License</span><div class="footer-links"><a href="index.html">Home</a><a href="developers.html">Developers</a><a href="https://github.com/eyeinthesky6/codex-coordinator">Source</a></div></div></footer>
 </body>
 </html>
