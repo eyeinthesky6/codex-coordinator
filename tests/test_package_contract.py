@@ -33,12 +33,13 @@ class PackageContractTests(unittest.TestCase):
 
     def test_contract_is_small_and_matches_accepted_architecture(self) -> None:
         contract = json.loads((SKILL / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 21)
+        self.assertEqual(contract["contractVersion"], 22)
         capabilities = contract["capabilities"]
-        self.assertEqual(len(capabilities), 18)
+        self.assertEqual(len(capabilities), 19)
         expected = {
             "corePurpose": "repository-task-boundary-visibility",
             "repositoryLifecycle": "explicit-opt-in",
+            "projectLifecycleTool": "dry-run-first-init-deactivate-migrate-reactivate-purge",
             "defaultExecution": "one-native-task",
             "nativeTaskAuthority": "execution-messaging-transcript",
             "claimOwnership": "per-task-json-record",

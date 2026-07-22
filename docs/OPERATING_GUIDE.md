@@ -131,8 +131,9 @@ Mission Control is not shipped in the schema-2 base package. The schema-1 runtim
 
 A future optional observer requires a new separate package and usage evidence. It must be manually started, read-only, and limited to the public active-board schema. It must not inspect private Codex SQLite or rollout files or have Doctor, model, task, schedule, or write authority.
 
-## Enable, disable, migrate, and purge
+## Initialise, disable, migrate, and purge
 
+- New-project initialisation is dry-run-first through `codex_coordinator_project.py project init`. It accepts an exact ID, name, and task prefix, and creates only the marker, empty board directories, and exact guidance/ignore blocks.
 - Enablement is per repository and requires schema 2 plus direct user authority.
 - Deactivation sets the marker false and removes the exact discovery block. It preserves all state and history.
 - Schema-1 history remains preserved and ignored. It is never guessed into schema-2 ownership.
@@ -151,7 +152,7 @@ From the repository root:
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-The implementation is not ready to release until the full suite passes, performance acceptance is measured, legacy project migration is tested, optional-tool separation is resolved, docs contain no current-behavior contradictions, and the user explicitly approves release or enablement.
+The source implementation has passed the full suite, bounded performance checks, an isolated end-to-end workflow, and a read-only legacy-project migration dry run. Global installation, migration apply, real-project re-enablement, push, and release remain separate user-approved steps.
 
 ## Authority
 

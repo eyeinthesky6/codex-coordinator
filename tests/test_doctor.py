@@ -45,7 +45,7 @@ class DoctorTests(unittest.TestCase):
         code, report = self._run(PLUGIN, "--check")
         self.assertEqual(code, 0)
         self.assertEqual(report["status"], "healthy")
-        self.assertEqual(report["checks"], 5)
+        self.assertEqual(report["checks"], 6)
         self.assertEqual(report["failures"], 0)
         self.assertEqual(report["recommendedAction"], "none")
 
@@ -78,6 +78,9 @@ class DoctorTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             ),
+            "missing project lifecycle": lambda root: (
+                root / "scripts" / "codex_coordinator_project.py"
+            ).unlink(),
         }
         for name, mutate in mutations.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:

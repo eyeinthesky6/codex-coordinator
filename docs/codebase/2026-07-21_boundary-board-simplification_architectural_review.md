@@ -624,11 +624,12 @@ The schema-2 source checkpoint implements:
 - revision checks, atomic writes, and a short cross-platform OS lock around mutations;
 - compact cold receipts that ordinary reads never scan;
 - a marker-only five-second SessionStart with no child process or Python bootstrap;
-- a schema-21 contract with 18 product-level fields instead of the schema-19 41-key orchestration mirror;
+- a schema-22 contract with 19 product-level fields instead of the schema-19 41-key orchestration mirror, including one explicit dry-run-first project lifecycle capability;
 - a manual read-only Doctor whose only repair recommendation is update or reinstall;
 - schema-2 lifecycle operations with no task, pin, heartbeat, schedule, or Mission Control actions;
 - legacy schema-1 preservation and cleanup reporting without reactivation;
 - dry-run-first schema-1 migration with exact marker backup, empty active/archive directories, no ownership inference, and no automatic reactivation;
+- dry-run-first new-project initialisation that rejects ambiguous existing state and creates no claim, task, process, heartbeat, message, or transcript copy;
 - no Mission Control runtime, UI, launcher, lifecycle helper, or browser test in the base package;
 - current README, operating, architecture, privacy, discovery, site, and testing documentation.
 
@@ -636,26 +637,28 @@ Measured on Windows with Python 3.13, including normal local process-start cost 
 
 | Operation | Median | p95 | Output or record size |
 |---|---:|---:|---:|
-| Disabled SessionStart process | 58.22 ms | 70.68 ms | 0 bytes |
-| Enabled SessionStart process | 60.24 ms | 69.42 ms | 422 bytes |
-| Empty in-process board list | 0.752 ms | 1.218 ms | 144-byte JSON |
-| Three-claim in-process board list | 1.387 ms | 2.236 ms | 1,123-byte JSON |
-| Claim mutation | 4.614 ms | 6.586 ms | 378-byte maximum sample |
-| Release mutation | 4.149 ms | 5.141 ms | 254-byte maximum receipt |
+| Disabled SessionStart process | 186.27 ms | 361.80 ms | 0 bytes |
+| Enabled SessionStart process | 221.13 ms | 363.61 ms | 426-byte maximum sample |
+| Empty in-process board list | 1.355 ms | 2.193 ms | 167-byte JSON |
+| Claim mutation | 6.776 ms | 9.757 ms | 386-byte maximum sample |
+| Release mutation | 5.624 ms | 6.268 ms | 259-byte maximum receipt |
 
-The full standard-library suite ran 77 tests in about 6.4 seconds and passed. Two expected checks skipped: optional property testing because its development-only dependency was absent, and real directory-symlink creation because the Windows account lacked that privilege. Link/junction rejection remains implemented; the skipped test does not weaken ordinary collision, concurrency, privacy, size, hook, Doctor, or lifecycle coverage.
+The process measurements include normal Windows process-start and local security-scanning cost; no Coordinator process remains running after the hook exits. Forty accumulated cold receipts did not change the empty-board read path. A fresh isolated-package workflow covering Doctor, init, SessionStart, two disjoint claims, one rejected overlap, both releases, and disable completed in about 2.5 seconds.
+
+The full standard-library suite ran 84 tests in about 14.0 seconds and passed. Two expected checks skipped: optional property testing because its development-only dependency was absent, and real directory-symlink creation because the Windows account lacked that privilege. Link/junction rejection remains implemented; the skipped test does not weaken ordinary collision, concurrency, privacy, size, hook, Doctor, lifecycle, or end-to-end coverage.
 
 Hot-path code and guidance changed as follows relative to the pre-realignment source head:
 
 | Surface | Before | Now | Change |
 |---|---:|---:|---:|
-| SessionStart | 941 lines | 132 lines | -809 |
-| Doctor | 681 lines | 225 lines | -456 |
-| Skill Markdown | 799 lines | 259 lines | -540 |
-| Python bootstrap scripts | 204 lines | 0 | -204 |
-| State helper | 678 lines | 682 lines | +4 |
+| SessionStart | 1,050 lines | 157 lines | -893 |
+| Doctor | 745 lines | 261 lines | -484 |
+| Skill Markdown total | 1,169 lines | 387 lines | -782 |
+| Python bootstrap scripts | 228 lines | 0 | -228 |
+| State helper | 762 lines | 764 lines | +2 |
+| Manual project lifecycle | 487 lines | 864 lines | +377 |
 
-The state helper did not shrink by line count because the new decentralized path keeps strict schema, containment, concurrency, and rollback protections. Its measured empty and three-record reads remain under 2.3 ms at p95 and do not touch legacy or archive history.
+The state helper did not shrink by line count because the new decentralized path keeps strict schema, containment, concurrency, and rollback protections. Its measured empty read remains under 2.3 ms at p95 and does not touch legacy or archive history. The manual lifecycle helper grew because it safely preserves and migrates legacy schema-1 state and now initialises a fresh project; it is dry-run-first and absent from SessionStart and ordinary claim/list/release work.
 
 ## Agent-led review
 
@@ -705,12 +708,14 @@ Proven:
 - compact receipt and archive-free hot reads;
 - marker-only startup and read-only Doctor isolation;
 - the smaller capability contract and current documentation;
-- the measured source-checkpoint performance above.
+- the measured source-checkpoint performance above;
+- a fresh isolated package can initialise and complete the full claim/conflict/release/disable workflow without legacy state or background work;
+- a real disabled schema-1 ApplyCue project produces a read-only migration inventory with no imported ownership and no writes.
 
 Not yet proven:
 
-- migration applied to a real user project after review of its dry-run inventory;
-- behavior of a separately installed schema-2 package in a real re-enabled project;
+- migration applied to a real user project after review of its dry-run inventory and stopped-runtime confirmation;
+- behavior of the globally installed schema-2 package in a deliberately re-enabled real project;
 - release and user-workflow performance after installation.
 
 ## Temporary suspension and re-enable requirement

@@ -1,6 +1,28 @@
-# Uninstall and deactivation contract
+# Project lifecycle, uninstall, and deactivation contract
 
-Deactivation, migration, global uninstall, and purge are different operations. The lifecycle helper is dry-run-first and operates only on an explicitly named primary Git worktree.
+Initialisation, deactivation, migration, global uninstall, and purge are different operations. The lifecycle helper is dry-run-first and operates only on an explicitly named primary Git worktree.
+
+## New schema-2 project
+
+Initialisation accepts an exact project ID, display name, and short task prefix. It creates only the enabled schema-2 marker, empty `active/` and `archive/` directories, and the exact discovery and ignore blocks. It rejects an existing marker, an unmarked non-empty coordination directory, a linked path, or a non-primary worktree.
+
+The plan is read-only:
+
+```powershell
+python plugins/codex-coordinator/scripts/codex_coordinator_project.py `
+  project init --project-root C:\Projects\example `
+  --project-id example --project-name "Example" --task-prefix EX
+```
+
+Apply only after reviewing those exact paths:
+
+```powershell
+python plugins/codex-coordinator/scripts/codex_coordinator_project.py `
+  project init --project-root C:\Projects\example `
+  --project-id example --project-name "Example" --task-prefix EX --apply
+```
+
+Initialisation creates no active claim, native task, process, heartbeat, schedule, message, or transcript copy.
 
 ## Schema-2 deactivation
 
@@ -33,35 +55,35 @@ The helper does not inspect native Codex state or external observer state to man
 Dry-run deactivation:
 
 ```powershell
-python plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py `
+python plugins/codex-coordinator/scripts/codex_coordinator_project.py `
   project deactivate --project-root C:\Projects\example
 ```
 
 Apply only after reviewing the plan:
 
 ```powershell
-python plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py `
+python plugins/codex-coordinator/scripts/codex_coordinator_project.py `
   project deactivate --project-root C:\Projects\example --apply
 ```
 
-Reactivation:
+Dry-run reactivation:
 
 ```powershell
-python plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py `
+python plugins/codex-coordinator/scripts/codex_coordinator_project.py `
   project reactivate --project-root C:\Projects\example
 ```
 
 Dry-run schema migration:
 
 ```powershell
-python plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py `
+python plugins/codex-coordinator/scripts/codex_coordinator_project.py `
   project migrate --project-root C:\Projects\example
 ```
 
 Apply only after reviewing the inventory and stopping the legacy runtime:
 
 ```powershell
-python plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py `
+python plugins/codex-coordinator/scripts/codex_coordinator_project.py `
   project migrate --project-root C:\Projects\example `
   --confirm-project-id example `
   --confirm-legacy-runtime-stopped `
@@ -70,13 +92,9 @@ python plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py `
 
 Migration keeps `coordination_enabled: false`. Reactivation remains a later, explicit user action after source/install validation.
 
-## Global uninstall planning
+## Global uninstall
 
-Global planning reads a small local index plus explicitly supplied project roots and revalidates every marker. It never scans a drive. A rejected or ambiguous project does not block safe reporting for verified projects.
-
-For schema 2, there are no native task actions. For schema 1 only, the plan may require stopping a verified old heartbeat and Coordinator task. A separately configured legacy Mission Control auto-start is also legacy cleanup, not part of schema 2.
-
-Plugin removal remains a normal plugin-manager operation after verified projects are disabled.
+There is no global project registry or drive scan. Dry-run and deactivate each explicitly chosen repository, then remove the plugin through the normal plugin manager. Plugin removal never rewrites project markers or history. Legacy heartbeat or observer cleanup remains an explicit one-time schema-1 responsibility, not a schema-2 runtime.
 
 ## Purge
 

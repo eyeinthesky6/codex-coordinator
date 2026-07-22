@@ -29,7 +29,7 @@ class MissionControlIsolationTests(unittest.TestCase):
         base_files = (
             PLUGIN / "scripts" / "codex_coordinator_session_start.py",
             PLUGIN / "scripts" / "codex_coordinator_doctor.py",
-            PLUGIN / "scripts" / "codex_coordinator_uninstall.py",
+            PLUGIN / "scripts" / "codex_coordinator_project.py",
             SKILL / "scripts" / "coordination_state.py",
         )
         content = "\n".join(path.read_text(encoding="utf-8") for path in base_files).casefold()
