@@ -1,59 +1,47 @@
 # Structure
 
-## Public repository surface
+## Boundary core
 
-- `README.md`: product promise, fit, installation, and first use.
-- `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SUPPORT.md`, `SECURITY.md`: contributor and support routes.
-- `CHANGELOG.md`: release-facing change history.
-- `AGENTS.md`: instructions for agents and contributors working in this repository.
-- `site/`: static GitHub Pages front door, crawler policy, and sitemap.
-- `llms.txt`: small agent-readable map of the canonical public documentation.
-- `docs/DISCOVERY.md`: problem-led recommendation, non-fit, proof, and comparison guidance.
-- `docs/codebase/`: contributor-facing technical map.
+- `plugins/codex-coordinator/.codex-plugin/plugin.json`: package and public prompt metadata.
+- `plugins/codex-coordinator/hooks/hooks.json`: direct five-second SessionStart registration.
+- `plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`: marker-only, read-only hook.
+- `plugins/codex-coordinator/skills/codex-coordinator/SKILL.md`: boundary-board invariants and lane router.
+- `plugins/codex-coordinator/skills/codex-coordinator/capabilities.json`: schema-20, 18-field public behavior contract.
+- `plugins/codex-coordinator/skills/codex-coordinator/scripts/coordination_state.py`: active claim list/claim/release helper.
+- `plugins/codex-coordinator/skills/codex-coordinator/references/`: execution, messaging, recovery, installation, maintenance, and Doctor guidance.
+- `plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`: manual read-only compatibility check.
+- `plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py`: dry-run-first schema-2 lifecycle and legacy schema-1 cleanup planning.
 
-## Optional source companion
+## Project state
 
-- `apps/mission_control/`: dependency-free localhost dashboard, local task and project collector, settings, Doctor launcher, and static UI. It ships in the tagged source repository, not inside the plugin cache.
-- `tests/test_mission_control.py`: deterministic collector, status, overlap, security-boundary, settings, Doctor, and HTTP behavior checks.
-- `tests/verify_mission_control_ui.py`: optional Playwright browser smoke script for a running dashboard.
+- `.codex/coordination/project.yaml`: committed opt-in marker.
+- `.codex/coordination/active/<thread-uuid>.json`: ignored active task-owned claims.
+- `.codex/coordination/archive/<thread-uuid>-<time>.json`: ignored compact cold receipts.
+- Schema-1 `CURRENT.md`, tasks, inbox, and cache may remain as preserved ignored history but are not schema-2 authority.
 
-## Distributable plugin
+## Legacy optional-tool source
 
-- `plugins/codex-coordinator/.codex-plugin/plugin.json`: package identity and Codex interface metadata.
-- `plugins/codex-coordinator/assets/logo.png`: canonical brand asset.
-- `plugins/codex-coordinator/skills/codex-coordinator/SKILL.md`: top-level routing and operating contract.
-- `plugins/codex-coordinator/skills/codex-coordinator/capabilities.json`: machine-checked installed behavior contract used by Doctor.
-- `plugins/codex-coordinator/skills/codex-coordinator/scripts/coordination_state.py`: deterministic current-state, reconciliation, create-if-absent, and two-phase inbox-hash checkpoint helper.
-- `plugins/codex-coordinator/skills/codex-coordinator/references/`: short operations router plus execution, reconciliation, messaging, installation, recovery, maintenance, and Doctor lanes loaded as needed.
-- `plugins/codex-coordinator/skills/codex-coordinator/agents/openai.yaml`: agent-facing display metadata and default prompt.
-- `plugins/codex-coordinator/hooks/hooks.json`: SessionStart registration.
-- `plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`: bounded restart-context hook and Mission Control lifecycle dispatch.
-- `plugins/codex-coordinator/scripts/mission_control_lifecycle.py`: idempotent local start, stop, status, and persisted user opt-out.
-- `plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py`: dry-run-first project deactivation/reactivation, verified known-project global planning, and separately confirmed purge.
-- `plugins/codex-coordinator/mission_control/`: bundled localhost dashboard runtime.
-- `plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`: atomic repair plus installed skill and hook validation for the configured Coordinator runtime, with optional Mermaid diagnostic output.
-- `plugins/codex-coordinator/LICENSE`: license included with the distributed plugin.
-
-## Marketplace and validation
-
-- `.agents/plugins/marketplace.json`: repository marketplace entry pointing to the local plugin directory.
-- `tests/test_package_contract.py`: manifest, license, asset, hook, and skill-link checks.
-- `tests/test_session_start.py`: behavioral and safety checks for restart parsing, table semantics, duplicate ownership, and fail-closed transitions.
-- `tests/test_doctor.py`: update-package identity, unambiguous JSON, non-overlapping destinations, atomic installed-runtime repair, rollback, preservation, runtime validation, idempotency, and Mermaid-projection checks.
-- `tests/test_uninstall.py`: isolated temporary-repository lifecycle planning, application, rollback, preservation, verified indexing, and purge checks.
-- `tests/test_coordination_state.py`: state metadata and row validation, safe taskless normalization, reconciliation routing and ledger validation, non-overwriting file creation, and fail-safe inbox checkpoint behavior.
-- `tests/test_public_site.py`: public metadata, route, asset-assembly, and discovery-file checks.
-- `tests/test_mission_control.py`: public companion behavior and server-boundary checks.
-- `.github/`: issue forms, pull-request template, CI, Pages deployment, and dependency automation.
-
-## Evidence
-
-- `.agents/plugins/marketplace.json`
-- `plugins/codex-coordinator/`
-- `tests/test_package_contract.py`
-- `tests/test_session_start.py`
-- `tests/test_doctor.py`
-- `tests/test_public_site.py`
-- `site/`
+- `plugins/codex-coordinator/mission_control/`
 - `apps/mission_control/`
-- `.github/`
+- `plugins/codex-coordinator/scripts/mission_control_lifecycle.py`
+
+These paths are not imported, started, checked, or advertised by the schema-2 base runtime. They remain only until Mission Control is either rebuilt as a separate read-only package or removed in a separately reviewed change.
+
+## Public and contributor docs
+
+- `README.md`: current source behavior and unreleased status.
+- `docs/OPERATING_GUIDE.md`: operator commands and boundaries.
+- `docs/DISCOVERY.md`: when to recommend the board or a simpler path.
+- `docs/codebase/2026-07-21_boundary-board-simplification_architectural_review.md`: exhaustive decision history.
+- `CHANGELOG.md`: chronological behavior changes.
+- `PRIVACY.md`, `TERMS.md`, `SECURITY.md`: public trust boundaries.
+
+## Tests
+
+- `test_coordination_state.py`: task-owned records, overlap, concurrency, limits, privacy, and cold receipts.
+- `test_session_start.py`: silent opt-out, bounded hint, malformed markers, and no launcher.
+- `test_doctor.py`: read-only package compatibility and reinstall-only failure.
+- `test_uninstall.py`: schema-2 no-lifecycle behavior, legacy cleanup, preservation, and purge confirmation.
+- `test_package_contract.py`, `test_goal_leadership_contract.py`: architecture and guidance regression gates.
+- `test_mission_control*.py`, `test_doctor_scan.py`: optional-tool isolation from the base runtime.
+- Public site, release, and hygiene tests cover distribution surfaces separately.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -9,52 +10,45 @@ SKILL_ROOT = REPOSITORY / "plugins" / "codex-coordinator" / "skills" / "codex-co
 
 
 class GoalLeadershipContractTests(unittest.TestCase):
-    def test_worker_completion_cannot_replace_goal_completion(self) -> None:
+    def test_one_native_task_is_the_default(self) -> None:
         skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
-        reconciliation = (SKILL_ROOT / "references" / "reconciliation.md").read_text(
-            encoding="utf-8"
+        execution = (SKILL_ROOT / "references" / "execution.md").read_text(encoding="utf-8")
+        self.assertIn("Default to one native Codex task", skill)
+        self.assertIn("Three active durable tasks", skill)
+        self.assertIn("Twelve is the hard board limit", skill)
+        self.assertIn("independently useful", execution)
+
+    def test_lead_is_explicit_temporary_and_goal_scoped(self) -> None:
+        content = "\n".join(
+            (SKILL_ROOT / path).read_text(encoding="utf-8")
+            for path in ("SKILL.md", "references/execution.md")
         )
+        self.assertIn("Never create a permanent lead task", content)
+        self.assertIn("temporary lead", content)
+        self.assertIn("role ends with the goal", content)
+        self.assertNotIn("pinned Coordinator remains", content)
 
-        self.assertIn("owns delivery of the user's shared goal", skill)
-        self.assertIn("goal-coverage ledger", skill)
-        self.assertIn("A worker reaching a terminal state", skill)
-        self.assertIn("Goal coverage and team-leader loop", reconciliation)
-        self.assertIn("Closing every worker does not close the shared goal", reconciliation)
-        self.assertIn("absence of a worker is not a disposition", reconciliation)
-
-    def test_no_change_is_never_a_terminal_signal(self) -> None:
-        skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
-        reconciliation = (SKILL_ROOT / "references" / "reconciliation.md").read_text(
-            encoding="utf-8"
+    def test_no_heartbeat_provider_or_schedule_reconciliation_contract(self) -> None:
+        content = "\n".join(
+            (SKILL_ROOT / path).read_text(encoding="utf-8")
+            for path in ("SKILL.md", "references/operations.md", "references/execution.md")
         )
+        self.assertIn("does not create a resident Coordinator", content)
+        self.assertIn("does not create, pin, wake, or retain a Coordinator task", content)
+        self.assertNotIn("verify exactly one repository heartbeat", content)
+        self.assertNotIn("provider reconciliation", content.casefold())
+        self.assertNotIn("per-turn reconciliation", content.casefold())
 
-        self.assertIn("Treat `no change` only as an observation", skill)
-        self.assertIn("It never means done, idle, terminal", skill)
-        self.assertIn("A no-change heartbeat preserves", reconciliation)
-        self.assertIn("It is not a completion event", reconciliation)
-
-    def test_leader_selects_the_next_delivery_path(self) -> None:
-        reconciliation = (SKILL_ROOT / "references" / "reconciliation.md").read_text(
-            encoding="utf-8"
-        )
-
-        self.assertIn("highest-value executable action on the critical path", reconciliation)
-        self.assertIn("another currently available in-scope tool", reconciliation)
-        self.assertIn("one concise, prioritised decision request", reconciliation)
-        self.assertIn("Suggest a correction or safer next path", reconciliation)
-        self.assertIn("Never reduce the report to worker activity", reconciliation)
-
-    def test_enabled_repository_lifecycle_is_active_by_default(self) -> None:
-        skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
-        installation = (SKILL_ROOT / "references" / "installation.md").read_text(encoding="utf-8")
-        reconciliation = (SKILL_ROOT / "references" / "reconciliation.md").read_text(encoding="utf-8")
-
-        self.assertIn("Every same-repository Codex task is managed by default", skill)
-        self.assertIn("Only a direct user instruction may add or remove", skill)
-        self.assertIn("A user pause switches to `REPORT_ONLY`", skill)
-        self.assertIn("workload idle never unregisters the Coordinator", skill)
-        self.assertIn("create one complete native Coordinator task", installation)
-        self.assertIn("lists excluded tasks or `none`", reconciliation)
+    def test_capability_contract_describes_boundary_board_not_orchestration(self) -> None:
+        contract = json.loads((SKILL_ROOT / "capabilities.json").read_text(encoding="utf-8"))
+        self.assertEqual(contract["contractVersion"], 20)
+        capabilities = contract["capabilities"]
+        self.assertEqual(capabilities["defaultExecution"], "one-native-task")
+        self.assertEqual(capabilities["taskCreation"], "direct-user-or-independent-durable-lane")
+        self.assertEqual(capabilities["transcriptStorage"], "none")
+        self.assertEqual(capabilities["gitWorkflow"], "direct-commit-default-pr-optional")
+        for removed in ("monitoring", "continuationGuarantee", "providerMonitoring", "scheduledTaskMonitoring"):
+            self.assertNotIn(removed, capabilities)
 
 
 if __name__ == "__main__":

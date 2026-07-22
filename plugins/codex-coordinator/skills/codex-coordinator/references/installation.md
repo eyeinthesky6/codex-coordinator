@@ -1,224 +1,79 @@
-# Installation and onboarding
+# Installation and project enablement
 
-Read this file completely only when the user asks to install, enable, initialise, repair discovery, demonstrate, or explain initial use of Codex Coordinator.
+Read this file completely only when the user asks to install, enable, disable, or initialise Codex Coordinator.
 
-## Installation authority and boundaries
+## Boundaries
 
-Apply the main skill's **Project enablement trigger** exactly; this lane does not add another trigger. When it selects enablement, that selection grants bounded `COORDINATOR_MAINTAINER` authority over Coordinator files and the exact Coordinator-state block in the root `.gitignore`, plus the main skill's bounded authority to create, pin, and register exactly one repository Coordinator. Project `.codex/config.toml` remains read-only unless the user separately and explicitly asks to set a project model or reasoning default. Do not touch application code, environment files, unrelated configuration, or unrelated instructions.
+- The plugin installs one global skill and one small read-only SessionStart hook.
+- Python 3.10 or newer must already be available. Installation never installs Python, changes PATH, invokes an OS package manager, or asks for administrator access.
+- SessionStart reads only the bounded project marker and launches no child process or optional tool.
+- Mission Control is not started or installed as part of project enablement.
+- Project state contains a trackable marker plus ignored active claims and cold receipts. There is no `CURRENT.md` requirement, resident Coordinator task, heartbeat, inbox, or task transcript store.
 
-Keep global behavior separate from project state:
+## Enablement preflight
 
-- The global skill contains Coordinator behavior.
-- The global read-only SessionStart hook provides restart context.
-- The bundled Mission Control companion observes local native and Coordinator records and exposes the bounded Doctor action; it is not project state or a second authority.
-- Project files contain identity and current state only.
+Before writing project files:
 
-The installed plugin exposes the global skill to agents. An enabled repository's minimal root `AGENTS.md` block provides project-local discovery; no global `AGENTS.md` edit is required for a clean plugin install.
+1. Resolve the Git root and primary worktree.
+2. Inspect the root `AGENTS.md`, root `.gitignore`, marker, Git status, and active native tasks that could own those exact files.
+3. Preserve unrelated bytes and existing dirty work.
+4. Stop before all writes if the marker or exact insertion cannot be changed safely.
 
-## Python runtime bootstrap
+## Marker schema 2
 
-The SessionStart registration first runs the packaged OS-native bootstrap. It accepts only Python 3.10 or newer and checks PATH, the Windows Python launcher and registry where applicable, standard installation folders, and bounded Codex runtime-cache folders. It validates every candidate before using it. Do not recursively scan an entire drive, another user's profile, or unrelated directories.
+```yaml
+schema_version: 2
+coordination_enabled: true
+project_id: <stable-lowercase-project-id>
+project_name: <project-name>
+task_prefix: <short-uppercase-prefix>
+canonical_paths:
+  active: .codex/coordination/active
+  archive: .codex/coordination/archive
+access:
+  cross_project_task_access: false
+  cross_project_state_changes: false
+```
 
-If no compatible interpreter exists, the bootstrap writes a plain notice before attempting installation. Prefer an existing user-scoped installer: `winget --scope user` on Windows, then `uv` or Homebrew on supported Unix systems. A system package manager may run only when the current process is already root. Never invoke `sudo`, prompt for an administrator password, permanently edit PATH, or download an unverified standalone binary. If installation is unavailable or fails, return valid SessionStart output explaining that Python 3.10+ is required so the task can continue without a broken hook response.
-
-Once selected, the same interpreter runs the Coordinator hook and its bundled Mission Control lifecycle. A discovered Codex-bundled interpreter is a best-effort fallback; do not hardcode one versioned cache path or describe that internal path as a stable Codex API.
-
-## Mission Control lifecycle
-
-The first valid SessionStart in any enabled Coordinator repository starts or reuses the bundled localhost Mission Control server. It opens the dashboard only on that first automatic launch. Later sessions reuse the process without opening duplicate tabs.
-
-When Coordinator enables a previously unmarked repository during the current task, SessionStart has already passed. After the marker and initial state validate, make the bounded local application-data disclosure required below, then run `scripts/mission_control_lifecycle.py start --automatic --project <primary-worktree>` once. This gives first-time enablement the same behavior without requiring another Codex task or restart.
-
-Mission Control keeps `automatic_start_enabled` and whether the first browser launch occurred in its existing local application-data directory. It never writes that preference into a project, plugin cache, global config, or environment file.
-
-When the user asks in chat to **Start Mission Control**, disclose that the action writes the lifecycle preference in the operating system's local Codex Coordinator application-data directory and starts a localhost process, then run the packaged `scripts/mission_control_lifecycle.py start --project <primary-worktree> --open`. This explicit request authorises that bounded preference write and process start. Report the returned status and URL.
-
-When the user asks in chat to **Stop Mission Control**, make the same bounded application-data disclosure, then run `scripts/mission_control_lifecycle.py stop`. This disables automatic restart and requests a graceful server shutdown. A stop request while no server is running still records the disabled preference. **Start Mission Control** explicitly re-enables it.
-
-For a read-only status request, run `scripts/mission_control_lifecycle.py status`. Do not edit environment or Codex configuration for any lifecycle command. If the packaged runtime is missing, report the installation defect instead of downloading code or guessing a source checkout.
-
-Never copy or synchronize a Coordinator README, capability manual, skill, hook, `system-source`, SOP, template library, or behavior summary into a project. Existing project-local copies are non-authoritative. Remove them only when the user explicitly authorises removal in that repository.
-
-## Project files
-
-Coordinator-specific project content is limited to:
-
-- the minimal Coordinator block in the root `AGENTS.md`;
-- the exact Coordinator-state entries in the root `.gitignore`;
-- `.codex/coordination/project.yaml` for stable identity and canonical paths;
-- `.codex/coordination/CURRENT.md` for changing state;
-- `tasks/` when a real task exists;
-- `inbox/` when a real durable handoff record exists;
-- `suggestions/` when a real Coordinator-system report exists.
-
-The installer preserves `.codex/config.toml` by default. Coordinator-generated tasks inherit the user's configured model while the global operating contract explicitly uses `low` or `medium` reasoning unless managed policy or an explicit per-task or run-wide user override applies. Under a separate explicit request, the installer may minimally merge an exact project model or reasoning default; this remains ordinary Codex configuration, not Coordinator state or a synchronization target.
-
-Keep `project.yaml` trackable because it is the repository discovery marker. Treat every other `.codex/coordination/` path as local operational state. Add this exact root `.gitignore` block before creating Coordinator state:
+Keep the marker trackable. Ignore all other coordination state with:
 
 ```gitignore
 .codex/coordination/*
 !.codex/coordination/project.yaml
 ```
 
-Do not ignore the root `AGENTS.md`, `.codex/config.toml`, or all of `.codex/`. Preserve every unrelated `.gitignore` line and comment exactly.
+Do not ignore all of `.codex`, the root `AGENTS.md`, or project configuration.
 
-Keep `project.yaml` stable. Put epoch, mode, Coordinator, sessions, tasks, ownership, pending commands, and other changing fields only in `CURRENT.md` or task files.
+## Root discovery block
 
-## Bootstrap preflight
-
-Before the first project-file write, finish one read-only preflight across the whole bootstrap set:
-
-1. Resolve the primary worktree and Git common repository; never bootstrap canonical state in a linked worktree.
-2. Inspect Git status and the existing contents or absence of the root `AGENTS.md`, root `.gitignore`, `.codex/config.toml`, and `.codex/coordination/` marker and state. Preserve unrelated bytes and existing dirty work.
-3. Use native task discovery to identify other currently active tasks in that same Git common repository and inspect whether any owns or is changing one of those exact paths. If overlap exists, or a safe boundary cannot be established, stop with `BOOTSTRAP_COLLISION`, make no partial Coordinator edits, and report the exact path and owner uncertainty.
-4. Verify that existing marker and config files parse and that every planned insertion is a narrow merge. If any target cannot be preserved safely, stop before all writes.
-
-An active same-repository task with proven disjoint ownership is not itself a blocker. Bootstrap changes never grant permission to stage, commit, reset, restore, stash, clean, or otherwise alter its work.
-
-## Enablement procedure
-
-Run this procedure only when the main skill's Project enablement trigger selects enablement. Otherwise create no project files.
-
-1. Confirm the target is a Git repository and resolve its root.
-2. Complete the Bootstrap preflight above.
-3. If an existing marker is explicitly opted out and the main trigger does not authorise re-enable, make no changes. When re-enabling, preserve existing identity and state. If it is enabled, do not reinstall, reset the epoch, erase tasks, or replace state; use the missing-state procedure below if only `CURRENT.md` is absent.
-4. Use the user-provided project ID. Otherwise use the normalized root directory name only when unambiguous. Keep it stable.
-5. Add only the exact discovery block below to the root `AGENTS.md`. Never create or change nested instruction files.
-6. Add the exact two-line Coordinator-state block to the root `.gitignore` if absent. When `.gitignore` is absent, create it with only that block.
-7. Check whether any mutable `.codex/coordination/` paths are already tracked. An ignore rule does not affect tracked files. Do not alter the Git index unless the user explicitly asked to stop tracking Coordinator state; when authorised, first verify the active Git integration owner, then remove only the mutable state paths from the index while keeping their working files. Keep `project.yaml` trackable.
-8. In a new unmarked repository, create fresh `project.yaml` and `CURRENT.md` only. Never copy IDs, epochs, tasks, sessions, or state from another repository.
-9. Reuse the global skill and SessionStart hook. Do not create project-local Coordinator behavior files.
-10. Preserve `.codex/config.toml` byte-for-byte and create no project model default unless the user separately asks for one. Native Coordinator task creation inherits the user's configured model while explicitly using the cost-safe `low` or `medium` reasoning policy.
-11. When the user explicitly requests a project default, resolve the exact supported model/reasoning combination from the target host, confirm any unavailable exact choice, then create or minimally merge only `model` and `model_reasoning_effort`. Preserve every unrelated setting and never edit global config.
-12. Initialise `CURRENT.md` as a short `ATTENTION_NEEDED` bootstrap transition with shared goal `none`, Coordinator `NONE / UNREGISTERED / accepts=false`, and empty required tables including `Excluded tasks`.
-13. Apply the main skill's Coordinator creation authority immediately: create one complete native Coordinator task, bind its exact identity, pin it, register it as `IDLE / accepts=true`, switch mode to `MANAGING`, and verify one repository heartbeat. Do not claim enablement complete until all of these receipts exist.
-14. Create `tasks/`, `inbox/`, or `suggestions/` only when writing the first real record of that kind. Do not add placeholders.
-15. After the enabled marker and registered state pass validation, run the packaged Mission Control lifecycle helper in automatic mode as described above. Re-enabling a repository must respect an existing user-disabled Mission Control preference; automatic mode never overrides it.
-
-## Enabled marker with missing local state
-
-An enabled marker without canonical `CURRENT.md` is possible local-state loss, not a normal reinstall.
-
-1. Verify the supported marker and derive the expected project ID from that primary-worktree marker.
-2. Use native discovery to prove that no other task besides this authorised bootstrap task is currently active in the same Git common repository. A timeout, unavailable tool, incomplete listing, uncertain repository match, or any other active same-repository task fails this proof.
-3. Complete the Bootstrap preflight for the missing state path and inspect surviving local task records without deleting or rewriting them.
-4. Only after that proof, recreate `CURRENT.md` in the exact compact shape from the main skill with mode `ATTENTION_NEEDED`, no active shared goal, an unregistered non-accepting Coordinator, and empty tables including `Excluded tasks`. Preserve the marker, project ID, surviving task records, project config, and all unrelated files.
-5. Create or recover and pin the repository Coordinator, then switch to `MANAGING`, restore `IDLE / accepts=true`, and verify the repository heartbeat before substantial project work.
-
-If the proof fails, report `LOCAL_COORDINATION_STATE_MISSING`, make no Coordinator-state change, send no project message, and do not begin substantial overlapping writes. Never infer that missing ignored state is safe merely because the tracked marker survived a clone or checkout.
-
-## Marker
-
-Use this minimum shape without project-specific policy:
-
-```yaml
-schema_version: 1
-coordination_enabled: true
-project_id: <stable-lowercase-project-id>
-project_name: <project-name>
-task_prefix: <short-uppercase-prefix>
-canonical_paths:
-  current: .codex/coordination/CURRENT.md
-  tasks: .codex/coordination/tasks
-  suggestions: .codex/coordination/suggestions
-access:
-  cross_project_task_access: false
-  cross_project_state_changes: false
-```
-
-Treat `true` as enabled and `false` as an explicit project opt-out. Marker absence means not yet initialised, not opted out. Use the ordered procedure below for deactivation or reactivation; do not implement opt-out as an isolated marker edit.
-
-## Project deactivation and reactivation
-
-When the user says `Turn Codex Coordinator off for this repository`, treat that direct request as authority for reversible project deactivation, not data purge:
-
-1. Reconcile active tasks to a safe boundary and preserve every working-tree change.
-2. Run `scripts/codex_coordinator_uninstall.py project deactivate --project-root <primary-worktree>` from the installed plugin to get the dry-run receipt. Dry-run is the default.
-3. Verify and perform the reported native actions through their owning surfaces: remove exactly the repository heartbeat targeting the registered Coordinator, then archive and unpin that Coordinator only after its work is safe.
-4. Run the same command with `--apply` to set only the existing marker to `false` and remove only the exact packaged discovery block.
-5. Preserve the disabled marker, `CURRENT.md`, task and inbox history, ignore block, `.codex/config.toml`, Codex tasks and transcripts, Mission Control data, application files, Git history, and environment.
-6. Validate the disabled marker and byte preservation. Report the current mode as disabled and active exclusions as none because the repository is no longer managed.
-
-Reactivation uses the same preflight and the dry-run-first command `project reactivate --project-root <primary-worktree>`. After `--apply`, reload the installed skill, reconcile preserved state, create or recover one pinned accepting Coordinator, and restore exactly one repository heartbeat. Automatic Mission Control startup continues to respect the user's existing local preference.
-
-Project purge is not opt-out. It requires a separate direct request, the exact project ID through `--confirm-project-id`, and the maintenance lane's destructive-action checks.
-
-## Root AGENTS.md discovery block
-
-Use this exact block:
+Add only this exact block and preserve every unrelated instruction:
 
 ```markdown
 ## Codex Coordinator
 
-- This repository is Codex Coordinator-enabled.
-- Project identity is in `.codex/coordination/project.yaml`; current coordination state is in `.codex/coordination/CURRENT.md`.
-- Load the globally installed `codex-coordinator` skill at the start of every task in this repository; all same-repository tasks are managed by default unless the user explicitly excludes one.
-- Respect the project ID and assigned task boundary; reject missing or mismatched cross-thread project bindings.
-- Treat Coordinator internals as protected; only an explicitly user-authorised `COORDINATOR_MAINTAINER` may modify them.
+- This repository uses the opt-in Codex task-boundary board in `.codex/coordination/project.yaml`.
+- Before substantial writes, load the installed `codex-coordinator` skill, list active claims from the primary worktree, and publish only this task's bounded claim.
+- Native Codex tasks remain the execution, messaging, and transcript authority; there is no resident Coordinator, heartbeat, or mandatory pull-request workflow.
+- Reject cross-project notices and never store transcripts, reasoning, prompts, or tool output in Coordinator state.
 ```
 
-Preserve every non-Coordinator line exactly. Do not reorganize, shorten, expand, deduplicate, or improve unrelated guidance.
+## Enable
 
-## First-run demonstration
+1. Create or migrate the marker only under direct user authority or the explicit repository trigger in the main skill.
+2. Add the exact ignore and discovery blocks.
+3. Do not create a Codex task, `CURRENT.md`, task contract, inbox, heartbeat, Mission Control process, Doctor schedule, or placeholder record.
+4. Validate the marker and run the state helper's empty `list` command.
+5. Keep the project single-task until each real writer can publish its own exact native claim.
 
-Demonstrate discovery without creating fake project work:
+Schema-1 mutable history is preserved and ignored. Do not infer active schema-2 claims from old task or inbox files.
 
-1. Re-read the marker and `CURRENT.md` as a new thread would.
-2. Show that the pinned Coordinator sees a small isolated task without creating unnecessary worker processes.
-3. Explain that every task is managed by default and real parallel work records clear ownership before assignments begin.
-4. Confirm that a system-maintenance agent repairs Coordinator only and never receives ordinary project work.
-5. Do not create fake workers, acknowledgements, or messages. The one pinned Coordinator created by enablement is the real lifecycle task, not demonstration data.
+## Disable
 
-## User handoff
+Disabling is reversible and not a purge:
 
-Report:
+1. Let active writers reach a safe boundary and release or preserve their exact claims.
+2. Dry-run the packaged lifecycle helper.
+3. Set only `coordination_enabled: false` and remove only the exact discovery block.
+4. Preserve the marker, active or archived records, legacy history, native tasks, transcripts, Git history, project config, and application files.
 
-- the project name, marker path, state path, and whether Coordinator is ready or currently coordinating work;
-- whether the model will inherit the user's configured default, whether generated tasks will use cost-safe `low` or `medium` reasoning, and whether the user requested an exact override;
-- whether `.gitignore` changed and whether `.codex/config.toml` was preserved or explicitly amended;
-- whether any pre-existing Coordinator paths were already tracked or explicitly removed from the index;
-- exact files changed and validation results;
-- the harmless first-run demonstration.
-
-Do not expose epochs, task IDs, thread IDs, role constants, scope kinds, acceptance flags, or mode constants in the normal handoff. Provide raw values only when the user asks for diagnostics.
-
-Explain simply: the global plugin is discoverable everywhere but manages nothing until a repository is enabled; an enabled repository keeps one pinned Coordinator; all its tasks are managed by default; only the user can exclude a task or pause management into report-only mode; documents hold authority; and messages only deliver recorded state.
-
-Give these example prompts:
-
-```text
-Use $codex-coordinator to create the tasks needed and coordinate this goal: <goal>
-
-Use $codex-coordinator to report who is working on what, what is waiting, and what is blocked without changing anything.
-
-Use $codex-coordinator to repair only the Coordinator system.
-
-Start Mission Control.
-
-Stop Mission Control.
-
-Turn Codex Coordinator off for this repository.
-```
-
-## Validation
-
-Verify all of the following:
-
-- marker and state project IDs match;
-- `coordination_enabled` is `true` after enablement or `false` only for an explicit opt-out;
-- access flags are false;
-- bootstrap target paths passed the collision preflight before the first write;
-- `CURRENT.md` has each exact required field, heading, and table header once;
-- missing local state was recreated only after native discovery proved no other active same-repository task;
-- changing operational fields appear only in `CURRENT.md` or task files;
-- the root discovery block occurs once and matches exactly;
-- unrelated `AGENTS.md` content is byte-for-byte preserved;
-- no nested instruction file changed;
-- no duplicate project-local Coordinator guidance exists;
-- `.codex/coordination/project.yaml` is not ignored;
-- `CURRENT.md`, task records, suggestions, and other mutable `.codex/coordination/` contents are ignored;
-- no mutable `.codex/coordination/` path remains tracked after an explicitly authorised stop-tracking repair;
-- `.codex/config.toml` is unchanged unless the user explicitly requested a project model/reasoning override; when changed, it parses and unrelated settings are preserved;
-- no application, environment, global config, or unrelated project file changed.
-
-Show the exact Coordinator block after any `AGENTS.md` edit. Report whether any non-Coordinator line changed and revert incidental changes before completion.
+Re-enable only when the marker uses schema 2 and the user explicitly requests it. No background process or task must be restored.

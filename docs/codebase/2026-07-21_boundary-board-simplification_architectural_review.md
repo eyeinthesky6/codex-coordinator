@@ -2,7 +2,7 @@
 
 - **Date:** 2026-07-21
 - **Decision status:** Accepted product direction
-- **Implementation status:** Documentation checkpoint complete; runtime realignment has not started
+- **Implementation status:** Schema-2 core implemented and validated in source; release, project migration, and optional-observer disposition remain open
 - **Operational status:** Coordinator is temporarily disabled in maintainer projects and global startup while realignment is underway
 - **Superseded work:** PR #23 was closed without merge; its remote branch remains as the historical record
 
@@ -21,7 +21,7 @@ It covers:
 - Doctor and Mission Control placement;
 - a staged migration, validation, and rollback plan.
 
-This checkpoint records the architecture decision and the repository opt-out marker. It does not yet change packaged skill behavior, the hook implementation, state schema, runtime, capability contract, installation, native tasks, Git history, or the released package.
+The first checkpoint recorded only the decision and repository opt-out. The current source checkpoint now implements the schema-2 boundary core, direct marker-only hook, read-only Doctor, lifecycle changes, tests, and public documentation. It does not update the globally installed plugin, migrate or re-enable user projects, alter native tasks, publish a release, or finish the separate Mission Control disposition.
 
 ## Decision
 
@@ -64,6 +64,26 @@ The maintainer's slowdown investigation snapshot showed:
 - elapsed time dominated by polling, context replay, and repeated review cycles rather than source editing or tests.
 
 The main observed failure was circular: more state and monitoring were added to prevent lost work, but processing that state became the largest source of latency and generated additional work windows that then required more state and monitoring.
+
+## Storage attribution: the multi-gigabyte files
+
+A live read-only storage audit separated native Codex data from Coordinator project state:
+
+| Owner/path | Current size | Shape | Conclusion |
+|---|---:|---|---|
+| `%USERPROFILE%/.codex/archived_sessions/` | 5.951 GiB | 556 `.jsonl` files | Native Codex archived session history |
+| `%USERPROFILE%/.codex/sessions/` | 2.203 GiB | 128 `.jsonl` files | Native Codex active/recent session history |
+| `%USERPROFILE%/.codex/logs_2.sqlite` | 0.166 GiB plus a small WAL | SQLite `logs` table | Native Codex application log database |
+| `%USERPROFILE%/.codex/state_5.sqlite` | 0.012 GiB plus a small WAL | Thread, spawn-edge, job, and tool tables | Native Codex application state database |
+| This repository's `.codex/coordination/` | 0.396 MiB | 79 legacy marker/task/inbox files | Coordinator project metadata, not the multi-gigabyte owner |
+
+The earlier “roughly 3 GB and 5 GB” observation was the native `sessions` and `archived_sessions` stores at that earlier point. They have continued to change with Codex use; the current snapshot is about 2.2 GiB and 6.0 GiB.
+
+A schema-only sample of native session JSONL showed `session_meta`, `event_msg`, `response_item`, compacted state, world state, turn context, and inter-agent metadata. Event types included user and agent messages, `agent_reasoning`/`reasoning`, token counts, patch events, custom and function tool calls, and tool outputs. Response records also expose an `encrypted_content` field. This confirms the native session store is substantially more than a task-title log; it can contain transcript/event and tool records. The audit inspected record types and keys, not private content values.
+
+Coordinator did not create Codex's SQLite databases. The legacy Mission Control collector and Doctor scanner imported `sqlite3` only to open existing Codex databases in `mode=ro`. That coupling was still brittle and unnecessary, so schema 2 removes it from every supported core path.
+
+No native Codex session, archive, SQLite, or log file was deleted in this realignment. Those files own task history and application state outside Coordinator's authority. A retention or cleanup operation must be a separate, exact, user-reviewed Codex-data action; project deactivation and schema migration must never silently delete them.
 
 ## What led to the decision
 
@@ -493,9 +513,11 @@ No framework dependency is recommended. Native Codex already supplies tasks, mes
 
 ## Migration plan
 
-Implementation should be a separate, user-authorized change and should not mix documentation, behavior, installed runtime mutation, release, or project-state cleanup.
+Implementation remains separated from installed-runtime mutation, release, and user-project cleanup. Status below reflects the validated source checkpoint.
 
 ### Phase 1: contract and behavior simplification
+
+**Source status: implemented.**
 
 - Change enablement from active-by-default management to boundary-board availability.
 - Remove permanent Coordinator creation, pinning, idle retention, and heartbeat requirements.
@@ -509,6 +531,8 @@ This phase should prefer behavior-only changes where possible and leave existing
 
 ### Phase 2: active-board schema
 
+**Source status: implemented.** Schema 2 uses one strict task-owned JSON file per active writer and one compact cold receipt per release. Schema-1 records remain preserved and ignored.
+
 - Define a versioned per-owner active record and compact terminal receipt.
 - Decide whether `CURRENT.md` becomes a generated view or is removed in a schema migration.
 - Add bounded overlap detection and task-owned record updates.
@@ -520,12 +544,16 @@ Do not ship a partial schema that creates two authorities.
 
 ### Phase 3: optional tools separation
 
+**Source status: partly implemented.** SessionStart and the core contract no longer import, start, validate, or advertise Mission Control. Doctor scanning, findings, semantic review, and self-repair left the core. Legacy Mission Control source remains inert pending a separate-package or removal decision.
+
 - Package Mission Control separately only if retained.
 - Remove it and Python bootstrap from SessionStart.
 - Remove Doctor project scan, semantic review, findings, and self-repair.
 - Keep a small manual compatibility command in the base package only if it is simpler than relying solely on the plugin manager.
 
 ### Phase 4: migration and cleanup
+
+**Status: not started for user projects.** The maintainer repositories remain disabled and preserved.
 
 - Provide a dry run showing existing markers, active claims, terminal task records, heartbeat, and optional-tool state.
 - Stop/remove only Coordinator-owned heartbeat and auto-start behavior.
@@ -572,7 +600,7 @@ The implementation is not complete until tests prove both reduced overhead and r
 
 - Base plugin installs and works with Mission Control absent.
 - SessionStart launches no process and performs no Python installation.
-- Manual Mission Control reads only supported board records.
+- Legacy Mission Control is unreachable from the base hook, Doctor, state helper, lifecycle helper, contract, and prompts.
 - Doctor check never writes and gives a deterministic reinstall/update instruction on failure.
 - No Doctor project scan, model review, finding, scheduler, or repair path remains reachable.
 
@@ -583,6 +611,47 @@ The implementation is not complete until tests prove both reduced overhead and r
 - Completing a task writes one active-state transition and one compact receipt, not a whole-turn ledger.
 - No background task, heartbeat, or polling loop runs while the user is not explicitly coordinating a live goal.
 - A representative text-only change completes within the native task and test time rather than spending most elapsed time in coordination.
+
+## Source implementation checkpoint
+
+The schema-2 source checkpoint implements:
+
+- one task-owned JSON claim per exact native thread UUID;
+- strict allowed fields, 4 KB records, concrete repository-relative paths, and fixed active-task limits;
+- case-insensitive equal and ancestor path conflicts plus exact exclusive-action conflicts;
+- revision checks, atomic writes, and a short cross-platform OS lock around mutations;
+- compact cold receipts that ordinary reads never scan;
+- a marker-only five-second SessionStart with no child process or Python bootstrap;
+- a schema-20 contract with 18 product-level fields instead of the schema-19 41-key orchestration mirror;
+- a manual read-only Doctor whose only repair recommendation is update or reinstall;
+- schema-2 lifecycle operations with no task, pin, heartbeat, schedule, or Mission Control actions;
+- legacy schema-1 preservation and cleanup reporting without reactivation;
+- current README, operating, architecture, privacy, discovery, site, and testing documentation.
+
+Measured on Windows with Python 3.13, including normal local process-start cost where stated:
+
+| Operation | Median | p95 | Output or record size |
+|---|---:|---:|---:|
+| Disabled SessionStart process | 58.22 ms | 70.68 ms | 0 bytes |
+| Enabled SessionStart process | 60.24 ms | 69.42 ms | 422 bytes |
+| Empty in-process board list | 0.752 ms | 1.218 ms | 144-byte JSON |
+| Three-claim in-process board list | 1.387 ms | 2.236 ms | 1,123-byte JSON |
+| Claim mutation | 4.614 ms | 6.586 ms | 378-byte maximum sample |
+| Release mutation | 4.149 ms | 5.141 ms | 254-byte maximum receipt |
+
+The full standard-library suite ran 77 tests in about 6.4 seconds and passed. Two expected checks skipped: optional property testing because its development-only dependency was absent, and real directory-symlink creation because the Windows account lacked that privilege. Link/junction rejection remains implemented; the skipped test does not weaken ordinary collision, concurrency, privacy, size, hook, Doctor, or lifecycle coverage.
+
+Hot-path code and guidance changed as follows relative to the pre-realignment source head:
+
+| Surface | Before | Now | Change |
+|---|---:|---:|---:|
+| SessionStart | 941 lines | 132 lines | -809 |
+| Doctor | 681 lines | 225 lines | -456 |
+| Skill Markdown | 799 lines | 259 lines | -540 |
+| Python bootstrap scripts | 204 lines | 0 | -204 |
+| State helper | 678 lines | 682 lines | +4 |
+
+The state helper did not shrink by line count because the new decentralized path keeps strict schema, containment, concurrency, and rollback protections. Its measured empty and three-record reads remain under 2.3 ms at p95 and do not touch legacy or archive history.
 
 ## Agent-led review
 
@@ -609,17 +678,16 @@ The real paths traced were:
 
 ## Recommended fixes
 
-1. Adopt the boundary-board decision as the target architecture.
-2. Implement the change in a separate direct-commit maintenance task after explicit user authorization.
-3. Change behavior and tests before rewriting all current documentation claims.
-4. Preserve the current release and project history as rollback evidence.
-5. Treat the exhaustive capability matrix above as a migration checklist: every key must be retained, demoted, replaced, or removed deliberately.
-6. Add regression tests for task-count, message-count, hot-state size, no-background-process, and no-private-transcript properties.
-7. Do not release until an isolated text-only workflow demonstrates that coordination overhead is small relative to the actual task and tests.
+1. Keep the boundary-board decision as the target architecture.
+2. Preserve the current stable release, closed PR #23 branch, legacy state, and Git history as rollback and rationale evidence.
+3. Keep the new regression tests for task count, message count, hot-state size, no background process, and no private transcript.
+4. Decide separately whether Mission Control is rebuilt as its own read-only package or removed.
+5. Build and dry-run an explicit schema-1-to-schema-2 project migration; never infer active owners from old history.
+6. Do not install, enable, push, publish, or release until the user reviews the source checkpoint and remaining migration/observer decisions.
 
 ## Verification
 
-This review proves the current source and decision history, not the future implementation.
+This review now proves the source checkpoint and decision history, not an installed, migrated, enabled, or released product.
 
 Proven:
 
@@ -628,16 +696,19 @@ Proven:
 - the intended benefit recorded in changelog, docs, tests, and runtime paths;
 - current auto-start, heartbeat, reconciliation, provider/schedule, Doctor, and Mission Control coupling;
 - current local task/inbox/session growth;
-- the existence of reusable safety tests and atomic record primitives.
+- the schema-2 active-board shape and strict bounded records;
+- concurrent disjoint and conflicting claim behavior;
+- compact receipt and archive-free hot reads;
+- marker-only startup and read-only Doctor isolation;
+- the smaller capability contract and current documentation;
+- the measured source-checkpoint performance above.
 
 Not yet proven:
 
-- the exact active-board schema;
-- atomic overlap behavior for ancestor/descendant path claims;
 - migration from current `CURRENT.md` and task records;
-- actual performance after simplification;
 - optional Mission Control packaging;
-- the final slim capability manifest.
+- behavior of a separately installed schema-2 package in a real re-enabled project;
+- release and user-workflow performance after installation.
 
 ## Temporary suspension and re-enable requirement
 
@@ -665,6 +736,6 @@ Re-enable projects deliberately, one project at a time: restore the supported gl
 
 ## Follow-up
 
-The next action requires a separate direct user authorization because it changes product behavior, package guidance, tests, installation, runtime lifecycle, and potentially project-state schema.
+The source realignment may be committed locally after final review. It must not be pushed, installed globally, used to migrate or re-enable a project, published, or released without separately naming the exact action and obtaining direct user authority.
 
-The implementation task should begin by producing an exact changed-file plan and migration boundary. It must not install, update the global plugin, alter current project state, stop native tasks, remove heartbeats, commit, push, open a pull request, or release without separately naming those actions and obtaining the required authority.
+The next product decision is the optional observer: rebuild Mission Control as a separate manual read-only schema-2 package, or remove the inert legacy source. The next operational change is a dry-run schema-1 migration design. Neither decision is part of this core checkpoint.

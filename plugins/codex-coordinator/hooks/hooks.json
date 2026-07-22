@@ -6,10 +6,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${PLUGIN_ROOT}/scripts/codex_coordinator_bootstrap.sh\" \"${PLUGIN_ROOT}/scripts/codex_coordinator_session_start.py\"",
-            "commandWindows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"${PLUGIN_ROOT}/scripts/codex_coordinator_bootstrap.ps1\" -HookPath \"${PLUGIN_ROOT}/scripts/codex_coordinator_session_start.py\"",
-            "timeout": 180,
-            "statusMessage": "Finding Python and loading Codex Coordinator"
+            "command": "python3 -I \"${PLUGIN_ROOT}/scripts/codex_coordinator_session_start.py\"",
+            "commandWindows": "python -I \"${PLUGIN_ROOT}/scripts/codex_coordinator_session_start.py\"",
+            "timeout": 5,
+            "statusMessage": "Checking the Codex task-boundary board"
           }
         ]
       }

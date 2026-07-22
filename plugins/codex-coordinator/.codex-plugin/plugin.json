@@ -1,7 +1,7 @@
 {
   "name": "codex-coordinator",
   "version": "0.3.0",
-  "description": "Keep several Codex agents from duplicating work or losing handoffs on one large repository goal, with explicit delegation without Ultra.",
+  "description": "Keep parallel Codex tasks inside clear repository boundaries with a small local active-claim board.",
   "author": {
     "name": "Six Ideas",
     "url": "https://github.com/eyeinthesky6"
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "Codex Coordinator",
     "shortDescription": "Keep parallel Codex tasks from crossing wires",
-    "longDescription": "Give Codex one large repository outcome without becoming the project manager for every agent. Coordinator divides the work, helps prevent duplicated effort and overlapping edits, remembers handoffs after pauses, and brings the project back into one clear update—with explicit delegation without Ultra.",
+    "longDescription": "Add a small, repository-scoped task-boundary board to native Codex tasks. Each active writer publishes only its bounded goal, paths, and exclusive actions so planned overlap is visible without a resident coordinator, heartbeat, transcript mirror, or required pull-request workflow.",
     "developerName": "Six Ideas",
     "category": "Productivity",
     "capabilities": [
@@ -34,9 +34,9 @@
     "composerIcon": "./assets/logo.png",
     "logo": "./assets/logo.png",
     "defaultPrompt": [
-      "Create the tasks needed and coordinate this goal: <goal>",
-      "Show who is working on what and what is blocked",
-      "Run Doctor across my enabled Coordinator projects"
+      "Show the active task boundaries in this repository",
+      "Claim this task's bounded paths before making changes",
+      "Check whether the installed Coordinator package is compatible"
     ]
   }
 }

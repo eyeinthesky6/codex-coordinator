@@ -1,124 +1,39 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Codex Coordinator for Developers — Install, architecture, and comparison</title>
-  <meta name="description" content="Technical installation, requirements, architecture, runtime dependencies, Mission Control, and a fair comparison of Codex Coordinator with subagents, worktrees, and project managers.">
-  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
-  <meta name="theme-color" content="#06142f">
-  <link rel="canonical" href="https://eyeinthesky6.github.io/codex-coordinator/developers.html">
-  <link rel="icon" href="assets/logo.png" type="image/png">
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Codex Coordinator">
-  <meta property="og:title" content="Codex Coordinator for Developers">
-  <meta property="og:description" content="Technical installation, architecture, runtime requirements, and a fair comparison.">
-  <meta property="og:url" content="https://eyeinthesky6.github.io/codex-coordinator/developers.html">
-  <meta property="og:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
-  <meta name="twitter:card" content="summary">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&amp;family=DM+Mono:wght@400;500&amp;family=Syne:wght@500;600;700&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codex Coordinator for Developers — Schema-2 boundary board</title>
+  <meta name="description" content="Technical contract, runtime boundaries, validation, and release status for the Codex Coordinator schema-2 active board.">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1"><meta name="theme-color" content="#06142f">
+  <link rel="canonical" href="https://eyeinthesky6.github.io/codex-coordinator/developers.html"><link rel="icon" href="assets/logo.png" type="image/png">
+  <meta property="og:type" content="website"><meta property="og:site_name" content="Codex Coordinator"><meta property="og:title" content="Codex Coordinator for Developers"><meta property="og:description" content="Schema-2 task-boundary architecture and release status."><meta property="og:url" content="https://eyeinthesky6.github.io/codex-coordinator/developers.html"><meta property="og:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png"><meta name="twitter:card" content="summary">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&amp;family=DM+Mono:wght@400;500&amp;family=Syne:wght@500;600;700&amp;display=swap" rel="stylesheet"><link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
-  <header class="site-header">
-    <nav class="nav shell" aria-label="Primary navigation">
-      <a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="37" height="37">Codex Coordinator</a>
-      <div class="nav-links"><a href="index.html#demo">Demo</a><a href="index.html#install">Install</a><a href="faq.html">FAQ</a><a href="developers.html" aria-current="page">Developers</a><a href="https://github.com/eyeinthesky6/codex-coordinator">GitHub</a><a class="nav-cta" href="#install">Install</a></div>
-    </nav>
-  </header>
+  <header class="site-header"><nav class="nav shell" aria-label="Primary navigation"><a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="37" height="37">Codex Coordinator</a><div class="nav-links"><a href="index.html">Home</a><a href="faq.html">FAQ</a><a href="developers.html" aria-current="page">Developers</a><a href="https://github.com/eyeinthesky6/codex-coordinator">GitHub</a></div></nav></header>
 
   <main id="main-content" class="shell">
-    <header class="page-hero">
-      <p class="kicker">For developers and installing agents</p>
-      <h1>Technical details, <span>off the homepage.</span></h1>
-      <p>The exact install path, requirements, fit, architecture boundaries, and links to the source of truth.</p>
-    </header>
-
+    <header class="page-hero"><p class="kicker">Unreleased source contract</p><h1>A small active board <span>with fixed boundaries.</span></h1><p>Schema 2 is implemented in source and remains disabled pending final migration and performance proof.</p></header>
     <div class="content-layout">
-      <nav class="side-nav" aria-label="Developer guide sections">
-        <a href="#install">Install v0.3.0</a>
-        <a href="#first-use">First use</a>
-        <a href="#compare">Compare approaches</a>
-        <a href="#runtime">Runtime</a>
-        <a href="#mission-control">Mission Control</a>
-        <a href="#internals">Internals</a>
-      </nav>
-
+      <nav class="side-nav" aria-label="Developer guide sections"><a href="#status">Status</a><a href="#records">Records</a><a href="#flow">Flow</a><a href="#compare">Compare</a><a href="#runtime">Runtime</a><a href="#optional">Optional tools</a><a href="#validation">Validation</a></nav>
       <div class="content-stack">
-        <section class="content-block" id="install">
-          <p class="section-label">Stable installation</p>
-          <h2>Install v0.3.0</h2>
-          <p>Requirements: Codex with plugin and hook support, Git, and Python 3.10 or newer available as <code>python</code> on Windows or <code>python3</code> on macOS and Linux.</p>
-          <h3>Ask an agent</h3>
-          <div class="code-block">Install Codex Coordinator v0.3.0 from:<br>https://github.com/eyeinthesky6/codex-coordinator<br><br>Use the tagged marketplace release and install the plugin. Do not change my environment settings. Ask me only if Codex needs approval to trust the startup check.</div>
-          <h3>Install manually</h3>
-          <div class="code-block">codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.3.0<br>codex plugin add codex-coordinator@codex-coordinator</div>
-          <p>Review and trust the SessionStart hook when Codex asks. It reads small local coordination records, makes no network calls, and does not write project state.</p>
-          <p><strong>No Codex app restart is required.</strong> Open a new Codex task after installation so it can load the plugin. There is no Coordinator service to start.</p>
-          <p>For an offline or development checkout, clone the repository and add its local directory as the marketplace instead. The <a href="https://github.com/eyeinthesky6/codex-coordinator#quick-start">README quick start</a> remains the full installation source of truth.</p>
-        </section>
+        <section class="content-block" id="status"><p class="section-label">Release status</p><h2>Do not install the legacy tag expecting schema 2.</h2><p>The latest stable release is <code>v0.3.0</code>, which contains the older orchestration architecture. The boundary-board source has no approved release tag or install command yet. Projects must stay disabled until the user explicitly re-enables them after review.</p></section>
 
-        <section class="content-block" id="first-use">
-          <p class="section-label">First use</p>
-          <h2>Say what you want finished.</h2>
-          <div class="code-block">Coordinate this with multiple Codex tasks:<br><br>Describe what you want finished here.</div>
-          <p>A suitable result is a short explanation of the work areas, clear owners, and one consolidated update when the project reaches a stable result. Coordinator normally targets one to three durable workers and treats five as the default ceiling.</p>
-        </section>
+        <section class="content-block" id="records"><p class="section-label">Data contract</p><h2>One task, one bounded JSON claim.</h2><p>Claims are named by the exact native Codex thread UUID and capped at 4 KB. Allowed content is project and task identity, title, bounded goal, active/blocked status, revision, timestamps, concrete repository-relative paths, exclusive actions, dependencies, and the direct over-limit decision flag.</p><p>Unknown fields are rejected. Prompts, reasoning, transcripts, tool output, source code, provider responses, and full-turn ledgers are not allowed.</p></section>
 
-        <section class="content-block" id="compare">
-          <p class="section-label">Fair comparison</p>
-          <h2>Use the smallest tool that removes the work you are doing by hand.</h2>
-          <p>Separate Codex tasks may be enough when you are comfortable coordinating them yourself. Coordinator is useful when several durable tasks need ownership, recoverable handoffs, consolidated status, and one project-level result.</p>
-          <div class="comparison-wrap">
-            <table class="comparison">
-              <thead><tr><th>Approach</th><th>Best fit</th><th>What it does not solve by itself</th></tr></thead>
-              <tbody>
-                <tr><td>One Codex task</td><td>One coherent goal one agent can finish safely.</td><td>No parallel ownership is needed.</td></tr>
-                <tr><td>Parent-owned subagents</td><td>Short, bounded parallel help inside one task.</td><td>The parent still owns durable status, validation, and the final result.</td></tr>
-                <tr><td>Git branches or worktrees</td><td>Isolating file changes and Git history.</td><td>Who owns each job, what is blocked, and how handoffs survive restarts.</td></tr>
-                <tr><td>Separate Codex tasks</td><td>Several durable jobs you are happy to coordinate yourself.</td><td>You still reconcile ownership, status, handoffs, and the final result.</td></tr>
-                <tr><td>Codex Coordinator</td><td>Several durable Codex tasks working toward one repository outcome.</td><td>Git integration, product judgment, and important approvals remain yours.</td></tr>
-                <tr><td>Hosted project manager</td><td>Cross-team and cross-machine planning.</td><td>It adds a separate service and does not automatically understand Codex task ownership.</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p>Read the deeper <a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/DISCOVERY.md">fit and discovery guide</a> for recommended and non-recommended cases.</p>
-        </section>
+        <section class="content-block" id="flow"><p class="section-label">Mutation path</p><h2>List, claim, work, release.</h2><ol><li>Resolve the primary worktree and enabled schema-2 marker.</li><li>List only hot active claims.</li><li>Claim narrow paths and actions with the current expected revision.</li><li>Serialize mutations with a short OS file lock and reject overlap.</li><li>Move terminal ownership to a compact receipt that hot reads ignore.</li></ol><p>Equal or ancestor paths conflict case-insensitively. Exclusive actions conflict by exact slug. The board is advisory and grants no external authority.</p></section>
 
-        <section class="content-block" id="runtime">
-          <p class="section-label">Small by design</p>
-          <h2>Zero third-party runtime dependencies</h2>
-          <p>The shipped plugin uses Python's standard library. Beyond Codex, Git, and Python 3.10+, there is no orchestration framework, coordination daemon, database, queue, pip package, or npm package to install.</p>
-          <p>Mutable coordination state stays local. Only the repository discovery marker is intended to be committed. The plugin adds no separate coordination service and does not replace Codex or Git.</p>
-        </section>
+        <section class="content-block" id="compare"><p class="section-label">Fair comparison</p><h2>Use the smallest ownership tool that fits.</h2><div class="comparison-wrap"><table class="comparison"><thead><tr><th>Approach</th><th>Best fit</th></tr></thead><tbody><tr><td>One task</td><td>One coherent goal</td></tr><tr><td>Parent-owned subagent</td><td>Short parallel help inside one task</td></tr><tr><td>Worktree</td><td>File and Git-history isolation</td></tr><tr><td>Boundary board</td><td>Two or three durable writers needing planned-ownership visibility</td></tr><tr><td>Project manager</td><td>Cross-team, cross-machine schedules and reporting</td></tr></tbody></table></div></section>
 
-        <section class="content-block" id="mission-control">
-          <p class="section-label">Optional local view</p>
-          <h2>Mission Control is not required.</h2>
-          <p>The core Coordinator works without a dashboard. Optional Mission Control separates queued work from work actually running, shows native task names and next actions, and keeps project state on your machine. It also uses only Python's standard library and runs only when you start it.</p>
-          <div class="code-block">git clone --branch v0.3.0 --depth 1 https://github.com/eyeinthesky6/codex-coordinator.git<br>cd codex-coordinator<br>python -m apps.mission_control</div>
-          <p>See the <a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/apps/mission_control/README.md">Mission Control guide</a> for background startup, Doctor behavior, settings, and stopping the local process.</p>
-        </section>
+        <section class="content-block" id="runtime"><p class="section-label">Core runtime</p><h2>Zero third-party runtime dependencies</h2><p>Requires Codex, Git, and Python 3.10+. SessionStart reads at most the marker, has a five-second timeout, and launches no process. Doctor is a manual read-only compatibility check. The core uses no database, daemon, queue, installer, pip package, or npm package.</p></section>
 
-        <section class="content-block" id="internals">
-          <p class="section-label">Source of truth</p>
-          <h2>Go deeper only when you need to.</h2>
-          <ul>
-            <li><a href="https://github.com/eyeinthesky6/codex-coordinator">Repository and README</a></li>
-            <li><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/codebase/ARCHITECTURE.md">Architecture</a></li>
-            <li><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/codebase/TESTING.md">Testing</a></li>
-            <li><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/CONTRIBUTING.md">Contributing</a></li>
-            <li><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/SECURITY.md">Security policy</a></li>
-            <li><a href="faq.html">Plain-language FAQ</a></li>
-          </ul>
-        </section>
+        <section class="content-block" id="optional"><p class="section-label">Mission Control</p><h2>No supported schema-2 observer yet.</h2><p>The old Mission Control source is inert and retained as migration history. The core never imports or starts it. A future observer must be a separate optional installation, manually started, read-only, and limited to the public board schema—without private Codex database access, Doctor controls, AI review, task authority, or writes.</p></section>
+
+        <section class="content-block" id="validation"><p class="section-label">Validation</p><h2>Protection and overhead are both release gates.</h2><div class="code-block">python -m unittest discover -s tests -p "test_*.py" -v</div><p>Tests cover concurrent claims, disjoint work, task caps, record privacy and size, revision safety, compact receipts, silent disabled startup, no process launcher, read-only Doctor, legacy preservation, and optional-tool isolation. Release additionally requires measured startup/list latency and an explicit user decision.</p></section>
       </div>
     </div>
   </main>
-
-  <footer class="site-footer"><div class="footer-grid shell"><span>Codex Coordinator · Independent open-source project · MIT License</span><div class="footer-links"><a href="index.html">Home</a><a href="faq.html">FAQ</a><a href="https://github.com/eyeinthesky6/codex-coordinator">Source</a><a href="https://github.com/eyeinthesky6/codex-coordinator/releases/latest">Releases</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/SECURITY.md">Security</a></div></div></footer>
+  <footer class="site-footer"><div class="footer-grid shell"><span>Codex Coordinator · Independent open-source project · MIT License</span><div class="footer-links"><a href="index.html">Home</a><a href="faq.html">FAQ</a><a href="https://github.com/eyeinthesky6/codex-coordinator">Source</a></div></div></footer>
 </body>
 </html>

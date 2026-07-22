@@ -1,5 +1,7 @@
 # Doctor Mermaid architectural review
 
+> **Historical and superseded:** this records the schema-1 Doctor/diagram decision. Schema 2 removed self-repair, project scanning, and Mermaid output; current failure handling is normal plugin update or reinstall. See the [boundary-board review](2026-07-21_boundary-board-simplification_architectural_review.md).
+
 ## Scope
 
 Add a visual diagnostic to Coordinator Doctor without changing its repair authority, project-state authority, runtime dependencies, or existing JSON contract.
