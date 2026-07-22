@@ -49,6 +49,17 @@ IGNORE_BLOCK = ".codex/coordination/*\n!.codex/coordination/project.yaml"
 INDEX_SCHEMA = 1
 QUARANTINE_NAME = "coordination.codex-coordinator-purge"
 MARKER_KEYS = ("schema_version", "coordination_enabled", "project_id")
+MIGRATION_BACKUP_NAME = "project.schema-1.yaml"
+MAX_LEGACY_FILES = 10_000
+MAX_TASK_TAIL_BYTES = 4096
+TERMINAL_TASK_STATUSES = {
+    "CANCELED",
+    "CANCELLED",
+    "COMPLETE",
+    "COMPLETED",
+    "STOPPED",
+    "SUPERSEDED",
+}
 
 
 class LifecycleError(RuntimeError):
@@ -164,6 +175,58 @@ def _parse_marker(document: Document) -> dict[str, str]:
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", fields["project_id"]):
         raise LifecycleError("project_id is invalid")
     return fields
+
+
+def _marker_scalar(
+    document: Document, key: str, *, required: bool = False
+) -> str | None:
+    matches = re.findall(
+        rf"(?m)^\s*{re.escape(key)}:\s*([^\r\n#]+?)\s*$", document.text
+    )
+    if len(matches) > 1:
+        raise LifecycleError(f"marker contains duplicate {key}")
+    if not matches:
+        if required:
+            raise LifecycleError(f"schema-1 marker is missing {key}")
+        return None
+    return matches[0].strip()
+
+
+def _validate_schema_one_migration(document: Document) -> None:
+    expected = {
+        "current": ".codex/coordination/CURRENT.md",
+        "tasks": ".codex/coordination/tasks",
+        "cross_project_task_access": "false",
+        "cross_project_state_changes": "false",
+    }
+    for key, value in expected.items():
+        if _marker_scalar(document, key, required=True) != value:
+            raise LifecycleError(f"schema-1 marker has incompatible {key}")
+
+
+def _schema_two_marker(project: Project) -> str:
+    _validate_schema_one_migration(project.marker)
+    lines = [
+        "schema_version: 2",
+        "coordination_enabled: false",
+        f"project_id: {project.project_id}",
+    ]
+    for key in ("project_name", "task_prefix"):
+        value = _marker_scalar(project.marker, key)
+        if value is not None:
+            lines.append(f"{key}: {value}")
+    lines.extend(
+        [
+            "canonical_paths:",
+            "  active: .codex/coordination/active",
+            "  archive: .codex/coordination/archive",
+            "access:",
+            "  cross_project_task_access: false",
+            "  cross_project_state_changes: false",
+            "",
+        ]
+    )
+    return project.marker.newline.join(lines)
 
 
 def _load_project(root_value: str, *, allow_resumed_purge: bool = False) -> Project:
@@ -290,6 +353,96 @@ def _coordinator_id(project: Project) -> str | None:
     return matches[0] if len(matches) == 1 and matches[0] != "NONE" else None
 
 
+def _bounded_files(path: Path) -> list[Path]:
+    if _is_linklike(path):
+        raise LifecycleError(f"legacy state must not be a symlink or junction: {path}")
+    if path.is_file():
+        return [path]
+    if not path.is_dir():
+        raise LifecycleError(f"legacy state is not a normal file or directory: {path}")
+    files: list[Path] = []
+    entries = 0
+    for child in path.rglob("*"):
+        entries += 1
+        if entries > MAX_LEGACY_FILES:
+            raise LifecycleError(
+                f"legacy inventory exceeds {MAX_LEGACY_FILES} entries: {path}"
+            )
+        if _is_linklike(child):
+            raise LifecycleError(
+                f"legacy state must not contain a symlink or junction: {child}"
+            )
+        if child.is_file():
+            files.append(child)
+    return files
+
+
+def _tail_text(path: Path) -> str | None:
+    size = path.stat().st_size
+    with path.open("rb") as stream:
+        if size > MAX_TASK_TAIL_BYTES:
+            stream.seek(-MAX_TASK_TAIL_BYTES, os.SEEK_END)
+        raw = stream.read(MAX_TASK_TAIL_BYTES)
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+def _legacy_inventory(project: Project) -> dict[str, object]:
+    entries: list[dict[str, object]] = []
+    task_files: list[Path] = []
+    total_files = 0
+    total_bytes = 0
+    protected_names = {"project.yaml", MIGRATION_BACKUP_NAME, "active", "archive"}
+    for path in sorted(project.coordination.iterdir(), key=lambda item: item.name.casefold()):
+        if path.name in protected_names:
+            continue
+        files = _bounded_files(path)
+        size = sum(item.stat().st_size for item in files)
+        total_files += len(files)
+        total_bytes += size
+        relative = path.relative_to(project.root).as_posix()
+        entries.append(
+            {
+                "path": relative,
+                "kind": "directory" if path.is_dir() else "file",
+                "fileCount": len(files),
+                "bytes": size,
+                "action": "preserve-ignored",
+            }
+        )
+        if path.name == "tasks" and path.is_dir():
+            task_files = files
+
+    terminal_counts: dict[str, int] = {}
+    unclassified = 0
+    for path in task_files:
+        tail = _tail_text(path)
+        match = (
+            re.search(r"(?mi)^\*\*Task status:\*\*\s*([A-Z-]+)\s*$", tail)
+            if tail is not None
+            else None
+        )
+        status = match.group(1).upper() if match else None
+        if status in TERMINAL_TASK_STATUSES:
+            terminal_counts[status] = terminal_counts.get(status, 0) + 1
+        else:
+            unclassified += 1
+
+    return {
+        "entries": entries,
+        "fileCount": total_files,
+        "bytes": total_bytes,
+        "taskRecords": len(task_files),
+        "explicitTerminalTaskRecords": sum(terminal_counts.values()),
+        "terminalStatuses": dict(sorted(terminal_counts.items())),
+        "unclassifiedTaskRecords": unclassified,
+        "legacyCoordinatorThreadId": _coordinator_id(project),
+        "ownershipImported": False,
+    }
+
+
 def _atomic_write(path: Path, payload: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     handle = tempfile.NamedTemporaryFile(prefix=path.name + ".", suffix=".tmp", dir=path.parent, delete=False)
@@ -318,6 +471,127 @@ def _apply_documents(changes: Iterable[tuple[Document, str]]) -> None:
         raise
 
 
+def _apply_schema_one_migration(project: Project, marker_text: str) -> None:
+    backup = project.coordination / MIGRATION_BACKUP_NAME
+    if backup.exists():
+        raise LifecycleError(f"schema-1 marker backup already exists: {backup}")
+    board_paths = [project.coordination / "active", project.coordination / "archive"]
+    created_directories: list[Path] = []
+    backup_created = False
+    marker_replaced = False
+    for path in board_paths:
+        if _is_linklike(path):
+            raise LifecycleError(f"schema-2 board path must not be linked: {path}")
+        if path.exists() and (not path.is_dir() or any(path.iterdir())):
+            raise LifecycleError(
+                f"schema-2 board path must be absent or empty before migration: {path}"
+            )
+    try:
+        with backup.open("xb") as stream:
+            stream.write(project.marker.raw)
+            stream.flush()
+            os.fsync(stream.fileno())
+        backup_created = True
+        for path in board_paths:
+            if not path.exists():
+                path.mkdir()
+                created_directories.append(path)
+        if project.marker.path.read_bytes() != project.marker.raw:
+            raise LifecycleError("project marker changed during migration planning")
+        if any(any(path.iterdir()) for path in board_paths):
+            raise LifecycleError("schema-2 board changed during migration planning")
+        _atomic_write(project.marker.path, project.marker.encode(marker_text))
+        marker_replaced = True
+    except Exception:
+        if marker_replaced:
+            _atomic_write(project.marker.path, project.marker.raw)
+        for path in reversed(created_directories):
+            try:
+                path.rmdir()
+            except OSError:
+                pass
+        if backup_created:
+            backup.unlink(missing_ok=True)
+        raise
+
+
+def _has_coordinator_discovery(document: Document | None) -> bool:
+    if document is None:
+        return False
+    return "## Codex Coordinator" in document.text
+
+
+def _migration_operation(project: Project, args: argparse.Namespace) -> dict[str, object]:
+    if project.schema != 1:
+        raise LifecycleError("only a schema-1 project can be migrated to schema 2")
+    marker_text = _schema_two_marker(project)
+    inventory = _legacy_inventory(project)
+    agents = _read_document(project.root / "AGENTS.md", required=False)
+    native_actions = _native_actions(project, activate=False)
+    blockers: list[str] = []
+    if project.enabled:
+        blockers.append("deactivate the schema-1 project first")
+    if _has_coordinator_discovery(agents):
+        blockers.append("remove the legacy Coordinator discovery block by running deactivate")
+    if args.confirm_project_id != project.project_id:
+        blockers.append("confirm the exact project ID with --confirm-project-id")
+    if not args.confirm_legacy_runtime_stopped:
+        blockers.append(
+            "confirm the legacy Coordinator heartbeat and optional Mission Control are stopped"
+        )
+    backup = project.coordination / MIGRATION_BACKUP_NAME
+    if backup.exists():
+        blockers.append(f"remove or reconcile the existing marker backup: {backup}")
+    for path in (project.coordination / "active", project.coordination / "archive"):
+        if _is_linklike(path) or (path.exists() and (not path.is_dir() or any(path.iterdir()))):
+            blockers.append(f"schema-2 board path must be absent or empty: {path}")
+
+    actions = [
+        {
+            "action": "preserve-schema-1-marker",
+            "path": str(project.coordination / MIGRATION_BACKUP_NAME),
+        },
+        {"action": "write-disabled-schema-2-marker", "path": str(project.marker.path)},
+        {
+            "action": "create-empty-active-board",
+            "path": str(project.coordination / "active"),
+        },
+        {
+            "action": "create-empty-cold-archive",
+            "path": str(project.coordination / "archive"),
+        },
+    ]
+    if args.apply:
+        if blockers:
+            raise LifecycleError("migration is not ready: " + "; ".join(blockers))
+        _apply_schema_one_migration(project, marker_text)
+
+    return {
+        "status": "applied" if args.apply else "planned",
+        "operation": "migrate",
+        "projectId": project.project_id,
+        "projectRoot": str(project.root),
+        "sourceSchema": 1,
+        "targetSchema": 2,
+        "targetEnabled": False,
+        "readyToApply": not blockers,
+        "blockers": blockers,
+        "actions": actions,
+        "requiredNativeActions": native_actions,
+        "legacyState": inventory,
+        "optionalObserverState": {
+            "status": (
+                "user-confirmed-stopped"
+                if args.confirm_legacy_runtime_stopped
+                else "not-inspected"
+            ),
+            "reason": "migration never reads private Codex state or external observer state",
+        },
+        "activeClaimsCreated": 0,
+        "historyPreserved": True,
+    }
+
+
 def _native_actions(project: Project, *, activate: bool) -> list[dict[str, str]]:
     if project.schema == 2:
         return []
@@ -340,6 +614,8 @@ def _native_actions(project: Project, *, activate: bool) -> list[dict[str, str]]
 def project_operation(args: argparse.Namespace) -> dict[str, object]:
     purge = args.action == "purge"
     project = _load_project(args.project_root, allow_resumed_purge=purge)
+    if args.action == "migrate":
+        return _migration_operation(project, args)
     agents_path = project.root / "AGENTS.md"
     ignore_path = project.root / ".gitignore"
     agents = _read_document(agents_path, required=False)
@@ -503,10 +779,18 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     project = subparsers.add_parser("project", help="plan or apply one project lifecycle operation")
-    project.add_argument("action", choices=("deactivate", "reactivate", "purge"))
+    project.add_argument("action", choices=("deactivate", "migrate", "reactivate", "purge"))
     project.add_argument("--project-root", required=True)
     project.add_argument("--apply", action="store_true", help="apply the planned filesystem changes")
-    project.add_argument("--confirm-project-id", help="required for destructive project purge")
+    project.add_argument(
+        "--confirm-project-id",
+        help="required for schema migration and destructive project purge",
+    )
+    project.add_argument(
+        "--confirm-legacy-runtime-stopped",
+        action="store_true",
+        help="confirm old Coordinator heartbeat and optional Mission Control are stopped",
+    )
     project.set_defaults(handler=project_operation)
 
     index = subparsers.add_parser("index-project", help="record one verified project in the bounded local index")

@@ -136,7 +136,8 @@ A future optional observer must be separately installed, manually started, read-
 - Enablement is per repository and requires schema 2 plus direct user authority.
 - Deactivation sets the marker false and removes the exact discovery block. It preserves all state and history.
 - Schema-1 history remains preserved and ignored. It is never guessed into schema-2 ownership.
-- Schema 1 may be disabled, but not reactivated without migration.
+- Schema 1 may be disabled, then migrated with the dry-run-first lifecycle helper. Migration writes a disabled schema-2 marker, preserves the exact old marker and all legacy records, and creates no active claims.
+- Migration does not inspect Codex internals. Applying it requires exact project-ID confirmation and user confirmation that the legacy heartbeat and optional observer are stopped.
 - Global uninstall uses explicitly known project roots; it never scans a drive.
 - Purge is separate, destructive, dry-run-first, and requires exact project-ID confirmation.
 

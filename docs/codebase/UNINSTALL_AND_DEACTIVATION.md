@@ -17,7 +17,16 @@ Reactivation is allowed only for schema 2 and only after direct user approval. I
 
 Legacy projects may contain a resident Coordinator and heartbeat. Deactivation reports cleanup actions only for that proven old schema and exact recorded Coordinator ID. It never creates a replacement.
 
-Schema 1 cannot be reactivated. It must remain disabled until a separate migration can prove current task ownership and write a schema-2 marker. Legacy `CURRENT.md`, tasks, inbox, cache, feedback, and transcripts remain preserved and ignored.
+Schema 1 cannot be reactivated directly. The dry-run-first migration writes only a disabled schema-2 marker, an exact schema-1 marker backup, and empty `active/` and `archive/` directories. It inventories legacy project state but never converts old task records into live claims. Legacy `CURRENT.md`, tasks, inbox, cache, feedback, and transcripts remain preserved and ignored.
+
+Migration apply requires all of these:
+
+- the schema-1 project was deactivated first, including removal of the exact discovery block;
+- `--confirm-project-id` matches the validated marker;
+- the user confirms that the old Coordinator heartbeat and any optional Mission Control process are stopped;
+- the new board directories are absent or empty.
+
+The helper does not inspect native Codex state or external observer state to manufacture that confirmation.
 
 ## Commands
 
@@ -41,6 +50,25 @@ Reactivation:
 python plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py `
   project reactivate --project-root C:\Projects\example
 ```
+
+Dry-run schema migration:
+
+```powershell
+python plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py `
+  project migrate --project-root C:\Projects\example
+```
+
+Apply only after reviewing the inventory and stopping the legacy runtime:
+
+```powershell
+python plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py `
+  project migrate --project-root C:\Projects\example `
+  --confirm-project-id example `
+  --confirm-legacy-runtime-stopped `
+  --apply
+```
+
+Migration keeps `coordination_enabled: false`. Reactivation remains a later, explicit user action after source/install validation.
 
 ## Global uninstall planning
 

@@ -21,4 +21,4 @@ If a release receipt exists but the active claim also remains after a reported f
 
 ## Legacy state
 
-An enabled schema-1 marker is incompatible with the boundary board. Keep project writes single-task and conflict-free until a user-authorised schema migration is available. Preserve `CURRENT.md`, task, inbox, and transcript history; do not translate it into claims by guessing which historical tasks remain live.
+An enabled schema-1 marker is incompatible with the boundary board. Keep project writes single-task and conflict-free until the project is deactivated and the user authorises the dry-run-first migration. Preserve `CURRENT.md`, task, inbox, and transcript history. Migration writes an exact marker backup, creates an empty schema-2 board, and keeps the project disabled. It never translates history into claims by guessing which old tasks remain live.

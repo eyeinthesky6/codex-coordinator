@@ -553,7 +553,7 @@ Do not ship a partial schema that creates two authorities.
 
 ### Phase 4: migration and cleanup
 
-**Status: not started for user projects.** The maintainer repositories remain disabled and preserved.
+**Source status: dry-run-first migration implemented; no user project migrated.** The maintainer repositories remain disabled and preserved. The lifecycle helper inventories bounded schema-1 project state, requires deactivation plus exact project and stopped-runtime confirmations, saves the exact old marker, creates an empty schema-2 board, and keeps the new marker disabled. It creates no claim from legacy history and does not inspect native Codex or external observer state.
 
 - Provide a dry run showing existing markers, active claims, terminal task records, heartbeat, and optional-tool state.
 - Stop/remove only Coordinator-owned heartbeat and auto-start behavior.
@@ -626,6 +626,7 @@ The schema-2 source checkpoint implements:
 - a manual read-only Doctor whose only repair recommendation is update or reinstall;
 - schema-2 lifecycle operations with no task, pin, heartbeat, schedule, or Mission Control actions;
 - legacy schema-1 preservation and cleanup reporting without reactivation;
+- dry-run-first schema-1 migration with exact marker backup, empty active/archive directories, no ownership inference, and no automatic reactivation;
 - current README, operating, architecture, privacy, discovery, site, and testing documentation.
 
 Measured on Windows with Python 3.13, including normal local process-start cost where stated:
@@ -705,7 +706,7 @@ Proven:
 
 Not yet proven:
 
-- migration from current `CURRENT.md` and task records;
+- migration applied to a real user project after review of its dry-run inventory;
 - optional Mission Control packaging;
 - behavior of a separately installed schema-2 package in a real re-enabled project;
 - release and user-workflow performance after installation.
