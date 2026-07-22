@@ -10,7 +10,8 @@ Notable changes to Codex Coordinator will be recorded here.
 - Replaced Doctor self-repair, project scanning, findings, diagrams, and semantic review with a manual read-only package compatibility check whose only failure action is normal update or reinstall.
 - Kept lifecycle changes dry-run-first. Schema 2 creates no Coordinator task, pin, heartbeat, schedule, or Mission Control action. The schema-1 migration inventory preserves every legacy record, requires exact project and stopped-runtime confirmation, creates no active claims, and leaves the project disabled.
 - Rewrote the capability contract, guidance, tests, and public docs around one-task-first execution, sparse non-executable peer notices, exact external-write consent, evidence-based stale recovery, direct-commit default, and optional PRs.
-- Preserved the reasons and security lessons behind the superseded orchestration, Doctor, and Mission Control work in the boundary-board architectural review and Git history. The old Mission Control source remains inert pending a separate-package or removal decision.
+- Removed the 7,800-line legacy Mission Control runtime, duplicate source-checkout wrapper, lifecycle launcher, and browser smoke script from the base package. Its original implementation remains available in `v0.3.0` and Git history; any future observer must be a new, separate, board-only package justified by real usage.
+- Preserved the reasons and security lessons behind the superseded orchestration, Doctor, and Mission Control work in the boundary-board architectural review and Git history.
 - Kept the repository and all previously suspended projects disabled. The currently published `v0.3.0` remains the legacy orchestration release and is not changed by these unreleased source edits.
 
 ## 0.3.0 - 2026-07-17

@@ -34,7 +34,7 @@ The runtime uses only the Python standard library. Optional property tests may s
 
 `test_doctor.py` proves:
 
-- the packaged manifest, schema-20 contract, skill links, state helper, and hook are compatible;
+- the packaged manifest, schema-21 contract, skill links, state helper, and hook are compatible;
 - malformed or drifted packages report `broken` and `update_or_reinstall`;
 - compact output omits detailed findings and local paths;
 - legacy `--apply` and separate repair targets write nothing;
@@ -53,7 +53,7 @@ The runtime uses only the Python standard library. Optional property tests may s
 
 Package and leadership tests enforce the one-task default, explicit temporary lead, small capability contract, optional PR policy, sparse non-executable messaging, evidence-based stale recovery, no transcript store, no provider/schedule monitoring, no Python bootstrap, and no optional-tool reachability.
 
-Legacy Mission Control and Doctor-scanner tests no longer validate their old behavior. They now prove those components are outside the schema-2 base runtime. A future optional observer needs a separate package and its own tests before it can be supported.
+Mission Control and Doctor-scanner tests no longer validate their old behavior. They now prove those components are absent from or isolated outside the schema-2 base runtime. A future optional observer needs a separate package and its own tests before it can be supported.
 
 ## Performance evidence
 

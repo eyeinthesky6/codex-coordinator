@@ -11,6 +11,20 @@ SKILL = PLUGIN / "skills" / "codex-coordinator"
 
 
 class MissionControlIsolationTests(unittest.TestCase):
+    def test_legacy_observer_runtime_is_not_shipped(self) -> None:
+        for root in (
+            PLUGIN / "mission_control",
+            REPOSITORY / "apps" / "mission_control",
+        ):
+            shipped_files = [
+                path
+                for path in root.rglob("*")
+                if path.is_file() and "__pycache__" not in path.parts
+            ]
+            self.assertEqual(shipped_files, [])
+        self.assertFalse((PLUGIN / "scripts" / "mission_control_lifecycle.py").exists())
+        self.assertFalse((REPOSITORY / "tests" / "verify_mission_control_ui.py").exists())
+
     def test_legacy_observer_is_not_imported_by_base_runtime(self) -> None:
         base_files = (
             PLUGIN / "scripts" / "codex_coordinator_session_start.py",

@@ -2,10 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
-import subprocess
-import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -37,7 +33,7 @@ class PackageContractTests(unittest.TestCase):
 
     def test_contract_is_small_and_matches_accepted_architecture(self) -> None:
         contract = json.loads((SKILL / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 20)
+        self.assertEqual(contract["contractVersion"], 21)
         capabilities = contract["capabilities"]
         self.assertEqual(len(capabilities), 18)
         expected = {
@@ -50,7 +46,7 @@ class PackageContractTests(unittest.TestCase):
             "transcriptStorage": "none",
             "sessionStart": "marker-only-no-child-process",
             "doctor": "read-only-compatibility-reinstall",
-            "missionControl": "optional-manual-not-core",
+            "missionControl": "not-shipped-separate-package-only",
             "gitWorkflow": "direct-commit-default-pr-optional",
         }
         for key, value in expected.items():
@@ -125,21 +121,23 @@ class PackageContractTests(unittest.TestCase):
         self.assertFalse((PLUGIN / "scripts" / "codex_coordinator_bootstrap.ps1").exists())
         self.assertFalse((PLUGIN / "scripts" / "codex_coordinator_bootstrap.sh").exists())
 
-    def test_doctor_succeeds_when_mission_control_directory_is_absent(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            copy = Path(directory) / "plugin"
-            shutil.copytree(PLUGIN, copy)
-            shutil.rmtree(copy / "mission_control")
-            completed = subprocess.run(
-                [sys.executable, str(copy / "scripts" / "codex_coordinator_doctor.py"), "--check"],
-                text=True,
-                encoding="utf-8",
-                capture_output=True,
-                timeout=10,
-                check=False,
-            )
-        self.assertEqual(completed.returncode, 0, completed.stdout)
-        self.assertEqual(json.loads(completed.stdout)["status"], "healthy")
+    def test_package_contains_no_mission_control_runtime(self) -> None:
+        runtime = PLUGIN / "mission_control"
+        shipped_files = [
+            path
+            for path in runtime.rglob("*")
+            if path.is_file() and "__pycache__" not in path.parts
+        ]
+        self.assertEqual(shipped_files, [])
+        self.assertFalse((PLUGIN / "scripts" / "mission_control_lifecycle.py").exists())
+        source_wrapper = REPOSITORY / "apps" / "mission_control"
+        wrapper_files = [
+            path
+            for path in source_wrapper.rglob("*")
+            if path.is_file() and "__pycache__" not in path.parts
+        ]
+        self.assertEqual(wrapper_files, [])
+        self.assertFalse((REPOSITORY / "tests" / "verify_mission_control_ui.py").exists())
 
     def test_core_runtime_has_no_private_codex_or_transcript_coupling(self) -> None:
         core = "\n".join(

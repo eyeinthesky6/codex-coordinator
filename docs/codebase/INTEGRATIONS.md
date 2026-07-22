@@ -22,7 +22,7 @@ Current provider settings, checks, protections, releases, and PR state can chang
 
 ## Mission Control
 
-There is no supported schema-2 integration. Legacy source remains inert pending a separate-package or removal decision. A future observer must use only the public board, start manually, remain read-only, and have no private Codex, Doctor, model, task, provider, schedule, or write integration.
+There is no schema-2 Mission Control integration or runtime in the base package. A future observer would require a separate package and must use only the public board, start manually, remain read-only, and have no private Codex, Doctor, model, task, provider, schedule, or write integration.
 
 ## Doctor and plugin manager
 

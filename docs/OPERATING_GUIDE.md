@@ -127,9 +127,9 @@ Doctor does not scan projects, write findings, run a model, create a diagram, st
 
 ## Mission Control
 
-There is no supported schema-2 Mission Control in this checkpoint. The legacy source is inert because nothing in the base runtime imports or starts it. Do not use it against schema-2 state.
+Mission Control is not shipped in the schema-2 base package. The schema-1 runtime, UI, launchers, and lifecycle helper remain available only in historical Git revisions such as `v0.3.0`.
 
-A future optional observer must be separately installed, manually started, read-only, and limited to the public active-board schema. It must not inspect private Codex SQLite or rollout files or have Doctor, model, task, schedule, or write authority.
+A future optional observer requires a new separate package and usage evidence. It must be manually started, read-only, and limited to the public active-board schema. It must not inspect private Codex SQLite or rollout files or have Doctor, model, task, schedule, or write authority.
 
 ## Enable, disable, migrate, and purge
 
