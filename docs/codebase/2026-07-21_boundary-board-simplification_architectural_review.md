@@ -2,7 +2,7 @@
 
 - **Date:** 2026-07-21
 - **Decision status:** Accepted product direction
-- **Implementation status:** Schema-2 core implemented and validated in source; release, project migration, and optional-observer disposition remain open
+- **Implementation status:** Schema-2 core and dry-run migration implemented and validated in source; legacy observer removed from the base package; release and real-project migration remain open
 - **Operational status:** Coordinator is temporarily disabled in maintainer projects and global startup while realignment is underway
 - **Superseded work:** PR #23 was closed without merge; its remote branch remains as the historical record
 
@@ -485,7 +485,9 @@ Normal package-manager reinstall/update becomes the repair owner. Existing Docto
 
 Mission Control's motivation was also valid: users wanted one view of current tasks, overlap, and blockers without opening every task window. The implementation, however, became bundled, auto-started from SessionStart, dependent on Python bootstrap, and coupled to private Codex state/rollout shapes.
 
-The bundled Mission Control runtime is currently about 7,413 lines across 21 files, with about 1,359 lines in its two main test modules. It is larger than the task-boundary core and creates an additional lifecycle to install, start, stop, update, diagnose, and secure.
+At the pre-removal checkpoint, the bundled Mission Control runtime was about 7,413 lines across 21 files, with about 1,359 lines in its two main test modules. It was larger than the task-boundary core and created an additional lifecycle to install, start, stop, update, diagnose, and secure.
+
+The user approved removal from the schema-2 base package after verifying that the original implementation remains in the `v0.3.0` tag, later `main` history, and the preserved PR #23 remote branch. Current source therefore contains no Mission Control runtime, duplicate app wrapper, lifecycle launcher, or browser smoke test. Historical rationale stays in this record and Git rather than in 7,800 inert shipped lines.
 
 Target behavior:
 
@@ -498,7 +500,7 @@ Target behavior:
 - no Doctor repair or semantic review;
 - no authority to create, wake, stop, archive, or command tasks.
 
-If the native Codex UI plus a compact board/status command provides enough visibility, Mission Control can remain uninstalled. Its continued existence should depend on real usage evidence, not sunk implementation cost.
+The native Codex UI plus the compact board/status command is the current visibility product. A future observer must start as a new separate package and depends on real usage evidence, not sunk implementation cost.
 
 ## External architecture pattern check
 
@@ -544,7 +546,7 @@ Do not ship a partial schema that creates two authorities.
 
 ### Phase 3: optional tools separation
 
-**Source status: partly implemented.** SessionStart and the core contract no longer import, start, validate, or advertise Mission Control. Doctor scanning, findings, semantic review, and self-repair left the core. Legacy Mission Control source remains inert pending a separate-package or removal decision.
+**Source status: implemented.** SessionStart and the core contract do not import, start, validate, or advertise Mission Control. Doctor scanning, findings, semantic review, and self-repair left the core. The legacy Mission Control runtime, duplicate source wrapper, lifecycle launcher, and browser smoke test were removed from current source and remain available in tagged/history revisions.
 
 - Package Mission Control separately only if retained.
 - Remove it and Python bootstrap from SessionStart.
@@ -622,11 +624,12 @@ The schema-2 source checkpoint implements:
 - revision checks, atomic writes, and a short cross-platform OS lock around mutations;
 - compact cold receipts that ordinary reads never scan;
 - a marker-only five-second SessionStart with no child process or Python bootstrap;
-- a schema-20 contract with 18 product-level fields instead of the schema-19 41-key orchestration mirror;
+- a schema-21 contract with 18 product-level fields instead of the schema-19 41-key orchestration mirror;
 - a manual read-only Doctor whose only repair recommendation is update or reinstall;
 - schema-2 lifecycle operations with no task, pin, heartbeat, schedule, or Mission Control actions;
 - legacy schema-1 preservation and cleanup reporting without reactivation;
 - dry-run-first schema-1 migration with exact marker backup, empty active/archive directories, no ownership inference, and no automatic reactivation;
+- no Mission Control runtime, UI, launcher, lifecycle helper, or browser test in the base package;
 - current README, operating, architecture, privacy, discovery, site, and testing documentation.
 
 Measured on Windows with Python 3.13, including normal local process-start cost where stated:
@@ -682,9 +685,9 @@ The real paths traced were:
 1. Keep the boundary-board decision as the target architecture.
 2. Preserve the current stable release, closed PR #23 branch, legacy state, and Git history as rollback and rationale evidence.
 3. Keep the new regression tests for task count, message count, hot-state size, no background process, and no private transcript.
-4. Decide separately whether Mission Control is rebuilt as its own read-only package or removed.
-5. Build and dry-run an explicit schema-1-to-schema-2 project migration; never infer active owners from old history.
-6. Do not install, enable, push, publish, or release until the user reviews the source checkpoint and remaining migration/observer decisions.
+4. Keep Mission Control out of the base package. Consider a new separate board-only observer only after real usage evidence.
+5. Dry-run the explicit schema-1-to-schema-2 migration against each chosen project; never infer active owners from old history.
+6. Do not install, enable, push, publish, or release until the user reviews the source checkpoint and exact migration result.
 
 ## Verification
 
@@ -695,7 +698,7 @@ Proven:
 - the original and current file inventories and sizes;
 - the capability additions and changes at each relevant commit;
 - the intended benefit recorded in changelog, docs, tests, and runtime paths;
-- current auto-start, heartbeat, reconciliation, provider/schedule, Doctor, and Mission Control coupling;
+- the historical auto-start, heartbeat, reconciliation, provider/schedule, Doctor, and Mission Control coupling that led to removal;
 - current local task/inbox/session growth;
 - the schema-2 active-board shape and strict bounded records;
 - concurrent disjoint and conflicting claim behavior;
@@ -707,7 +710,6 @@ Proven:
 Not yet proven:
 
 - migration applied to a real user project after review of its dry-run inventory;
-- optional Mission Control packaging;
 - behavior of a separately installed schema-2 package in a real re-enabled project;
 - release and user-workflow performance after installation.
 
@@ -739,4 +741,4 @@ Re-enable projects deliberately, one project at a time: restore the supported gl
 
 The source realignment may be committed locally after final review. It must not be pushed, installed globally, used to migrate or re-enable a project, published, or released without separately naming the exact action and obtaining direct user authority.
 
-The next product decision is the optional observer: rebuild Mission Control as a separate manual read-only schema-2 package, or remove the inert legacy source. The next operational change is a dry-run schema-1 migration design. Neither decision is part of this core checkpoint.
+The observer decision is complete for the base package: it ships no Mission Control. The next operational step is to review one real project's migration dry run, then separately decide whether to install and re-enable the schema-2 package for a bounded workflow trial. A new observer is not on the core path and needs separate usage evidence and approval.

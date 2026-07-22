@@ -41,7 +41,7 @@ class GoalLeadershipContractTests(unittest.TestCase):
 
     def test_capability_contract_describes_boundary_board_not_orchestration(self) -> None:
         contract = json.loads((SKILL_ROOT / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 20)
+        self.assertEqual(contract["contractVersion"], 21)
         capabilities = contract["capabilities"]
         self.assertEqual(capabilities["defaultExecution"], "one-native-task")
         self.assertEqual(capabilities["taskCreation"], "direct-user-or-independent-durable-lane")

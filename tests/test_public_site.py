@@ -79,7 +79,7 @@ class PublicSiteTests(unittest.TestCase):
             "One task by default",
             "Native Codex remains the only transcript authority",
             "Zero third-party runtime dependencies",
-            "No supported schema-2 observer yet",
+            "No observer is shipped in the base package",
             "v0.3.0",
             "older orchestration",
         ):

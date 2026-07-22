@@ -403,13 +403,14 @@ def _board_write_lock(marker: dict[str, Any]):
             if os.name == "nt":
                 import msvcrt
 
-                stream.seek(0, os.SEEK_END)
-                if stream.tell() == 0:
-                    stream.write(b"\0")
-                    stream.flush()
                 stream.seek(0)
                 msvcrt.locking(stream.fileno(), msvcrt.LK_LOCK, 1)
                 try:
+                    if os.fstat(stream.fileno()).st_size == 0:
+                        stream.seek(0)
+                        stream.write(b"\0")
+                        stream.flush()
+                        os.fsync(stream.fileno())
                     yield
                 finally:
                     stream.seek(0)

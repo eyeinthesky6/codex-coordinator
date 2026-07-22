@@ -189,9 +189,9 @@ It checks the manifest, capability contract, skill links, Python syntax, and dir
 
 ## Mission Control status
 
-Mission Control is not part of the schema-2 core and is never started by SessionStart. The old bundled observer source is retained temporarily as migration history, but it still targets schema 1 and is not a supported schema-2 tool. Do not run it against a schema-2 project.
+Mission Control is not shipped in the schema-2 base package. The old schema-1 runtime, UI, launchers, and lifecycle helper were removed from current source; their implementation remains available in the `v0.3.0` tag and Git history.
 
-If a future observer is retained, it must be a separate optional installation, start manually, read only the supported active-board contract, and have no task, Doctor, model-review, provider, schedule, or write authority.
+If real usage later justifies an observer, it must be a new separate optional installation, start manually, read only the supported active-board contract, and have no task, Doctor, model-review, provider, schedule, or write authority.
 
 ## Deactivate, migrate, and uninstall
 

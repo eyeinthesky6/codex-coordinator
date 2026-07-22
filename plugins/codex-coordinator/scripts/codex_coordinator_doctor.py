@@ -24,7 +24,7 @@ EXPECTED_CAPABILITIES = {
     "transcriptStorage": "none",
     "sessionStart": "marker-only-no-child-process",
     "doctor": "read-only-compatibility-reinstall",
-    "missionControl": "optional-manual-not-core",
+    "missionControl": "not-shipped-separate-package-only",
     "externalWriteConsent": "exact-target-advance-notice",
     "staleClaimRecovery": "native-terminal-evidence",
     "stateTool": "scripts/coordination_state.py",
@@ -176,10 +176,10 @@ def check_package(plugin_root: Path) -> dict[str, Any]:
         capabilities = _json_object(
             root / "skills" / "codex-coordinator" / "capabilities.json"
         )
-        if capabilities.get("contractVersion") != 20:
-            raise CheckError("capability contract version must be 20")
+        if capabilities.get("contractVersion") != 21:
+            raise CheckError("capability contract version must be 21")
         if capabilities.get("capabilities") != EXPECTED_CAPABILITIES:
-            raise CheckError("capability contract fields do not match version 20")
+            raise CheckError("capability contract fields do not match version 21")
 
     attempt("capabilities", capabilities_check)
     attempt("skill", lambda: _check_skill(root / "skills" / "codex-coordinator"))

@@ -1,5 +1,5 @@
 {
-  "contractVersion": 20,
+  "contractVersion": 21,
   "capabilities": {
     "corePurpose": "repository-task-boundary-visibility",
     "repositoryLifecycle": "explicit-opt-in",
@@ -13,7 +13,7 @@
     "transcriptStorage": "none",
     "sessionStart": "marker-only-no-child-process",
     "doctor": "read-only-compatibility-reinstall",
-    "missionControl": "optional-manual-not-core",
+    "missionControl": "not-shipped-separate-package-only",
     "externalWriteConsent": "exact-target-advance-notice",
     "staleClaimRecovery": "native-terminal-evidence",
     "stateTool": "scripts/coordination_state.py",

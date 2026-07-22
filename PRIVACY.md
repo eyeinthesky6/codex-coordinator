@@ -33,7 +33,7 @@ The schema-2 core makes no separate model call. It runs inside the user's existi
 
 If the user asks Codex to use Git hosting, web search, connectors, or another external service, that service's data practices apply. Coordinator neither monitors those providers nor grants authority to use them.
 
-The legacy Mission Control and AI Review source is not a supported schema-2 feature and is never imported or started by the base runtime.
+Mission Control and AI Review are not shipped in the schema-2 base package. Their old implementation remains only in historical Git revisions. They are never imported or started by the base runtime.
 
 ## Sharing and sale
 

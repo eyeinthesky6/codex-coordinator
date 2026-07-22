@@ -8,7 +8,7 @@ Run the installed script from its package:
 python scripts/codex_coordinator_doctor.py --check
 ```
 
-It verifies only the packaged manifest, schema-20 capability contract, skill frontmatter and links, state-helper syntax, hook registration, and hook syntax. It does not run the hook, inspect projects, read Codex databases or transcripts, scan rollouts, write diagrams, compare private paths, or modify installed files.
+It verifies only the packaged manifest, schema-21 capability contract, skill frontmatter and links, state-helper syntax, hook registration, and hook syntax. It does not run the hook, inspect projects, read Codex databases or transcripts, scan rollouts, write diagrams, compare private paths, or modify installed files.
 
 Results are `healthy` or `broken`. On `broken`, report:
 

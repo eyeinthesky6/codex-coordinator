@@ -228,6 +228,8 @@ class CoordinationStateTests(unittest.TestCase):
                     outcomes.append("claimed")
                 except state.ClaimConflict:
                     outcomes.append("conflict")
+                except Exception as error:  # surfaced below with its exact type
+                    outcomes.append(type(error).__name__)
 
             threads = [threading.Thread(target=worker, args=(index,)) for index in range(2)]
             for thread in threads:

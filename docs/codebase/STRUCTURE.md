@@ -6,7 +6,7 @@
 - `plugins/codex-coordinator/hooks/hooks.json`: direct five-second SessionStart registration.
 - `plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`: marker-only, read-only hook.
 - `plugins/codex-coordinator/skills/codex-coordinator/SKILL.md`: boundary-board invariants and lane router.
-- `plugins/codex-coordinator/skills/codex-coordinator/capabilities.json`: schema-20, 18-field public behavior contract.
+- `plugins/codex-coordinator/skills/codex-coordinator/capabilities.json`: schema-21, 18-field public behavior contract.
 - `plugins/codex-coordinator/skills/codex-coordinator/scripts/coordination_state.py`: active claim list/claim/release helper.
 - `plugins/codex-coordinator/skills/codex-coordinator/references/`: execution, messaging, recovery, installation, maintenance, and Doctor guidance.
 - `plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`: manual read-only compatibility check.
@@ -19,13 +19,9 @@
 - `.codex/coordination/archive/<thread-uuid>-<time>.json`: ignored compact cold receipts.
 - Schema-1 `CURRENT.md`, tasks, inbox, and cache may remain as preserved ignored history but are not schema-2 authority.
 
-## Legacy optional-tool source
+## Optional observer boundary
 
-- `plugins/codex-coordinator/mission_control/`
-- `apps/mission_control/`
-- `plugins/codex-coordinator/scripts/mission_control_lifecycle.py`
-
-These paths are not imported, started, checked, or advertised by the schema-2 base runtime. They remain only until Mission Control is either rebuilt as a separate read-only package or removed in a separately reviewed change.
+The base package contains no Mission Control runtime, UI, launcher, lifecycle helper, or browser test. The removed schema-1 implementation remains available from `v0.3.0` and Git history. Any future observer requires a separate package and must consume only the public schema-2 board.
 
 ## Public and contributor docs
 
@@ -43,5 +39,5 @@ These paths are not imported, started, checked, or advertised by the schema-2 ba
 - `test_doctor.py`: read-only package compatibility and reinstall-only failure.
 - `test_uninstall.py`: schema-2 no-lifecycle behavior, legacy cleanup, preservation, and purge confirmation.
 - `test_package_contract.py`, `test_goal_leadership_contract.py`: architecture and guidance regression gates.
-- `test_mission_control*.py`, `test_doctor_scan.py`: optional-tool isolation from the base runtime.
+- `test_mission_control*.py`, `test_doctor_scan.py`: absence and optional-tool isolation from the base runtime.
 - Public site, release, and hygiene tests cover distribution surfaces separately.

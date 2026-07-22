@@ -85,9 +85,9 @@ Doctor is read-only. It checks five package surfaces: manifest, capability contr
 
 ## Optional observer boundary
 
-No schema-2 observer is currently supported. Legacy Mission Control source is inert and retained only while the separate-tool decision is pending. Nothing in the base hook, Doctor, lifecycle helper, state helper, capability contract, or prompts imports or starts it.
+No schema-2 observer is shipped. The legacy Mission Control runtime and lifecycle source was removed from the base package and remains recoverable from `v0.3.0` and Git history. Nothing in the base hook, Doctor, state helper, capability contract, or prompts imports or starts an observer.
 
-Any retained future observer must be separately installed, manually started, read-only, and limited to schema-2 board files. It must not inspect private Codex SQLite or rollout data or expose task, repair, model, provider, schedule, or write controls.
+Any future observer must be a new separate package, manually started, read-only, and limited to schema-2 board files. It must not inspect private Codex SQLite or rollout data or expose task, repair, model, provider, schedule, or write controls.
 
 ## Failure posture
 
