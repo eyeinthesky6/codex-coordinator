@@ -14,6 +14,7 @@ from typing import Any
 EXPECTED_CAPABILITIES = {
     "corePurpose": "repository-task-boundary-visibility",
     "repositoryLifecycle": "explicit-opt-in",
+    "projectLifecycleTool": "dry-run-first-init-deactivate-migrate-reactivate-purge",
     "defaultExecution": "one-native-task",
     "nativeTaskAuthority": "execution-messaging-transcript",
     "claimOwnership": "per-task-json-record",
@@ -176,14 +177,15 @@ def check_package(plugin_root: Path) -> dict[str, Any]:
         capabilities = _json_object(
             root / "skills" / "codex-coordinator" / "capabilities.json"
         )
-        if capabilities.get("contractVersion") != 21:
-            raise CheckError("capability contract version must be 21")
+        if capabilities.get("contractVersion") != 22:
+            raise CheckError("capability contract version must be 22")
         if capabilities.get("capabilities") != EXPECTED_CAPABILITIES:
-            raise CheckError("capability contract fields do not match version 21")
+            raise CheckError("capability contract fields do not match version 22")
 
     attempt("capabilities", capabilities_check)
     attempt("skill", lambda: _check_skill(root / "skills" / "codex-coordinator"))
     attempt("state_helper", lambda: _check_python(root / "skills" / "codex-coordinator" / "scripts" / "coordination_state.py"))
+    attempt("project_lifecycle", lambda: _check_python(root / "scripts" / "codex_coordinator_project.py"))
     attempt("hook", lambda: _check_hook(root))
 
     healthy = not findings
@@ -191,7 +193,7 @@ def check_package(plugin_root: Path) -> dict[str, Any]:
         "status": "healthy" if healthy else "broken",
         "package": "codex-coordinator",
         "version": manifest.get("version") if isinstance(manifest.get("version"), str) else "unknown",
-        "checks": 5,
+        "checks": 6,
         "failures": len(findings),
         "findings": findings,
         "recommendedAction": "none" if healthy else "update_or_reinstall",

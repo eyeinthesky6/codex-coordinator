@@ -59,6 +59,16 @@ Add only this exact block and preserve every unrelated instruction:
 
 ## Enable
 
+For a new project, first review the no-write plan:
+
+```powershell
+python scripts/codex_coordinator_project.py `
+  project init --project-root C:\Projects\example `
+  --project-id example --project-name "Example" --task-prefix EX
+```
+
+Repeat with `--apply` only after the plan is approved. The helper rejects an existing marker or any unmarked coordination state instead of guessing ownership.
+
 1. Create or migrate the marker only under direct user authority or the explicit repository trigger in the main skill.
 2. Add the exact ignore and discovery blocks.
 3. Do not create a Codex task, `CURRENT.md`, task contract, inbox, heartbeat, Mission Control process, Doctor schedule, or placeholder record.

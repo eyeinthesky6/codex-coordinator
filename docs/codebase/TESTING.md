@@ -34,20 +34,23 @@ The runtime uses only the Python standard library. Optional property tests may s
 
 `test_doctor.py` proves:
 
-- the packaged manifest, schema-21 contract, skill links, state helper, and hook are compatible;
+- the packaged manifest, schema-22 contract, skill links, state and project-lifecycle helpers, and hook are compatible;
 - malformed or drifted packages report `broken` and `update_or_reinstall`;
 - compact output omits detailed findings and local paths;
 - legacy `--apply` and separate repair targets write nothing;
 - no scanner, rollback, copy, process, diagram, project, or private-data path exists.
 
-`test_uninstall.py` proves:
+`test_project_lifecycle.py` proves:
 
+- new-project init is dry-run-first, creates only the bounded board files, and rejects ambiguous existing state;
 - schema-2 deactivation/reactivation creates no native lifecycle action;
 - state and cold history survive deactivation;
 - legacy schema 1 can be disabled but cannot be reactivated without migration;
 - purge requires exact project confirmation;
-- global planning uses only verified explicit roots;
+- no global project registry or drive scan exists;
 - no new Coordinator, pin, heartbeat, or Mission Control action is created.
+
+`test_boundary_workflow.py` copies the package to an isolated location and proves one complete workflow: Doctor, new-project init, SessionStart hint, empty board, disjoint claims, overlap rejection, compact releases, and clean disable with no legacy task state.
 
 ## Architecture regressions
 

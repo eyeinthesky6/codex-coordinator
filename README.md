@@ -193,14 +193,24 @@ Mission Control is not shipped in the schema-2 base package. The old schema-1 ru
 
 If real usage later justifies an observer, it must be a new separate optional installation, start manually, read only the supported active-board contract, and have no task, Doctor, model-review, provider, schedule, or write authority.
 
-## Deactivate, migrate, and uninstall
+## Initialise, deactivate, migrate, and uninstall
+
+New projects use the same dry-run-first lifecycle helper. The plan changes nothing:
+
+```powershell
+python plugins/codex-coordinator/scripts/codex_coordinator_project.py `
+  project init --project-root C:\Projects\example `
+  --project-id example --project-name "Example" --task-prefix EX
+```
+
+After reviewing the exact file plan, repeat with `--apply`. Initialisation creates only the schema-2 marker, empty active/archive directories, and exact `AGENTS.md` and `.gitignore` blocks. It creates no Codex task, process, heartbeat, schedule, message, or transcript copy.
 
 Deactivation is reversible: it sets the marker to false and removes only the exact discovery block. It preserves claims, receipts, legacy state, native tasks, transcripts, Git history, application files, and configuration.
 
 The lifecycle helper is dry-run-first:
 
 ```powershell
-python plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py `
+python plugins/codex-coordinator/scripts/codex_coordinator_project.py `
   project deactivate --project-root C:\Projects\example
 ```
 

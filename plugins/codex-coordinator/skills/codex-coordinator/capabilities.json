@@ -1,8 +1,9 @@
 {
-  "contractVersion": 21,
+  "contractVersion": 22,
   "capabilities": {
     "corePurpose": "repository-task-boundary-visibility",
     "repositoryLifecycle": "explicit-opt-in",
+    "projectLifecycleTool": "dry-run-first-init-deactivate-migrate-reactivate-purge",
     "defaultExecution": "one-native-task",
     "nativeTaskAuthority": "execution-messaging-transcript",
     "claimOwnership": "per-task-json-record",

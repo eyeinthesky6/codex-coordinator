@@ -10,15 +10,15 @@ from pathlib import Path
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
-SCRIPT = REPOSITORY / "plugins" / "codex-coordinator" / "scripts" / "codex_coordinator_uninstall.py"
-SPEC = importlib.util.spec_from_file_location("codex_coordinator_uninstall", SCRIPT)
+SCRIPT = REPOSITORY / "plugins" / "codex-coordinator" / "scripts" / "codex_coordinator_project.py"
+SPEC = importlib.util.spec_from_file_location("codex_coordinator_project", SCRIPT)
 assert SPEC and SPEC.loader
 lifecycle = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = lifecycle
 SPEC.loader.exec_module(lifecycle)
 
 
-class UninstallTests(unittest.TestCase):
+class ProjectLifecycleTests(unittest.TestCase):
     def _repository(self, directory: str, *, schema: int = 2, enabled: bool = True) -> Path:
         root = Path(directory) / "repo"
         root.mkdir()
@@ -77,6 +77,98 @@ class UninstallTests(unittest.TestCase):
         )
         self.assertEqual(completed.stderr, "")
         return completed.returncode, json.loads(completed.stdout)
+
+    def test_init_is_dry_run_first_and_creates_only_boundary_board_files(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            root.mkdir()
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+            (root / "AGENTS.md").write_text("# Existing guidance\n", encoding="utf-8")
+            (root / ".gitignore").write_text("build/\n", encoding="utf-8")
+            args = (
+                "project",
+                "init",
+                "--project-root",
+                str(root),
+                "--project-id",
+                "sample",
+                "--project-name",
+                "Sample Project",
+                "--task-prefix",
+                "SAMPLE",
+            )
+
+            code, plan = self._run(*args)
+            self.assertEqual(code, 0)
+            self.assertEqual(plan["status"], "planned")
+            self.assertEqual(plan["activeClaimsCreated"], 0)
+            self.assertEqual(plan["nativeTasksCreated"], 0)
+            self.assertEqual(plan["backgroundProcessesCreated"], 0)
+            self.assertFalse((root / ".codex").exists())
+            self.assertEqual(
+                (root / "AGENTS.md").read_text(encoding="utf-8"),
+                "# Existing guidance\n",
+            )
+
+            code, applied = self._run(*args, "--apply")
+            self.assertEqual(code, 0)
+            self.assertEqual(applied["status"], "applied")
+            marker = (root / ".codex" / "coordination" / "project.yaml").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("schema_version: 2", marker)
+            self.assertIn("coordination_enabled: true", marker)
+            self.assertIn("project_id: sample", marker)
+            self.assertIn('project_name: "Sample Project"', marker)
+            self.assertEqual(
+                list((root / ".codex" / "coordination" / "active").iterdir()), []
+            )
+            self.assertEqual(
+                list((root / ".codex" / "coordination" / "archive").iterdir()), []
+            )
+            self.assertEqual(
+                (root / "AGENTS.md").read_text(encoding="utf-8").count(
+                    lifecycle.DISCOVERY_BLOCK
+                ),
+                1,
+            )
+            ignore = (root / ".gitignore").read_text(encoding="utf-8")
+            self.assertIn("build/", ignore)
+            self.assertEqual(ignore.count(lifecycle.IGNORE_BLOCK), 1)
+
+            code, rejected = self._run(*args, "--apply")
+        self.assertEqual(code, 2)
+        self.assertIn("marker already exists", rejected["error"])
+
+    def test_init_rejects_unmarked_existing_coordination_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            root.mkdir()
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+            coordination = root / ".codex" / "coordination"
+            coordination.mkdir(parents=True)
+            legacy = coordination / "legacy.txt"
+            legacy.write_text("preserve me\n", encoding="utf-8")
+
+            code, rejected = self._run(
+                "project",
+                "init",
+                "--project-root",
+                str(root),
+                "--project-id",
+                "sample",
+                "--project-name",
+                "Sample Project",
+                "--task-prefix",
+                "SAMPLE",
+                "--apply",
+            )
+
+            self.assertEqual(code, 2)
+            self.assertIn("not empty", rejected["error"])
+            self.assertEqual(legacy.read_text(encoding="utf-8"), "preserve me\n")
+            self.assertFalse((root / "AGENTS.md").exists())
+            self.assertFalse((root / ".gitignore").exists())
 
     def test_schema_two_deactivate_is_dry_run_first_and_has_no_native_lifecycle(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -298,32 +390,15 @@ class UninstallTests(unittest.TestCase):
             self.assertNotIn(lifecycle.IGNORE_BLOCK, (root / ".gitignore").read_text(encoding="utf-8"))
             self.assertFalse(applied["historyPreserved"])
 
-    def test_global_plan_uses_only_verified_roots_and_reports_no_schema_two_tasks(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = self._repository(directory)
-            codex_home = Path(directory) / "codex-home"
-            code, indexed = self._run(
-                "index-project",
-                "--project-root",
-                str(root),
-                "--codex-home",
-                str(codex_home),
-                "--apply",
-            )
-            self.assertEqual(code, 0)
-            self.assertEqual(indexed["project"]["projectId"], "sample")
-            code, plan = self._run("global-plan", "--codex-home", str(codex_home))
-        self.assertEqual(code, 0)
-        self.assertEqual(len(plan["verifiedProjects"]), 1)
-        self.assertEqual(plan["verifiedProjects"][0]["requiredNativeActions"], [])
-        self.assertIn("legacy schema-1", " ".join(plan["requiredGlobalActions"]))
-
     def test_source_never_creates_coordinator_heartbeat_or_mission_control(self) -> None:
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertNotIn('"create-or-recover-coordinator"', source)
         self.assertNotIn('"pin-coordinator"', source)
         self.assertNotIn('"create-repository-heartbeat"', source)
         self.assertNotIn("start Mission Control", source)
+        self.assertNotIn("projects.json", source)
+        self.assertNotIn("global-plan", source)
+        self.assertNotIn("index-project", source)
 
 
 if __name__ == "__main__":

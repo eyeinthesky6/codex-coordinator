@@ -46,9 +46,9 @@ LEGACY_DISCOVERY_BLOCKS = (
 )
 
 IGNORE_BLOCK = ".codex/coordination/*\n!.codex/coordination/project.yaml"
-INDEX_SCHEMA = 1
 QUARANTINE_NAME = "coordination.codex-coordinator-purge"
 MARKER_KEYS = ("schema_version", "coordination_enabled", "project_id")
+TASK_PREFIX = re.compile(r"[A-Z][A-Z0-9-]{0,15}")
 MIGRATION_BACKUP_NAME = "project.schema-1.yaml"
 MAX_LEGACY_FILES = 10_000
 MAX_TASK_TAIL_BYTES = 4096
@@ -73,6 +73,7 @@ class Document:
     text: str
     newline: str
     bom: bool
+    existed: bool = True
 
     def encode(self, text: str) -> bytes:
         payload = text.encode("utf-8")
@@ -114,7 +115,14 @@ def _read_document(path: Path, *, required: bool = True) -> Document | None:
     except UnicodeDecodeError as error:
         raise LifecycleError(f"file is not UTF-8: {path}") from error
     newline = "\r\n" if b"\r\n" in raw else "\n"
-    return Document(path=path, raw=raw, text=text, newline=newline, bom=bom)
+    return Document(
+        path=path,
+        raw=raw,
+        text=text,
+        newline=newline,
+        bom=bom,
+        existed=True,
+    )
 
 
 def _same_path(left: Path, right: Path) -> bool:
@@ -329,7 +337,7 @@ def _ensure_current_discovery(document: Document | None, path: Path) -> tuple[Do
 
 def _add_exact_block(document: Document | None, path: Path, block: str, label: str) -> tuple[Document, str]:
     if document is None:
-        empty = Document(path, b"", "", "\n", False)
+        empty = Document(path, b"", "", "\n", False, False)
         return empty, block + "\n"
     rendered = _block_for(document, block)
     count = document.text.count(rendered)
@@ -467,8 +475,129 @@ def _apply_documents(changes: Iterable[tuple[Document, str]]) -> None:
             written.append(document)
     except Exception:
         for document in reversed(written):
-            _atomic_write(document.path, document.raw)
+            if document.existed:
+                _atomic_write(document.path, document.raw)
+            else:
+                document.path.unlink(missing_ok=True)
         raise
+
+
+def _initialization_root(root_value: str) -> tuple[Path, Path]:
+    root = Path(root_value).expanduser().resolve()
+    if not root.is_dir():
+        raise LifecycleError(f"project root is not a directory: {root}")
+    _validate_primary_worktree(root)
+    codex_directory = root / ".codex"
+    coordination = codex_directory / "coordination"
+    _require_contained_directory(root, codex_directory, label=".codex directory")
+    _require_contained_directory(root, coordination, label="coordination directory")
+    marker = coordination / "project.yaml"
+    if marker.exists():
+        raise LifecycleError(
+            "project marker already exists; use deactivate, migrate, or reactivate"
+        )
+    if coordination.exists() and any(coordination.iterdir()):
+        raise LifecycleError(
+            "coordination directory is not empty; preserve and reconcile it before init"
+        )
+    return root, coordination
+
+
+def _initial_marker(
+    *, project_id: str, project_name: str, task_prefix: str
+) -> str:
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", project_id):
+        raise LifecycleError("--project-id must be a stable lowercase slug")
+    project_name = project_name.strip()
+    if not 1 <= len(project_name) <= 120 or any(
+        character in "\r\n" or ord(character) < 32 for character in project_name
+    ):
+        raise LifecycleError("--project-name must be one plain-text line")
+    if not TASK_PREFIX.fullmatch(task_prefix):
+        raise LifecycleError(
+            "--task-prefix must be 1 to 16 uppercase letters, digits, or hyphens"
+        )
+    return "\n".join(
+        [
+            "schema_version: 2",
+            "coordination_enabled: true",
+            f"project_id: {project_id}",
+            f"project_name: {json.dumps(project_name, ensure_ascii=True)}",
+            f"task_prefix: {task_prefix}",
+            "canonical_paths:",
+            "  active: .codex/coordination/active",
+            "  archive: .codex/coordination/archive",
+            "access:",
+            "  cross_project_task_access: false",
+            "  cross_project_state_changes: false",
+            "",
+        ]
+    )
+
+
+def _init_operation(args: argparse.Namespace) -> dict[str, object]:
+    root, coordination = _initialization_root(args.project_root)
+    marker_path = coordination / "project.yaml"
+    marker_text = _initial_marker(
+        project_id=args.project_id or "",
+        project_name=args.project_name or "",
+        task_prefix=args.task_prefix or "",
+    )
+    agents_path = root / "AGENTS.md"
+    ignore_path = root / ".gitignore"
+    agents = _read_document(agents_path, required=False)
+    ignore = _read_document(ignore_path, required=False)
+    agents_document, agents_text = _add_exact_block(
+        agents, agents_path, DISCOVERY_BLOCK, "Coordinator discovery"
+    )
+    ignore_document, ignore_text = _add_exact_block(
+        ignore, ignore_path, IGNORE_BLOCK, "Coordinator ignore"
+    )
+    marker_document = Document(marker_path, b"", "", "\n", False, False)
+    actions = [
+        {"action": "create-enabled-schema-2-marker", "path": str(marker_path)},
+        {"action": "create-empty-active-board", "path": str(coordination / "active")},
+        {"action": "create-empty-cold-archive", "path": str(coordination / "archive")},
+    ]
+    changes = [(marker_document, marker_text)]
+    if agents_text != agents_document.text:
+        actions.append({"action": "add-discovery-block", "path": str(agents_path)})
+        changes.append((agents_document, agents_text))
+    if ignore_text != ignore_document.text:
+        actions.append({"action": "add-ignore-block", "path": str(ignore_path)})
+        changes.append((ignore_document, ignore_text))
+
+    if args.apply:
+        created_directories: list[Path] = []
+        try:
+            for path in (
+                root / ".codex",
+                coordination,
+                coordination / "active",
+                coordination / "archive",
+            ):
+                if not path.exists():
+                    path.mkdir()
+                    created_directories.append(path)
+            _apply_documents(changes)
+        except Exception:
+            for path in reversed(created_directories):
+                try:
+                    path.rmdir()
+                except OSError:
+                    pass
+            raise
+
+    return {
+        "status": "applied" if args.apply else "planned",
+        "operation": "init",
+        "projectId": args.project_id,
+        "projectRoot": str(root),
+        "actions": actions,
+        "activeClaimsCreated": 0,
+        "nativeTasksCreated": 0,
+        "backgroundProcessesCreated": 0,
+    }
 
 
 def _apply_schema_one_migration(project: Project, marker_text: str) -> None:
@@ -612,6 +741,8 @@ def _native_actions(project: Project, *, activate: bool) -> list[dict[str, str]]
 
 
 def project_operation(args: argparse.Namespace) -> dict[str, object]:
+    if args.action == "init":
+        return _init_operation(args)
     purge = args.action == "purge"
     project = _load_project(args.project_root, allow_resumed_purge=purge)
     if args.action == "migrate":
@@ -690,97 +821,18 @@ def project_operation(args: argparse.Namespace) -> dict[str, object]:
     }
 
 
-def _load_index(path: Path) -> list[dict[str, str]]:
-    if not path.exists():
-        return []
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise LifecycleError(f"project index is invalid: {path}") from error
-    if payload.get("schemaVersion") != INDEX_SCHEMA or not isinstance(payload.get("projects"), list):
-        raise LifecycleError(f"project index schema is invalid: {path}")
-    projects: list[dict[str, str]] = []
-    for entry in payload["projects"]:
-        if not isinstance(entry, dict) or not isinstance(entry.get("projectId"), str) or not isinstance(entry.get("path"), str):
-            raise LifecycleError(f"project index entry is invalid: {path}")
-        projects.append({"projectId": entry["projectId"], "path": entry["path"]})
-    return projects
-
-
-def index_project(args: argparse.Namespace) -> dict[str, object]:
-    project = _load_project(args.project_root)
-    codex_home = Path(args.codex_home).expanduser().resolve()
-    index_path = codex_home / "codex-coordinator" / "projects.json"
-    entries = _load_index(index_path)
-    keyed = {os.path.normcase(str(Path(entry["path"]).expanduser().resolve())): entry for entry in entries}
-    keyed[os.path.normcase(str(project.root))] = {"projectId": project.project_id, "path": str(project.root)}
-    payload = {
-        "schemaVersion": INDEX_SCHEMA,
-        "projects": sorted(keyed.values(), key=lambda item: (item["projectId"], item["path"])),
-    }
-    encoded = (json.dumps(payload, indent=2) + "\n").encode("utf-8")
-    if args.apply:
-        _atomic_write(index_path, encoded)
-    return {
-        "status": "applied" if args.apply else "planned",
-        "operation": "index-project",
-        "indexPath": str(index_path),
-        "project": {"projectId": project.project_id, "path": str(project.root)},
-    }
-
-
-def global_plan(args: argparse.Namespace) -> dict[str, object]:
-    codex_home = Path(args.codex_home).expanduser().resolve()
-    index_path = codex_home / "codex-coordinator" / "projects.json"
-    candidates = _load_index(index_path)
-    candidates.extend({"projectId": "unverified", "path": value} for value in args.project_root)
-    unique: dict[str, dict[str, str]] = {}
-    for entry in candidates:
-        path = str(Path(entry["path"]).expanduser().resolve())
-        unique[os.path.normcase(path)] = {"projectId": entry["projectId"], "path": path}
-
-    verified: list[dict[str, object]] = []
-    rejected: list[dict[str, str]] = []
-    for entry in unique.values():
-        try:
-            project = _load_project(entry["path"])
-            if entry["projectId"] not in {"unverified", project.project_id}:
-                raise LifecycleError("index project ID does not match marker")
-            verified.append(
-                {
-                    "projectId": project.project_id,
-                    "path": str(project.root),
-                    "enabled": project.enabled,
-                    "requiredNativeActions": _native_actions(project, activate=False),
-                }
-            )
-        except LifecycleError as error:
-            rejected.append({"path": entry["path"], "reason": str(error)})
-
-    return {
-        "status": "planned",
-        "operation": "global-uninstall",
-        "indexPath": str(index_path),
-        "verifiedProjects": verified,
-        "rejectedProjects": rejected,
-        "requiredGlobalActions": [
-            "deactivate each verified enabled project",
-            "for legacy schema-1 projects only, stop verified old heartbeats and Coordinator tasks",
-            "stop any separately configured legacy Mission Control automatic startup",
-            "codex plugin remove codex-coordinator@codex-coordinator",
-            "optionally remove the codex-coordinator marketplace when directly requested",
-        ],
-        "projectHistoryPreserved": True,
-    }
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     project = subparsers.add_parser("project", help="plan or apply one project lifecycle operation")
-    project.add_argument("action", choices=("deactivate", "migrate", "reactivate", "purge"))
+    project.add_argument(
+        "action", choices=("init", "deactivate", "migrate", "reactivate", "purge")
+    )
     project.add_argument("--project-root", required=True)
+    project.add_argument("--project-id", help="stable lowercase ID required for init")
+    project.add_argument("--project-name", help="display name required for init")
+    project.add_argument("--task-prefix", help="short uppercase prefix required for init")
     project.add_argument("--apply", action="store_true", help="apply the planned filesystem changes")
     project.add_argument(
         "--confirm-project-id",
@@ -793,16 +845,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     project.set_defaults(handler=project_operation)
 
-    index = subparsers.add_parser("index-project", help="record one verified project in the bounded local index")
-    index.add_argument("--project-root", required=True)
-    index.add_argument("--codex-home", required=True)
-    index.add_argument("--apply", action="store_true")
-    index.set_defaults(handler=index_project)
-
-    global_uninstall = subparsers.add_parser("global-plan", help="plan global uninstall from verified known projects")
-    global_uninstall.add_argument("--codex-home", required=True)
-    global_uninstall.add_argument("--project-root", action="append", default=[])
-    global_uninstall.set_defaults(handler=global_plan)
     return parser
 
 
