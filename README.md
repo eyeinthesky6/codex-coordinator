@@ -204,7 +204,7 @@ python plugins/codex-coordinator/scripts/codex_coordinator_uninstall.py `
   project deactivate --project-root C:\Projects\example
 ```
 
-Schema 2 requires no task, pin, heartbeat, schedule, or Mission Control cleanup. Legacy schema-1 deactivation may report exact old lifecycle actions; schema 1 cannot be reactivated until it is deliberately migrated. Purge remains a separate destructive action requiring the exact project ID.
+Schema 2 requires no task, pin, heartbeat, schedule, or Mission Control cleanup. Legacy schema-1 deactivation may report exact old lifecycle actions. The migration helper then inventories and preserves old state, writes an exact marker backup, creates an empty schema-2 board, and keeps the project disabled; it never guesses old task records into active claims. Purge remains a separate destructive action requiring the exact project ID.
 
 ## Zero third-party runtime dependencies
 

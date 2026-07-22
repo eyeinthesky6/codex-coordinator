@@ -25,15 +25,28 @@ class UninstallTests(unittest.TestCase):
         subprocess.run(["git", "init", "--quiet", str(root)], check=True)
         coordination = root / ".codex" / "coordination"
         coordination.mkdir(parents=True)
+        canonical_paths = (
+            [
+                "  current: .codex/coordination/CURRENT.md",
+                "  tasks: .codex/coordination/tasks",
+                "  suggestions: .codex/coordination/suggestions",
+            ]
+            if schema == 1
+            else [
+                "  active: .codex/coordination/active",
+                "  archive: .codex/coordination/archive",
+            ]
+        )
         (coordination / "project.yaml").write_text(
             "\n".join(
                 [
                     f"schema_version: {schema}",
                     f"coordination_enabled: {'true' if enabled else 'false'}",
                     "project_id: sample",
+                    "project_name: Sample",
+                    "task_prefix: SAMPLE",
                     "canonical_paths:",
-                    "  active: .codex/coordination/active",
-                    "  archive: .codex/coordination/archive",
+                    *canonical_paths,
                     "access:",
                     "  cross_project_task_access: false",
                     "  cross_project_state_changes: false",
@@ -42,9 +55,10 @@ class UninstallTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        (coordination / "active").mkdir()
-        (coordination / "archive").mkdir()
-        (coordination / "archive" / "receipt.json").write_text("{}\n", encoding="utf-8")
+        if schema == 2:
+            (coordination / "active").mkdir()
+            (coordination / "archive").mkdir()
+            (coordination / "archive" / "receipt.json").write_text("{}\n", encoding="utf-8")
         (root / "AGENTS.md").write_text(
             "# Existing guidance\n\n" + lifecycle.DISCOVERY_BLOCK + "\n",
             encoding="utf-8",
@@ -138,6 +152,124 @@ class UninstallTests(unittest.TestCase):
             )
         self.assertEqual(code, 2)
         self.assertIn("incompatible active", result["error"])
+
+    def test_schema_one_migration_dry_run_inventories_without_importing_ownership(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._repository(directory, schema=1)
+            coordination = root / ".codex" / "coordination"
+            tasks = coordination / "tasks"
+            tasks.mkdir()
+            (tasks / "done.md").write_text(
+                "# Preserved task\n\n**Task status:** COMPLETE\n", encoding="utf-8"
+            )
+            (tasks / "unknown.md").write_text("# Preserved task\n", encoding="utf-8")
+            before = (coordination / "project.yaml").read_bytes()
+            code, plan = self._run(
+                "project", "migrate", "--project-root", str(root)
+            )
+            self.assertEqual((coordination / "project.yaml").read_bytes(), before)
+            self.assertFalse((coordination / lifecycle.MIGRATION_BACKUP_NAME).exists())
+            self.assertFalse((coordination / "active").exists())
+            self.assertFalse((coordination / "archive").exists())
+
+        self.assertEqual(code, 0)
+        self.assertEqual(plan["status"], "planned")
+        self.assertFalse(plan["readyToApply"])
+        self.assertEqual(plan["activeClaimsCreated"], 0)
+        self.assertEqual(plan["legacyState"]["taskRecords"], 2)
+        self.assertEqual(plan["legacyState"]["explicitTerminalTaskRecords"], 1)
+        self.assertEqual(plan["legacyState"]["unclassifiedTaskRecords"], 1)
+        self.assertFalse(plan["legacyState"]["ownershipImported"])
+        self.assertEqual(plan["optionalObserverState"]["status"], "not-inspected")
+
+    def test_schema_one_migration_requires_deactivation_and_exact_confirmations(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._repository(directory, schema=1)
+            marker = root / ".codex" / "coordination" / "project.yaml"
+            before = marker.read_bytes()
+            code, rejected = self._run(
+                "project", "migrate", "--project-root", str(root), "--apply"
+            )
+            self.assertEqual(marker.read_bytes(), before)
+        self.assertEqual(code, 2)
+        self.assertIn("deactivate", rejected["error"])
+        self.assertIn("confirm the exact project ID", rejected["error"])
+        self.assertIn("legacy Coordinator heartbeat", rejected["error"])
+
+    def test_schema_one_migration_reports_board_collision_before_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._repository(directory, schema=1, enabled=False)
+            coordination = root / ".codex" / "coordination"
+            (root / "AGENTS.md").write_text("# Existing guidance\n", encoding="utf-8")
+            active = coordination / "active"
+            active.mkdir()
+            (active / "unexpected.json").write_text("{}\n", encoding="utf-8")
+            marker_before = (coordination / "project.yaml").read_bytes()
+            code, plan = self._run(
+                "project",
+                "migrate",
+                "--project-root",
+                str(root),
+                "--confirm-project-id",
+                "sample",
+                "--confirm-legacy-runtime-stopped",
+            )
+            self.assertEqual((coordination / "project.yaml").read_bytes(), marker_before)
+            self.assertFalse((coordination / lifecycle.MIGRATION_BACKUP_NAME).exists())
+        self.assertEqual(code, 0)
+        self.assertFalse(plan["readyToApply"])
+        self.assertIn("board path must be absent or empty", " ".join(plan["blockers"]))
+
+    def test_schema_one_migration_preserves_history_and_stays_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._repository(directory, schema=1)
+            coordination = root / ".codex" / "coordination"
+            current = coordination / "CURRENT.md"
+            current.write_text(
+                "**Coordinator thread ID:** 11111111-1111-4111-8111-111111111111\n",
+                encoding="utf-8",
+            )
+            tasks = coordination / "tasks"
+            tasks.mkdir()
+            task = tasks / "done.md"
+            task.write_text("# History\n\n**Task status:** COMPLETE\n", encoding="utf-8")
+            history_before = task.read_bytes()
+
+            code, deactivated = self._run(
+                "project", "deactivate", "--project-root", str(root), "--apply"
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(deactivated["status"], "applied")
+            disabled_marker = (coordination / "project.yaml").read_bytes()
+
+            code, migrated = self._run(
+                "project",
+                "migrate",
+                "--project-root",
+                str(root),
+                "--confirm-project-id",
+                "sample",
+                "--confirm-legacy-runtime-stopped",
+                "--apply",
+            )
+
+            self.assertEqual(code, 0)
+            self.assertEqual(migrated["status"], "applied")
+            self.assertTrue(migrated["readyToApply"])
+            marker = (coordination / "project.yaml").read_text(encoding="utf-8")
+            self.assertIn("schema_version: 2", marker)
+            self.assertIn("coordination_enabled: false", marker)
+            self.assertIn("active: .codex/coordination/active", marker)
+            self.assertIn("archive: .codex/coordination/archive", marker)
+            self.assertEqual(
+                (coordination / lifecycle.MIGRATION_BACKUP_NAME).read_bytes(),
+                disabled_marker,
+            )
+            self.assertEqual(task.read_bytes(), history_before)
+            self.assertEqual(list((coordination / "active").iterdir()), [])
+            self.assertEqual(list((coordination / "archive").iterdir()), [])
+            self.assertEqual(migrated["activeClaimsCreated"], 0)
+            self.assertTrue(migrated["historyPreserved"])
 
     def test_purge_requires_exact_project_confirmation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
