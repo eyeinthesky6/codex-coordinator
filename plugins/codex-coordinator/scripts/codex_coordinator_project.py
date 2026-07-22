@@ -21,7 +21,8 @@ from pathlib import Path
 from typing import Iterable
 
 
-DISCOVERY_BLOCK = """## Codex Coordinator
+DISCOVERY_HEADING = "## Codex task-boundary board"
+DISCOVERY_BLOCK = """## Codex task-boundary board
 
 - This repository uses the opt-in Codex task-boundary board in `.codex/coordination/project.yaml`.
 - Before substantial writes, load the installed `codex-coordinator` skill, list active claims from the primary worktree, and publish only this task's bounded claim.
@@ -296,7 +297,7 @@ def _remove_exact_block(document: Document, block: str, label: str) -> str:
     if count > 1:
         raise LifecycleError(f"duplicate {label} blocks found")
     if count == 0:
-        if label == "Coordinator discovery" and "## Codex Coordinator" in document.text:
+        if label == "Coordinator discovery" and DISCOVERY_HEADING in document.text:
             raise LifecycleError("Coordinator discovery block differs from the packaged contract")
         return document.text
     start = document.text.index(rendered)
@@ -319,7 +320,7 @@ def _remove_discovery_block(document: Document) -> str:
     if len(matches) > 1:
         raise LifecycleError("multiple supported Coordinator discovery blocks found")
     if not matches:
-        if "## Codex Coordinator" in document.text:
+        if DISCOVERY_HEADING in document.text:
             raise LifecycleError("Coordinator discovery block differs from the packaged contract")
         return document.text
     return _remove_exact_block(document, matches[0], "supported Coordinator discovery")
@@ -345,7 +346,7 @@ def _add_exact_block(document: Document | None, path: Path, block: str, label: s
         raise LifecycleError(f"duplicate {label} blocks found")
     if count == 1:
         return document, document.text
-    if label == "Coordinator discovery" and "## Codex Coordinator" in document.text:
+    if label == "Coordinator discovery" and DISCOVERY_HEADING in document.text:
         raise LifecycleError("Coordinator discovery block differs from the packaged contract")
     separator = "" if not document.text else (document.newline if document.text.endswith(document.newline) else document.newline * 2)
     if document.text.endswith(document.newline) and not document.text.endswith(document.newline * 2):
@@ -647,7 +648,10 @@ def _apply_schema_one_migration(project: Project, marker_text: str) -> None:
 def _has_coordinator_discovery(document: Document | None) -> bool:
     if document is None:
         return False
-    return "## Codex Coordinator" in document.text
+    return any(
+        _block_for(document, block) in document.text
+        for block in (DISCOVERY_BLOCK, *LEGACY_DISCOVERY_BLOCKS)
+    ) or DISCOVERY_HEADING in document.text
 
 
 def _migration_operation(project: Project, args: argparse.Namespace) -> dict[str, object]:
