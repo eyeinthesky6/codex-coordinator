@@ -36,4 +36,4 @@ Keep these separate:
 
 Every filesystem operation is dry-run-first. Never scan a whole drive, delete native Codex tasks or transcripts, change Git branches or worktrees, or remove unrelated automation, configuration, application, or environment files.
 
-Schema 2 has no Coordinator task, pin, heartbeat, Mission Control lifecycle, or Doctor schedule to stop or recreate.
+The schema-2 lifecycle helper creates, pins, polls, or stops no Coordinator task and owns no heartbeat, Mission Control lifecycle, or Doctor schedule. An explicitly user-invoked goal Coordinator is an ordinary native task, not a lifecycle-managed runtime.

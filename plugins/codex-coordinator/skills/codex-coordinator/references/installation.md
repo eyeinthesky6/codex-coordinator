@@ -8,7 +8,7 @@ Read this file completely only when the user asks to install, enable, disable, o
 - Python 3.10 or newer must already be available. Installation never installs Python, changes PATH, invokes an OS package manager, or asks for administrator access.
 - SessionStart reads only the bounded project marker and launches no child process or optional tool.
 - Mission Control is not started or installed as part of project enablement.
-- Project state contains a trackable marker plus ignored active claims and cold receipts. There is no `CURRENT.md` requirement, resident Coordinator task, heartbeat, inbox, or task transcript store.
+- Project state contains a trackable marker, ignored active claims and cold receipts, plus a generated active-only `CURRENT.md` view after the first claim. That view is never authority. There is no always-on Coordinator, heartbeat, inbox, or task transcript store.
 
 ## Enablement preflight
 
@@ -53,7 +53,7 @@ Add only this exact block and preserve every unrelated instruction:
 
 - This repository uses the opt-in Codex task-boundary board in `.codex/coordination/project.yaml`.
 - Before substantial writes, load the installed `codex-coordinator` skill, list active claims from the primary worktree, and publish only this task's bounded claim.
-- Native Codex tasks remain the execution, messaging, and transcript authority; there is no resident Coordinator, heartbeat, or mandatory pull-request workflow.
+- Native Codex tasks remain the execution, messaging, and transcript authority; an explicitly requested goal Coordinator is on demand, with no heartbeat or mandatory pull-request workflow.
 - Reject cross-project notices and never store transcripts, reasoning, prompts, or tool output in Coordinator state.
 ```
 

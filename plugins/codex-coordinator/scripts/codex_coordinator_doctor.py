@@ -20,17 +20,24 @@ EXPECTED_CAPABILITIES = {
     "claimOwnership": "per-task-json-record",
     "claimConflictCheck": "repo-relative-path-and-exclusive-action",
     "activeTaskLimit": "three-default-twelve-hard-user-override",
-    "taskCreation": "direct-user-or-independent-durable-lane",
+    "taskCreation": "coordinator-two-or-three-complete-durable-verticals",
+    "goalCoordinator": "user-invoked-goal-scoped-on-demand",
+    "goalCoordinationAction": "goal-coordination",
+    "taskPlacement": "shared-primary-checkout-current-branch",
+    "dependentParallelism": "durable-verticals-or-parent-owned-subagents",
     "messagePolicy": "sparse-non-executable-peer-notices",
     "transcriptStorage": "none",
+    "currentView": "generated-active-only-non-authoritative",
+    "automaticFanIn": "none",
     "sessionStart": "marker-only-no-child-process",
+    "stopGuard": "own-active-claim-one-shot-no-transcript",
     "doctor": "read-only-compatibility-reinstall",
     "missionControl": "not-shipped-separate-package-only",
     "externalWriteConsent": "exact-target-advance-notice",
     "staleClaimRecovery": "native-terminal-evidence",
     "stateTool": "scripts/coordination_state.py",
     "archivePolicy": "cold-compact-receipts",
-    "gitWorkflow": "direct-commit-default-pr-optional",
+    "gitWorkflow": "single-git-integration-owner-shared-checkout",
 }
 
 
@@ -112,7 +119,7 @@ def _check_skill(skill_root: Path) -> None:
 def _check_hook(plugin_root: Path) -> None:
     hooks = _json_object(plugin_root / "hooks" / "hooks.json")
     try:
-        if set(hooks) != {"hooks"} or set(hooks["hooks"]) != {"SessionStart"}:
+        if set(hooks) != {"hooks"} or set(hooks["hooks"]) != {"SessionStart", "Stop"}:
             raise CheckError("hook registration contains unsupported events")
         entries = hooks["hooks"]["SessionStart"]
         if not isinstance(entries, list) or len(entries) != 1:
@@ -150,6 +157,39 @@ def _check_hook(plugin_root: Path) -> None:
         raise CheckError("SessionStart timeout must be between one and five seconds")
     _check_python(plugin_root / expected)
 
+    try:
+        stop_entries = hooks["hooks"]["Stop"]
+        if not isinstance(stop_entries, list) or len(stop_entries) != 1:
+            raise CheckError("Stop must contain exactly one registration")
+        stop_entry = stop_entries[0]
+        if not isinstance(stop_entry, dict) or set(stop_entry) != {"hooks"}:
+            raise CheckError("Stop registration must not contain a matcher")
+        if not isinstance(stop_entry["hooks"], list) or len(stop_entry["hooks"]) != 1:
+            raise CheckError("Stop must contain exactly one command")
+        stop_hook = stop_entry["hooks"][0]
+        if not isinstance(stop_hook, dict):
+            raise CheckError("Stop command is incompatible")
+    except (KeyError, IndexError, TypeError) as error:
+        raise CheckError("Stop hook registration is incompatible") from error
+    stop_fields = {"type", "command", "commandWindows", "timeout"}
+    if set(stop_hook) != stop_fields or stop_hook.get("type") != "command":
+        raise CheckError("Stop command fields are incompatible")
+    stop_script = "scripts/codex_coordinator_stop_guard.py"
+    if stop_hook.get("command") != (
+        'python3 -I "${PLUGIN_ROOT}/scripts/codex_coordinator_stop_guard.py"'
+    ) or stop_hook.get("commandWindows") != (
+        'python -I "${PLUGIN_ROOT}/scripts/codex_coordinator_stop_guard.py"'
+    ):
+        raise CheckError("Stop must call the packaged own-claim guard directly")
+    stop_timeout = stop_hook.get("timeout")
+    if (
+        not isinstance(stop_timeout, int)
+        or isinstance(stop_timeout, bool)
+        or not 1 <= stop_timeout <= 5
+    ):
+        raise CheckError("Stop timeout must be between one and five seconds")
+    _check_python(plugin_root / stop_script)
+
 
 def check_package(plugin_root: Path) -> dict[str, Any]:
     root = plugin_root.expanduser().resolve(strict=False)
@@ -177,10 +217,10 @@ def check_package(plugin_root: Path) -> dict[str, Any]:
         capabilities = _json_object(
             root / "skills" / "codex-coordinator" / "capabilities.json"
         )
-        if capabilities.get("contractVersion") != 22:
-            raise CheckError("capability contract version must be 22")
+        if capabilities.get("contractVersion") != 26:
+            raise CheckError("capability contract version must be 26")
         if capabilities.get("capabilities") != EXPECTED_CAPABILITIES:
-            raise CheckError("capability contract fields do not match version 22")
+            raise CheckError("capability contract fields do not match version 26")
 
     attempt("capabilities", capabilities_check)
     attempt("skill", lambda: _check_skill(root / "skills" / "codex-coordinator"))

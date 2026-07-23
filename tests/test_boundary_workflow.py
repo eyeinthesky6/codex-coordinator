@@ -45,6 +45,7 @@ class BoundaryWorkflowTests(unittest.TestCase):
             )
             doctor = package / "scripts" / "codex_coordinator_doctor.py"
             hook = package / "scripts" / "codex_coordinator_session_start.py"
+            stop_guard = package / "scripts" / "codex_coordinator_stop_guard.py"
             root = temporary / "project"
             root.mkdir()
             subprocess.run(["git", "init", "--quiet", str(root)], check=True)
@@ -113,6 +114,56 @@ class BoundaryWorkflowTests(unittest.TestCase):
             )
             self.assertEqual(code, 0)
             self.assertEqual(claimed["status"], "claimed")
+            current = root / ".codex" / "coordination" / "CURRENT.md"
+            current_text = current.read_text(encoding="utf-8")
+            self.assertIn("Active lanes: 1", current_text)
+            self.assertIn(first, current_text)
+            self.assertIn("git-integration", current_text)
+            ignored = subprocess.run(
+                ["git", "check-ignore", "--quiet", ".codex/coordination/CURRENT.md"],
+                cwd=root,
+                timeout=10,
+                check=False,
+            )
+            self.assertEqual(ignored.returncode, 0)
+
+            stop_run = subprocess.run(
+                [sys.executable, "-I", str(stop_guard)],
+                input=json.dumps(
+                    {
+                        "hook_event_name": "Stop",
+                        "session_id": first,
+                        "cwd": str(root),
+                        "stop_hook_active": False,
+                        "transcript_path": str(root / "private.jsonl"),
+                    }
+                ),
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                timeout=10,
+                check=False,
+            )
+            self.assertEqual(stop_run.returncode, 0)
+            self.assertEqual(json.loads(stop_run.stdout)["decision"], "block")
+            continued_stop = subprocess.run(
+                [sys.executable, "-I", str(stop_guard)],
+                input=json.dumps(
+                    {
+                        "hook_event_name": "Stop",
+                        "session_id": first,
+                        "cwd": str(root),
+                        "stop_hook_active": True,
+                    }
+                ),
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                timeout=10,
+                check=False,
+            )
+            self.assertEqual(continued_stop.returncode, 0)
+            self.assertEqual(continued_stop.stdout, "")
 
             code, disjoint = self._json_command(
                 state,
@@ -132,6 +183,7 @@ class BoundaryWorkflowTests(unittest.TestCase):
             )
             self.assertEqual(code, 0)
             self.assertEqual(disjoint["activeCount"], 2)
+            self.assertIn("Active lanes: 2", current.read_text(encoding="utf-8"))
 
             code, rejected = self._json_command(
                 state,
@@ -174,6 +226,10 @@ class BoundaryWorkflowTests(unittest.TestCase):
             )
             self.assertEqual(code, 0)
             self.assertEqual(completed["activeCount"], 0)
+            completed_view = current.read_text(encoding="utf-8")
+            self.assertIn("Active lanes: 0", completed_view)
+            self.assertNotIn(first, completed_view)
+            self.assertNotIn(second, completed_view)
             receipts = list(
                 (root / ".codex" / "coordination" / "archive").glob("*.json")
             )
@@ -198,7 +254,8 @@ class BoundaryWorkflowTests(unittest.TestCase):
             )
             self.assertEqual(code, 1)
             self.assertIn("disabled", unavailable["error"])
-            for legacy in ("CURRENT.md", "tasks", "inbox"):
+            self.assertTrue(current.is_file())
+            for legacy in ("tasks", "inbox"):
                 self.assertFalse((root / ".codex" / "coordination" / legacy).exists())
 
 

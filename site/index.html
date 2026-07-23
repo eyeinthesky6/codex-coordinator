@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Codex Coordinator — A small task-boundary board for Codex</title>
-  <meta name="description" content="Keep parallel Codex tasks inside clear repository boundaries without a resident coordinator, heartbeat, or transcript mirror.">
+  <meta name="description" content="Assign complete Codex task lanes in one shared checkout without background monitoring, worktree sprawl, or transcript mirroring.">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
   <meta name="google-site-verification" content="NMvrZiG-hLYRIF4eme-25FTskwq9YfP_Yt5hhco7q2k">
   <meta name="theme-color" content="#06142f">
@@ -13,13 +13,13 @@
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Codex Coordinator">
-  <meta property="og:title" content="Codex Coordinator — Task boundaries, not orchestration">
-  <meta property="og:description" content="A repository-local active-claim board for native Codex tasks.">
+  <meta property="og:title" content="Codex Coordinator — Parallel tasks, clear lanes">
+  <meta property="og:description" content="An on-demand Coordinator and active-only boundary board for native Codex tasks.">
   <meta property="og:url" content="https://eyeinthesky6.github.io/codex-coordinator/">
   <meta property="og:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Codex Coordinator">
-  <meta name="twitter:description" content="Task boundaries, not an orchestration system.">
+  <meta name="twitter:description" content="Assign parallel Codex tasks without crossing wires or creating extra worktrees.">
   <meta name="twitter:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -34,7 +34,7 @@
         "@id": "https://eyeinthesky6.github.io/codex-coordinator/#website",
         "url": "https://eyeinthesky6.github.io/codex-coordinator/",
         "name": "Codex Coordinator",
-        "description": "A repository-local task-boundary board for native Codex tasks.",
+        "description": "An on-demand Coordinator and repository-local active boundary board for native Codex tasks.",
         "inLanguage": "en"
       },
       {
@@ -43,9 +43,9 @@
         "name": "Codex Coordinator",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": ["Windows", "macOS", "Linux"],
-        "softwareVersion": "0.3.0",
+        "softwareVersion": "0.4.0",
         "softwareRequirements": "OpenAI Codex with plugin and hook support; Git; Python 3.10 or newer",
-        "description": "Open-source task-boundary and visibility plugin for native Codex tasks.",
+        "description": "Open-source goal coordination and active-boundary plugin for native Codex tasks sharing one checkout.",
         "url": "https://eyeinthesky6.github.io/codex-coordinator/",
         "codeRepository": "https://github.com/eyeinthesky6/codex-coordinator",
         "isAccessibleForFree": true,
@@ -69,15 +69,15 @@
 
   <main id="main-content" class="shell">
     <header class="page-hero">
-      <p class="kicker">Task boundaries, not orchestration</p>
+      <p class="kicker">Goal-scoped coordination, not background orchestration</p>
       <h1>Keep parallel Codex tasks <span>from crossing wires.</span></h1>
-      <p>Each native task publishes only its bounded goal, paths, and exclusive actions. No permanent manager task. No heartbeat. No transcript mirror.</p>
+      <p>Ask one Coordinator to assign two or three complete work lanes in your current checkout. Each task publishes only its active goal and ownership. No polling, extra worktrees, or transcript mirror.</p>
     </header>
 
     <section class="content-block" id="status">
-      <p class="section-label">Unreleased realignment</p>
-      <h2>The simpler schema-2 design is not released or enabled yet.</h2>
-      <p>The source implementation is under validation. Stable <code>v0.3.0</code> is preserved as the older orchestration release and should not be enabled by users seeking the new behavior. A new install command will appear only after migration, performance, and release approval are complete.</p>
+      <p class="section-label">Version 0.4.0</p>
+      <h2>The on-demand schema-2 Coordinator is ready to install.</h2>
+      <p>Install with <code>codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.4.0</code>. Installation enables no repository automatically. Stable <code>v0.3.0</code> remains preserved as the older orchestration release.</p>
     </section>
 
     <section class="content-block" id="architecture">
@@ -88,7 +88,7 @@
           <thead><tr><th>Retained protection</th><th>Simplified mechanism</th></tr></thead>
           <tbody>
             <tr><td>No duplicate planned writers</td><td>Per-task path and action claims with overlap checks</td></tr>
-            <tr><td>No task-window explosion</td><td>One task by default; three normal, twelve hard</td></tr>
+            <tr><td>No task-window explosion</td><td>One task by default; two or three complete verticals when explicitly coordinated</td></tr>
             <tr><td>No message loops</td><td>Board first; sparse non-executable collision notices</td></tr>
             <tr><td>No stale silent overwrite</td><td>Exact native identity, expected revisions, evidence-based recovery</td></tr>
             <tr><td>No transcript duplication</td><td>Native Codex remains the only transcript authority</td></tr>
@@ -99,8 +99,8 @@
 
     <section class="content-block">
       <p class="section-label">What left the core</p>
-      <h2>No resident Coordinator, background monitor, or self-repair engine.</h2>
-      <p>SessionStart reads only a small opt-in marker and launches nothing. Doctor is read-only and tells you to update or reinstall. Pull requests are optional. Provider, schedule, release, database, and deployment actions remain with the task and user who own them.</p>
+      <h2>No always-on Coordinator, background monitor, or self-repair engine.</h2>
+      <p>A user-invoked Coordinator stays available for its goal and reads the active board when asked; it never polls workers. SessionStart launches nothing. Doctor is read-only. One task owns Git integration on the shared checkout, and pull requests remain optional.</p>
     </section>
 
     <section class="content-block">

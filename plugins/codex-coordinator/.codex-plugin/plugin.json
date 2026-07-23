@@ -1,7 +1,7 @@
 {
   "name": "codex-coordinator",
-  "version": "0.3.0",
-  "description": "Keep parallel Codex tasks inside clear repository boundaries with a small local active-claim board.",
+  "version": "0.4.0",
+  "description": "Coordinate parallel Codex tasks in one shared checkout with a small active-only boundary board.",
   "author": {
     "name": "Six Ideas",
     "url": "https://github.com/eyeinthesky6"
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "Codex Coordinator",
     "shortDescription": "Keep parallel Codex tasks from crossing wires",
-    "longDescription": "Add a small, repository-scoped task-boundary board to native Codex tasks. Each active writer publishes only its bounded goal, paths, and exclusive actions so planned overlap is visible without a resident coordinator, heartbeat, transcript mirror, or required pull-request workflow.",
+    "longDescription": "When asked, a goal-scoped Coordinator assigns two or three complete Codex task lanes in the current shared checkout. Each writer publishes only its active goal, paths, and exclusive actions so planned overlap is visible without an always-on manager, heartbeat, transcript mirror, extra worktree, or required pull-request workflow.",
     "developerName": "Six Ideas",
     "category": "Productivity",
     "capabilities": [
@@ -34,9 +34,9 @@
     "composerIcon": "./assets/logo.png",
     "logo": "./assets/logo.png",
     "defaultPrompt": [
+      "Coordinate this goal across complete task lanes in the current shared checkout",
       "Show the active task boundaries in this repository",
-      "Claim this task's bounded paths before making changes",
-      "Check whether the installed Coordinator package is compatible"
+      "Claim this task's bounded paths before making changes"
     ]
   }
 }

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import hashlib
 import importlib.util
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -29,126 +29,304 @@ SPEC = importlib.util.spec_from_file_location("coordination_state_properties", H
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError("could not load coordination state helper")
 state = importlib.util.module_from_spec(SPEC)
+sys.dont_write_bytecode = True
 SPEC.loader.exec_module(state)
 
 
-COORDINATORS = (
-    "11111111-1111-4111-8111-111111111111",
-    "22222222-2222-4222-8222-222222222222",
+THREADS = tuple(
+    f"{index:08x}-1111-4111-8111-{index:012x}" for index in range(1, 4)
+)
+TOKEN = st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789", min_size=1, max_size=12)
+FINAL_STATUS = st.sampled_from(
+    ("completed", "stopped", "superseded", "stale-owner-confirmed")
 )
 
 
-class InboxHandoverMachine(RuleBasedStateMachine):
-    """Exercise replacement and interrupted-handoff sequences against the real helper."""
+def _project(directory: str) -> Path:
+    root = Path(directory)
+    marker = root / ".codex" / "coordination" / "project.yaml"
+    marker.parent.mkdir(parents=True)
+    marker.write_text(
+        "\n".join(
+            (
+                "schema_version: 2",
+                "coordination_enabled: true",
+                "project_id: property-project",
+                "canonical_paths:",
+                "  active: .codex/coordination/active",
+                "  archive: .codex/coordination/archive",
+                "access:",
+                "  cross_project_task_access: false",
+                "  cross_project_state_changes: false",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    return root
+
+
+class ClaimLifecycleMachine(RuleBasedStateMachine):
+    """Exercise schema-2 claims and the derived CURRENT view through real APIs."""
 
     def __init__(self) -> None:
         super().__init__()
         self.temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self.temporary.name) / ".codex" / "coordination"
-        self.project_id = "property-project"
-        self.epoch = 1
-        self.coordinator = COORDINATORS[0]
-        self.records: dict[str, bytes] = {}
-        self.next_record = 0
+        self.root = _project(self.temporary.name)
+        self.active: dict[int, dict[str, object]] = {}
+        self.current_generated = False
 
     def teardown(self) -> None:
         self.temporary.cleanup()
 
-    def scan(self) -> dict[str, object]:
-        return state.scan_inbox(
+    @property
+    def current(self) -> Path:
+        return self.root / ".codex" / "coordination" / "CURRENT.md"
+
+    def _ownership(self, index: int, revision: int) -> tuple[list[str], list[str]]:
+        if index == 0:
+            return [], ["goal-coordination", "git-integration"]
+        return [f"lanes/{index}/v{revision}"], []
+
+    def _write_claim(
+        self,
+        index: int,
+        *,
+        token: str,
+        status: str,
+    ) -> dict[str, object]:
+        existing = self.active.get(index)
+        expected_revision = int(existing["revision"]) if existing else 0
+        revision = expected_revision + 1
+        paths, actions = self._ownership(index, revision)
+        title = f"Lane {index} {token}"
+        goal = f"Complete vertical {index} {token}"
+        result = state.claim_boundary(
             self.root,
-            project_id=self.project_id,
-            coordination_epoch=self.epoch,
-            coordinator_id=self.coordinator,
+            thread_id=THREADS[index],
+            title=title,
+            goal=goal,
+            paths=paths,
+            actions=actions,
+            blocked_by=[],
+            status=status,
+            expected_revision=expected_revision,
+            user_approved_over_limit=False,
         )
-
-    def acknowledge_everything(self) -> None:
-        report = self.scan()
-        pending = {
-            Path(record["path"]).name: record["sha256"]
-            for record in report["pendingRecords"]
+        record = result["record"]
+        assert record["revision"] == revision
+        self.active[index] = {
+            "revision": revision,
+            "title": title,
+            "goal": goal,
+            "paths": paths,
+            "actions": actions,
+            "status": status,
         }
-        if pending:
-            state.acknowledge_inbox(
+        self.current_generated = True
+        return result
+
+    @precondition(lambda self: len(self.active) < len(THREADS))
+    @rule(selector=st.integers(min_value=0, max_value=2), token=TOKEN)
+    def claim_disjoint_lane(self, selector: int, token: str) -> None:
+        available = [index for index in range(len(THREADS)) if index not in self.active]
+        index = available[selector % len(available)]
+        result = self._write_claim(index, token=token, status="active")
+        assert result["status"] == "claimed"
+
+    @precondition(lambda self: bool(self.active))
+    @rule(
+        selector=st.integers(min_value=0, max_value=2),
+        token=TOKEN,
+        blocked=st.booleans(),
+    )
+    def update_exact_owner(
+        self, selector: int, token: str, blocked: bool
+    ) -> None:
+        indices = sorted(self.active)
+        index = indices[selector % len(indices)]
+        result = self._write_claim(
+            index,
+            token=token,
+            status="blocked" if blocked else "active",
+        )
+        assert result["status"] == "updated"
+
+    @precondition(lambda self: bool(self.active))
+    @rule(selector=st.integers(min_value=0, max_value=2), token=TOKEN)
+    def stale_revision_cannot_change_claim_or_view(
+        self, selector: int, token: str
+    ) -> None:
+        indices = sorted(self.active)
+        index = indices[selector % len(indices)]
+        record = self.active[index]
+        claim_path = (
+            self.root
+            / ".codex"
+            / "coordination"
+            / "active"
+            / f"{THREADS[index]}.json"
+        )
+        claim_before = claim_path.read_bytes()
+        current_before = self.current.read_bytes()
+        paths, actions = self._ownership(index, int(record["revision"]) + 1)
+        try:
+            state.claim_boundary(
                 self.root,
-                project_id=self.project_id,
-                coordination_epoch=self.epoch,
-                coordinator_id=self.coordinator,
-                records=pending,
+                thread_id=THREADS[index],
+                title=f"Rejected {token}",
+                goal=f"Rejected stale update {token}",
+                paths=paths,
+                actions=actions,
+                blocked_by=[],
+                status="active",
+                expected_revision=int(record["revision"]) + 1,
+                user_approved_over_limit=False,
             )
-        self.assert_clean_for_current_owner()
+        except state.BoardError as error:
+            assert "revision changed" in str(error)
+        else:
+            raise AssertionError("a stale revision changed an active claim")
+        assert claim_path.read_bytes() == claim_before
+        assert self.current.read_bytes() == current_before
 
-    def assert_clean_for_current_owner(self) -> None:
-        report = self.scan()
-        assert report["pendingRecords"] == []
+    @precondition(
+        lambda self: bool(self.active) and len(self.active) < len(THREADS)
+    )
+    @rule(
+        active_selector=st.integers(min_value=0, max_value=2),
+        free_selector=st.integers(min_value=0, max_value=2),
+        token=TOKEN,
+    )
+    def overlapping_claim_cannot_change_board_or_view(
+        self, active_selector: int, free_selector: int, token: str
+    ) -> None:
+        active_indices = sorted(self.active)
+        free_indices = [index for index in range(len(THREADS)) if index not in self.active]
+        owner_index = active_indices[active_selector % len(active_indices)]
+        candidate_index = free_indices[free_selector % len(free_indices)]
+        owner = self.active[owner_index]
+        paths = list(owner["paths"])
+        actions = [] if paths else [str(owner["actions"][0])]
+        board_before = state.list_board(self.root)
+        current_before = self.current.read_bytes()
+        try:
+            state.claim_boundary(
+                self.root,
+                thread_id=THREADS[candidate_index],
+                title=f"Conflicting lane {token}",
+                goal=f"Conflicting vertical {token}",
+                paths=paths,
+                actions=actions,
+                blocked_by=[],
+                status="active",
+                expected_revision=0,
+                user_approved_over_limit=False,
+            )
+        except state.ClaimConflict:
+            pass
+        else:
+            raise AssertionError("an overlapping claim was accepted")
+        assert state.list_board(self.root) == board_before
+        assert self.current.read_bytes() == current_before
 
-    @rule(payload=st.binary(min_size=0, max_size=128))
-    def create_record(self, payload: bytes) -> None:
-        name = f"handover-{self.next_record:04d}.md"
-        self.next_record += 1
-        state.create_file(self.root, Path("inbox") / name, payload)
-        self.records[name] = payload
-        pending = {
-            Path(record["path"]).name for record in self.scan()["pendingRecords"]
-        }
-        assert name in pending
+    @precondition(lambda self: bool(self.active))
+    @rule(selector=st.integers(min_value=0, max_value=2), token=TOKEN)
+    def stale_current_is_rebuilt_from_claims(
+        self, selector: int, token: str
+    ) -> None:
+        self.current.write_text("STALE_PRIVATE_HISTORY\n", encoding="utf-8")
+        indices = sorted(self.active)
+        index = indices[selector % len(indices)]
+        self._write_claim(index, token=token, status=str(self.active[index]["status"]))
+        assert "STALE_PRIVATE_HISTORY" not in self.current.read_text(encoding="utf-8")
 
-    @precondition(lambda self: bool(self.records))
-    @rule()
-    def acknowledge_then_replace_coordinator(self) -> None:
-        self.acknowledge_everything()
-        self.coordinator = (
-            COORDINATORS[1]
-            if self.coordinator == COORDINATORS[0]
-            else COORDINATORS[0]
+    @precondition(lambda self: bool(self.active))
+    @rule(
+        selector=st.integers(min_value=0, max_value=2),
+        final_status=FINAL_STATUS,
+    )
+    def release_exact_owner(self, selector: int, final_status: str) -> None:
+        indices = sorted(self.active)
+        index = indices[selector % len(indices)]
+        revision = int(self.active[index]["revision"])
+        result = state.release_boundary(
+            self.root,
+            thread_id=THREADS[index],
+            expected_revision=revision,
+            final_status=final_status,
         )
-        report = self.scan()
-        assert report["cacheStatus"] == "scope_changed"
-        assert {
-            Path(record["path"]).name for record in report["pendingRecords"]
-        } == set(self.records)
+        receipt = result["receipt"]
+        assert result["status"] == "released"
+        assert receipt["lastRevision"] == revision
+        assert receipt["finalStatus"] == final_status
+        assert "paths" not in receipt
+        assert "actions" not in receipt
+        self.active.pop(index)
+        self.current_generated = True
 
-    @precondition(lambda self: bool(self.records))
     @rule()
-    def acknowledge_then_advance_epoch(self) -> None:
-        self.acknowledge_everything()
-        self.epoch += 1
-        report = self.scan()
-        assert report["cacheStatus"] == "scope_changed"
-        assert {
-            Path(record["path"]).name for record in report["pendingRecords"]
-        } == set(self.records)
-
-    @precondition(lambda self: bool(self.records))
-    @rule(payload=st.binary(min_size=0, max_size=128))
-    def acknowledged_record_change_becomes_pending(self, payload: bytes) -> None:
-        self.acknowledge_everything()
-        name = sorted(self.records)[0]
-        changed = self.records[name] + payload + b"changed"
-        (self.root / "inbox" / name).write_bytes(changed)
-        self.records[name] = changed
-        report = self.scan()
-        pending = {
-            Path(record["path"]).name: record
-            for record in report["pendingRecords"]
-        }
-        assert pending[name]["reason"] == "changed"
-
-    @precondition(lambda self: bool(self.records))
-    @rule()
-    def repeated_acknowledgement_is_stable(self) -> None:
-        self.acknowledge_everything()
-        self.acknowledge_everything()
+    def read_only_observation_never_creates_authority(self) -> None:
+        before = dict(self.active)
+        report = state.list_board(self.root)
+        assert report["activeCount"] == len(before)
+        assert self.active == before
 
     @invariant()
-    def pending_hashes_always_match_disk(self) -> None:
-        for record in self.scan()["pendingRecords"]:
-            content = (self.root / "inbox" / Path(record["path"]).name).read_bytes()
-            assert record["sha256"] == hashlib.sha256(content).hexdigest()
+    def canonical_board_and_current_view_match_model(self) -> None:
+        report = state.list_board(self.root)
+        assert report["status"] == "ok"
+        assert report["activeCount"] == len(self.active)
+        assert report["conflicts"] == []
+        records = {record["threadId"]: record for record in report["records"]}
+        assert set(records) == {THREADS[index] for index in self.active}
+
+        for index, expected in self.active.items():
+            record = records[THREADS[index]]
+            for field in ("revision", "title", "goal", "paths", "actions", "status"):
+                assert record[field] == expected[field]
+            claim_path = (
+                self.root
+                / ".codex"
+                / "coordination"
+                / "active"
+                / f"{THREADS[index]}.json"
+            )
+            assert claim_path.stat().st_size <= state.MAX_RECORD_BYTES
+
+        if not self.current_generated:
+            assert not self.current.exists()
+            return
+
+        current = self.current.read_text(encoding="utf-8")
+        assert "Generated active-only view" in current
+        assert f"Active lanes: {len(self.active)}" in current
+        for index, expected in self.active.items():
+            assert THREADS[index] in current
+            assert str(expected["title"]) in current
+            assert str(expected["goal"]) in current
+            assert str(expected["status"]) in current
+            for path in expected["paths"]:
+                assert f"path: {path}" in current
+            for action in expected["actions"]:
+                assert f"action: {action}" in current
+        for index in range(len(THREADS)):
+            if index not in self.active:
+                assert THREADS[index] not in current
+        for private_field in ("createdAt", "updatedAt", "revision", "closedAt"):
+            assert private_field not in current
+        if 0 in self.active:
+            assert current.count("Coordinator:") == 1
+            assert current.count("Shared goal:") == 1
+            assert current.count("Git integration owner:") == 1
+        else:
+            assert "Coordinator:" not in current
+            assert "Shared goal:" not in current
+            assert "Git integration owner:" not in current
 
 
-TestInboxHandoverProperties = InboxHandoverMachine.TestCase
-TestInboxHandoverProperties.settings = settings(
+TestClaimLifecycleProperties = ClaimLifecycleMachine.TestCase
+TestClaimLifecycleProperties.settings = settings(
     max_examples=100,
     stateful_step_count=25,
     deadline=None,

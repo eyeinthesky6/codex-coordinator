@@ -13,6 +13,18 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"${PLUGIN_ROOT}/scripts/codex_coordinator_stop_guard.py\"",
+            "commandWindows": "python -I \"${PLUGIN_ROOT}/scripts/codex_coordinator_stop_guard.py\"",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }

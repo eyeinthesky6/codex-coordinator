@@ -5,7 +5,7 @@
 - Coordinate only when work is meaningfully parallel, overlapping, or crossing Codex tasks.
 - Keep small isolated work free of coordination ceremony.
 - Use existing Codex task tools for execution and messaging; the plugin adds protocol and durable state.
-- Treat repository identity, epoch, registered recipient, and current ownership as required routing evidence.
+- Treat repository identity, exact native task identity, and current ownership as required routing evidence. Schema 2 has no epoch or registered-session ledger.
 - Preserve an explicit opt-out and never silently re-enable an opted-out repository.
 
 ## Python rules
@@ -13,6 +13,7 @@
 - Use the standard library and Python 3.10-compatible syntax.
 - Keep file reads and output bounded.
 - Keep the SessionStart hook read-only and network-free.
+- Keep the Stop hook read-only, network-free, exact-own-claim-only, transcript-free, and one-shot.
 - Fail closed on authority: malformed or incomplete state may produce a warning, but must not grant ownership.
 - Prefer small validation helpers and test externally visible output.
 

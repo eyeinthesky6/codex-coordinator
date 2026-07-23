@@ -1,5 +1,5 @@
 {
-  "contractVersion": 22,
+  "contractVersion": 26,
   "capabilities": {
     "corePurpose": "repository-task-boundary-visibility",
     "repositoryLifecycle": "explicit-opt-in",
@@ -9,16 +9,23 @@
     "claimOwnership": "per-task-json-record",
     "claimConflictCheck": "repo-relative-path-and-exclusive-action",
     "activeTaskLimit": "three-default-twelve-hard-user-override",
-    "taskCreation": "direct-user-or-independent-durable-lane",
+    "taskCreation": "coordinator-two-or-three-complete-durable-verticals",
+    "goalCoordinator": "user-invoked-goal-scoped-on-demand",
+    "goalCoordinationAction": "goal-coordination",
+    "taskPlacement": "shared-primary-checkout-current-branch",
+    "dependentParallelism": "durable-verticals-or-parent-owned-subagents",
     "messagePolicy": "sparse-non-executable-peer-notices",
     "transcriptStorage": "none",
+    "currentView": "generated-active-only-non-authoritative",
+    "automaticFanIn": "none",
     "sessionStart": "marker-only-no-child-process",
+    "stopGuard": "own-active-claim-one-shot-no-transcript",
     "doctor": "read-only-compatibility-reinstall",
     "missionControl": "not-shipped-separate-package-only",
     "externalWriteConsent": "exact-target-advance-notice",
     "staleClaimRecovery": "native-terminal-evidence",
     "stateTool": "scripts/coordination_state.py",
     "archivePolicy": "cold-compact-receipts",
-    "gitWorkflow": "direct-commit-default-pr-optional"
+    "gitWorkflow": "single-git-integration-owner-shared-checkout"
   }
 }

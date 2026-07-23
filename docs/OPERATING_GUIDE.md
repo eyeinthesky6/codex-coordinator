@@ -1,6 +1,6 @@
 # Codex Coordinator operating guide
 
-This guide describes the unreleased schema-2 boundary board. The repository remains disabled until the user reviews the completed migration and explicitly enables it.
+This guide describes the schema-2 boundary board released in `v0.4.0`. A repository remains disabled until the user reviews its migration or installation and explicitly enables it.
 
 ## Choose the smallest path
 
@@ -9,31 +9,47 @@ This guide describes the unreleased schema-2 boundary board. The repository rema
 | One coherent result | One native Codex task; no Coordinator state |
 | Short independent help inside one task | Parent-owned subagent when allowed |
 | Two or three durable writers in one repository | Schema-2 active board |
-| One combined answer from several explicitly requested tasks | Temporary goal-scoped lead |
+| Two or three complete durable verticals under one goal | Explicitly requested, goal-scoped Coordinator |
+| One combined answer with short parallel checks | One native task with parent-owned subagents |
 | Check package compatibility | Manual read-only Doctor |
 | Repair a broken package | Normal plugin update or reinstall |
 | Observe tasks in a UI | No supported schema-2 observer yet |
 
 Do not create a durable task for a command, small lookup, narrow review follow-up, simple test, or one-or-two-file mechanical fix.
 
+An explicit Coordinator may assign two or three substantial verticals, each with a complete first-turn goal and exact boundary. It remains available when the user invokes it again for that goal. It does not monitor, poll, run a heartbeat, request periodic reports, or promise automatic fan-in; native task completion does not wake it automatically.
+
 ## Normal daily flow
 
 ### Disabled or absent marker
 
-Continue normal Codex work. Do not read old `CURRENT.md`, task, inbox, cache, or archive state. Do not create a Coordinator task or board record.
+Continue normal Codex work. Do not read legacy schema-1 `CURRENT.md`, task, inbox, cache, or archive state. Do not create a Coordinator task or board record.
 
 ### Enabled schema-2 marker
 
 1. Resolve the primary worktree.
 2. List active claims with the bundled state helper.
-3. Keep the request in the current task unless a real durable parallel lane exists.
+3. Keep the request in the current task unless the user explicitly requests coordination and two or three complete durable verticals exist.
 4. Before substantial writes, publish this exact native task's narrow paths and exclusive actions using expected revision `0`.
-5. Work only inside the claim. Update it only when scope, status, or a dependency changes.
+5. Work only inside the claim. Update it only at natural boundaries: start, real scope change, blocked-state change, and completion or stop.
 6. If a claim overlaps, pause only the conflicting part. Disjoint work continues.
-7. At completion or stop, release the claim to one compact cold receipt.
+7. Before the final answer at completion or stop, release the claim to one compact cold receipt.
 8. Report from the native task. Do not duplicate the turn in project state.
 
 The normal active limit is three. More requires a direct user decision and the explicit override flag. Twelve is a hard limit.
+
+### Explicit Coordinator
+
+1. The user designates one normal task as Coordinator for one bounded goal.
+2. That task claims the exclusive `goal-coordination` action. Its claim goal is the shared goal; it may also claim `git-integration`, but needs no source path unless it will edit one.
+3. It assigns two or three complete verticals with exact paths, actions, dependencies, checks, and completion conditions.
+4. Every task window stays in the same primary checkout, current worktree, and current branch. No task creates or switches a branch or worktree.
+5. Exactly one task owns `git-integration`. Other tasks edit and test their claimed areas but do not mutate Git state.
+6. The Coordinator yields after assignment. When the user invokes it again, it reads current active state and uses native task results only as needed. It never polls or promises automatic wake-up.
+
+### Active view
+
+Per-task JSON claims remain authoritative for conflict checks and mutations. Generated schema-2 `CURRENT.md` is a compact active-only view: shared goal from the `goal-coordination` claim, task goals, ownership, status, dependencies, and Git owner. It is atomically rebuilt from claims and contains no transcript or history.
 
 ## Commands
 
@@ -83,7 +99,7 @@ The helper uses a short OS file lock around mutations so concurrent writers cann
 
 ## Git
 
-One writer owns `git-integration` whenever multiple writers exist. Other tasks do not switch branches, stage broad changes, commit, rebase, merge, stash, reset, restore, or clean unless the user assigns that action.
+Exactly one writer owns `git-integration` whenever multiple writers exist. Other tasks do not stage, commit, push, switch branches, create worktrees, rebase, merge, stash, reset, restore, or clean.
 
 Direct commit and push is the default for one integration owner. Pull requests are optional.
 
@@ -112,6 +128,14 @@ Provider, schedule, release, environment, database, and deployment actions remai
 ## SessionStart
 
 SessionStart reads only the marker and emits a short hint for an enabled compatible project. It never reads the board, archives, native histories, private Codex databases, or legacy records. It launches no process, Python installer, browser, Mission Control, task, message, heartbeat, or schedule.
+
+## Stop guard
+
+Stop reads only the current task's exact claim from the primary worktree. An unresolved active claim produces one housekeeping continuation: release it if the work is complete, stopped, or superseded; otherwise explicitly retain or update the claim. The `stop_hook_active` input prevents a second block.
+
+The guard reads no transcript, assistant response, reasoning, tool output, archive, other claim, private Codex database, or native task history. It writes nothing, launches nothing, and fails open on errors. A disabled project or task without an exact claim is silent.
+
+Codex exposes no app-archive hook. If a user abruptly archives an unfinished task, use the exact stale-owner procedure only when its claim later conflicts; do not add a watcher, heartbeat, task scan, or private database reader.
 
 ## Doctor
 
@@ -156,7 +180,8 @@ The source implementation has passed the full suite, bounded performance checks,
 
 ## Authority
 
-- Current behavior: the packaged skill, capability contract, helper, hook, and tests.
+- Current behavior: the packaged skill, capability contract, helper, lifecycle hooks, and tests.
 - Architecture decision and history: [boundary-board simplification review](codebase/2026-07-21_boundary-board-simplification_architectural_review.md).
+- Claim-lifecycle correction: [one-shot Stop guard review](codebase/2026-07-22_claim-lifecycle-stop-guard_architectural_review.md).
 - Code layout: [architecture](codebase/ARCHITECTURE.md) and [structure](codebase/STRUCTURE.md).
 - Destructive lifecycle boundaries: [uninstall and deactivation](codebase/UNINSTALL_AND_DEACTIVATION.md).

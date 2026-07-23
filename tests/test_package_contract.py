@@ -18,7 +18,7 @@ class PackageContractTests(unittest.TestCase):
         self.assertEqual(manifest["name"], "codex-coordinator")
         self.assertRegex(manifest["version"], r"^\d+\.\d+\.\d+$")
         self.assertIn("boundar", manifest["description"].casefold())
-        self.assertIn("without a resident coordinator", manifest["interface"]["longDescription"].casefold())
+        self.assertIn("without an always-on manager", manifest["interface"]["longDescription"].casefold())
         self.assertEqual(marketplace["plugins"][0]["name"], manifest["name"])
         self.assertEqual(marketplace["plugins"][0]["source"]["path"], "./plugins/codex-coordinator")
 
@@ -33,22 +33,30 @@ class PackageContractTests(unittest.TestCase):
 
     def test_contract_is_small_and_matches_accepted_architecture(self) -> None:
         contract = json.loads((SKILL / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 22)
+        self.assertEqual(contract["contractVersion"], 26)
         capabilities = contract["capabilities"]
-        self.assertEqual(len(capabilities), 19)
+        self.assertEqual(len(capabilities), 26)
         expected = {
             "corePurpose": "repository-task-boundary-visibility",
             "repositoryLifecycle": "explicit-opt-in",
             "projectLifecycleTool": "dry-run-first-init-deactivate-migrate-reactivate-purge",
             "defaultExecution": "one-native-task",
             "nativeTaskAuthority": "execution-messaging-transcript",
+            "taskCreation": "coordinator-two-or-three-complete-durable-verticals",
+            "goalCoordinator": "user-invoked-goal-scoped-on-demand",
+            "goalCoordinationAction": "goal-coordination",
+            "taskPlacement": "shared-primary-checkout-current-branch",
+            "dependentParallelism": "durable-verticals-or-parent-owned-subagents",
             "claimOwnership": "per-task-json-record",
             "messagePolicy": "sparse-non-executable-peer-notices",
             "transcriptStorage": "none",
+            "currentView": "generated-active-only-non-authoritative",
+            "automaticFanIn": "none",
             "sessionStart": "marker-only-no-child-process",
+            "stopGuard": "own-active-claim-one-shot-no-transcript",
             "doctor": "read-only-compatibility-reinstall",
             "missionControl": "not-shipped-separate-package-only",
-            "gitWorkflow": "direct-commit-default-pr-optional",
+            "gitWorkflow": "single-git-integration-owner-shared-checkout",
         }
         for key, value in expected.items():
             self.assertEqual(capabilities[key], value)
@@ -81,6 +89,21 @@ class PackageContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, execution)
 
+    def test_goal_coordinator_assigns_verticals_without_automatic_fan_in(self) -> None:
+        execution = (SKILL / "references" / "execution.md").read_text(encoding="utf-8")
+        for phrase in (
+            "explicitly asks one task to coordinate",
+            "goal-coordination",
+            "complete durable vertical",
+            "same primary checkout",
+            "current branch",
+            "Do not poll task status",
+            "does not wake the Coordinator automatically",
+            "parent-owned subagents",
+        ):
+            self.assertIn(phrase, execution)
+        self.assertNotIn("poll every", execution.casefold())
+
     def test_messages_are_sparse_non_executable_and_have_no_ack_chain(self) -> None:
         messaging = (SKILL / "references" / "messaging.md").read_text(encoding="utf-8")
         for message_type in ("COLLISION", "DEPENDENCY", "RELEASED"):
@@ -111,47 +134,62 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Update or reinstall", doctor)
         self.assertIn("Legacy `--apply` requests are rejected", doctor)
         self.assertIn("normal plugin manager", maintenance)
-        self.assertIn("no Coordinator task, pin, heartbeat", maintenance)
+        self.assertIn("creates, pins, polls, or stops no Coordinator task", maintenance)
 
-    def test_session_start_is_direct_and_optional_tools_are_not_required(self) -> None:
+    def test_lifecycle_hooks_are_direct_and_optional_tools_are_not_required(self) -> None:
         hooks = json.loads((PLUGIN / "hooks" / "hooks.json").read_text(encoding="utf-8"))
         hook = hooks["hooks"]["SessionStart"][0]["hooks"][0]
         self.assertEqual(hook["timeout"], 5)
         self.assertIn("codex_coordinator_session_start.py", hook["command"])
         self.assertNotIn("mission", json.dumps(hook).casefold())
+        stop_entry = hooks["hooks"]["Stop"][0]
+        self.assertNotIn("matcher", stop_entry)
+        stop_hook = stop_entry["hooks"][0]
+        self.assertEqual(stop_hook["timeout"], 5)
+        self.assertIn("codex_coordinator_stop_guard.py", stop_hook["command"])
+        self.assertNotIn("mission", json.dumps(stop_hook).casefold())
         self.assertFalse((PLUGIN / "scripts" / "codex_coordinator_bootstrap.ps1").exists())
         self.assertFalse((PLUGIN / "scripts" / "codex_coordinator_bootstrap.sh").exists())
 
     def test_package_contains_no_mission_control_runtime(self) -> None:
         runtime = PLUGIN / "mission_control"
-        shipped_files = [
-            path
-            for path in runtime.rglob("*")
-            if path.is_file() and "__pycache__" not in path.parts
-        ]
+        shipped_files = [path for path in runtime.rglob("*") if path.is_file()]
         self.assertEqual(shipped_files, [])
         self.assertFalse((PLUGIN / "scripts" / "mission_control_lifecycle.py").exists())
         source_wrapper = REPOSITORY / "apps" / "mission_control"
-        wrapper_files = [
-            path
-            for path in source_wrapper.rglob("*")
-            if path.is_file() and "__pycache__" not in path.parts
-        ]
+        wrapper_files = [path for path in source_wrapper.rglob("*") if path.is_file()]
         self.assertEqual(wrapper_files, [])
         self.assertFalse((REPOSITORY / "tests" / "verify_mission_control_ui.py").exists())
+
+    def test_package_contains_no_compiled_python_cache(self) -> None:
+        residue = [
+            path.relative_to(PLUGIN).as_posix()
+            for path in PLUGIN.rglob("*")
+            if path.is_file()
+            and (path.suffix.casefold() == ".pyc" or "__pycache__" in path.parts)
+        ]
+        self.assertEqual(residue, [])
 
     def test_core_runtime_has_no_private_codex_or_transcript_coupling(self) -> None:
         core = "\n".join(
             path.read_text(encoding="utf-8")
             for path in (
                 PLUGIN / "scripts" / "codex_coordinator_session_start.py",
+                PLUGIN / "scripts" / "codex_coordinator_stop_guard.py",
                 PLUGIN / "scripts" / "codex_coordinator_doctor.py",
                 SKILL / "scripts" / "coordination_state.py",
             )
         ).casefold()
-        for forbidden in ("state_*.sqlite", "rollout_tail", "read_thread", "wait_threads", "current.md"):
+        for forbidden in ("state_*.sqlite", "rollout_tail", "read_thread", "wait_threads"):
             self.assertNotIn(forbidden, core)
         self.assertNotIn("subprocess", core)
+        for legacy_field in (
+            "coordination epoch",
+            "pending commands",
+            "resume queue",
+            "turn_reconciliation",
+        ):
+            self.assertNotIn(legacy_field, core)
 
     def test_project_marker_remains_disabled_during_realign(self) -> None:
         marker = (REPOSITORY / ".codex" / "coordination" / "project.yaml").read_text(encoding="utf-8")
