@@ -83,7 +83,7 @@ class PublicSiteTests(unittest.TestCase):
             "Free and open source",
             "Does not copy your chats",
             "No background watching",
-            "Technical design, boundaries, and validation",
+            "See what it stores, changes, and leaves alone before you install it",
             "supported schema-2 release",
             "codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.4.0",
         ):
@@ -157,6 +157,25 @@ class PublicSiteTests(unittest.TestCase):
             self.assertIn(phrase, readme)
         self.assertIn("no third-party runtime dependency", discovery)
         self.assertIn("Do not present it as", discovery)
+
+    def test_public_content_requires_a_user_job_review(self) -> None:
+        agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        discovery = (ROOT / "docs" / "DISCOVERY.md").read_text(encoding="utf-8")
+        for phrase in (
+            "Every public-facing asset or communication",
+            "Jobs to Be Done",
+            "current alternative",
+            "Lead with what the user can do",
+            "plain language and accessibility",
+        ):
+            self.assertIn(phrase, agents)
+        for phrase in (
+            "Every public asset should start from the user's job",
+            "What progress are they trying to make?",
+            "what should the reader do next?",
+            "Use only the lenses that help the reader's decision",
+        ):
+            self.assertIn(phrase, discovery)
 
     def test_current_release_surfaces_install_the_exact_stable_tag(self) -> None:
         surfaces = {

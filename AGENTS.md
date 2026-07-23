@@ -22,6 +22,26 @@ Read the relevant skill references and tests before changing protocol fields, ow
 - Update public documentation and tests with user-visible behavior.
 - Avoid unrelated cleanup and generated audit artifacts.
 
+## Public-facing content
+
+Every public-facing asset or communication must pass a Jobs to Be Done review before it is approved,
+published, or called ready. This includes the website, README opening, plugin and skill listings,
+release copy, launch posts, social previews, onboarding, public prompts, screenshots, captions, alt
+text, and calls to action.
+
+- Name the intended user and the situation that triggers the work.
+- State the progress they want, their current alternative, the pain it creates, and the result they
+  value.
+- Lead with what the user can do. Connect every feature or mechanism to that result and current
+  product proof.
+- Apply other lenses only when relevant: jobs, pains, and gains; real alternatives and differentiated
+  value; channel fit; plain language and accessibility; and claim verification.
+- Keep technical depth in the developer path. If a new reader cannot explain the user value after
+  the first useful sentence or frame, revise the asset.
+
+Use [the discovery guide](docs/DISCOVERY.md#how-to-review-public-content) as this repository's
+portable review checklist.
+
 ## Validation
 
 Run from the repository root:

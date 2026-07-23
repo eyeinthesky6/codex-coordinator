@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Codex Coordinator for developers — Technical design and validation</title>
-  <meta name="description" content="Technical design, data boundaries, validation, and release status for Codex Coordinator.">
+  <title>Codex Coordinator for developers — See what it stores and changes</title>
+  <meta name="description" content="Check what Codex Coordinator stores, changes, and leaves alone before you install it.">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1"><meta name="theme-color" content="#f4f1e9">
   <link rel="canonical" href="https://eyeinthesky6.github.io/codex-coordinator/developers.html"><link rel="icon" href="assets/logo.png" type="image/png">
-  <meta property="og:type" content="website"><meta property="og:site_name" content="Codex Coordinator"><meta property="og:title" content="Codex Coordinator for developers"><meta property="og:description" content="Technical design, data boundaries, and release status."><meta property="og:url" content="https://eyeinthesky6.github.io/codex-coordinator/developers.html"><meta property="og:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png"><meta name="twitter:card" content="summary">
+  <meta property="og:type" content="website"><meta property="og:site_name" content="Codex Coordinator"><meta property="og:title" content="See what Codex Coordinator stores and changes"><meta property="og:description" content="Check the data, safeguards, limits, and tests before you install it."><meta property="og:url" content="https://eyeinthesky6.github.io/codex-coordinator/developers.html"><meta property="og:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png"><meta name="twitter:card" content="summary">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&amp;family=DM+Mono:wght@400;500&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet"><link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -14,7 +14,7 @@
   <header class="site-header"><nav class="nav shell" aria-label="Primary navigation"><a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="36" height="36">Codex Coordinator</a><div class="nav-links"><a href="index.html">Home</a><a href="faq.html">FAQ</a><a href="developers.html" aria-current="page">For developers</a><a href="https://github.com/eyeinthesky6/codex-coordinator">GitHub</a><a class="nav-cta" href="index.html#install">Install</a></div></nav></header>
 
   <main id="main-content" class="shell">
-    <header class="page-hero"><p class="eyebrow">Current stable release · 0.4.0</p><h1>Technical design, boundaries, and validation.</h1><p>This page contains the implementation detail kept out of the main product story. Installation never enables a repository automatically.</p></header>
+    <header class="page-hero"><p class="eyebrow">For people checking the technical details</p><h1>See what it stores, changes, and leaves alone before you install it.</h1><p>Review the data, safeguards, limits, and tests for the current stable release. Installation never enables a project automatically.</p></header>
     <div class="content-layout">
       <nav class="side-nav" aria-label="Developer guide sections"><a href="#status">Status</a><a href="#records">Records</a><a href="#flow">Flow</a><a href="#compare">Compare</a><a href="#runtime">Runtime</a><a href="#optional">Optional tools</a><a href="#validation">Validation</a></nav>
       <div class="content-stack">

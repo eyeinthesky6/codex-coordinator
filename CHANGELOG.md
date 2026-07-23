@@ -6,6 +6,18 @@ Notable changes to Codex Coordinator will be recorded here.
 
 ## 0.4.0 - 2026-07-23
 
+### What this release lets you do
+
+- Give one project goal to two or three Codex tasks without becoming the person who checks every
+  window and repeats every update.
+- Reuse a related task that already knows the work before opening another task.
+- See each task's clear job and catch crossed work before it becomes duplicate work.
+- Keep using the same project, branch, local settings, commits, and review process.
+- Ask for the current picture when you need it, without background monitoring, copied chats, or
+  constant status checks.
+
+### Detailed changes
+
 - Published schema 2 as the supported `v0.4.0` task-boundary board and documented the exact tagged Codex marketplace install path.
 - Removed the last inert legacy residues from current feature surfaces: the unlinked retired reconciliation guide, empty `apps` package marker, unreferenced dashboard screenshot, and old dashboard key/name in the capability and normal guidance contracts. Exact names remain only where schema-1 migration, regression tests, the changelog, or dated decision history needs them.
 - Corrected the remaining over-control in the schema-2 workflow: path and ancestor overlap now produce advisory warnings, while only exact truly exclusive actions block. Existing `git-integration` claims are treated as legacy advisory metadata.

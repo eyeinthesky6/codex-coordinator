@@ -1,6 +1,11 @@
 # Codex Coordinator operating guide
 
-This guide describes the schema-2 boundary board released as `0.4.0`. A repository remains disabled until the user reviews its migration or installation and explicitly enables it.
+Use this guide when one project needs two or three Codex tasks and you want each task to have a clear
+job without checking every window or untangling duplicate work. Start with one task whenever it can
+finish the job safely.
+
+The technical instructions below describe release `0.4.0`. A project remains disabled until the user
+reviews its migration or installation and explicitly enables it.
 
 ## Choose the smallest path
 

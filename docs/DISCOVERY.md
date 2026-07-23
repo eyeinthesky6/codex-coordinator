@@ -48,6 +48,29 @@ Task conversations stay in Codex. Coordinator keeps only the small amount of loc
 - a cross-machine project manager;
 - a way around Codex model, usage, token, or concurrency limits.
 
+## How to review public content
+
+Every public asset should start from the user's job, not from Coordinator's features.
+
+Before approving a website section, README opening, product listing, release note, launch post,
+public prompt, screenshot, caption, or call to action, answer:
+
+1. Who needs help, and what situation triggers the need?
+2. What progress are they trying to make?
+3. What do they do now if Coordinator does not exist?
+4. What time, confusion, risk, or repeated work does that create?
+5. What result do they want, and what current product proof supports our promise?
+6. What one question does this asset answer, and what should the reader do next?
+
+Jobs to Be Done is the required starting point. Add jobs, pains, and gains when value is unclear;
+real alternatives and differentiated value when choice is unclear; channel fit for a destination;
+plain language and accessibility for understanding; and current product proof for every factual
+claim. Use only the lenses that help the reader's decision.
+
+The first useful sentence or frame must make the user's progress clear. Move implementation and
+architecture into the technical path. If a new reader cannot say who Coordinator helps, what they
+can do, and which pain it removes, revise the content.
+
 ## Installation and privacy
 
 Version `0.4.0` is the current stable release. Installation does not turn Coordinator on for every project.
