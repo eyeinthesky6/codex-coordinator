@@ -22,12 +22,14 @@ class PackageContractTests(unittest.TestCase):
         self.assertEqual(marketplace["plugins"][0]["name"], manifest["name"])
         self.assertEqual(marketplace["plugins"][0]["source"]["path"], "./plugins/codex-coordinator")
 
-    def test_prompts_offer_visibility_and_claims_not_task_fanout(self) -> None:
+    def test_prompts_offer_user_led_coordination_not_task_fanout(self) -> None:
         manifest = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
         prompts = " ".join(manifest["interface"]["defaultPrompt"]).casefold()
         agent = (SKILL / "agents" / "openai.yaml").read_text(encoding="utf-8").casefold()
-        self.assertIn("active task boundaries", prompts)
-        self.assertIn("bounded paths", prompts)
+        self.assertIn("less duplicate work", prompts)
+        self.assertIn("work that may collide", prompts)
+        self.assertIn("existing tasks", prompts)
+        self.assertIn("keep each task focused", prompts)
         self.assertNotIn("create the tasks needed", prompts + agent)
         self.assertNotIn("run doctor across", prompts + agent)
 

@@ -24,6 +24,11 @@ class PluginDirectorySubmissionTests(unittest.TestCase):
         )
         interface = manifest["interface"]
         self.assertEqual(interface["websiteURL"], manifest["homepage"])
+        self.assertLessEqual(len(interface["shortDescription"]), 30)
+        self.assertEqual(
+            interface["supportURL"],
+            "https://github.com/eyeinthesky6/codex-coordinator/blob/main/SUPPORT.md",
+        )
         self.assertEqual(
             interface["privacyPolicyURL"],
             "https://github.com/eyeinthesky6/codex-coordinator/blob/main/PRIVACY.md",
@@ -43,6 +48,7 @@ class PluginDirectorySubmissionTests(unittest.TestCase):
         self.assertIn("does not read or store prompts", privacy)
         self.assertIn("Native Codex remains responsible for task transcripts", privacy)
         self.assertIn("never imported or started by the base runtime", privacy)
+        self.assertIn("remain only in the user's local project until", privacy)
         self.assertIn("https://openai.com/policies/privacy-policy/", privacy)
         self.assertIn("MIT License", terms)
         self.assertIn("does not replace human review", terms)

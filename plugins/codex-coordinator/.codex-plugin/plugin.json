@@ -19,7 +19,7 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Coordinator",
-    "shortDescription": "Keep parallel Codex tasks from crossing wires",
+    "shortDescription": "Coordinate parallel Codex work",
     "longDescription": "When asked, a goal-scoped Coordinator reuses suitable related local tasks before assigning complete Codex task lanes in the current shared checkout. Each writer publishes only its active goal, planned paths, and narrow exclusive actions so overlap is visible without an always-on manager, task-level path locks, durable Git owner, heartbeat, transcript mirror, extra worktree, or required pull-request workflow.",
     "developerName": "Six Ideas",
     "category": "Productivity",
@@ -28,15 +28,16 @@
       "Write"
     ],
     "websiteURL": "https://eyeinthesky6.github.io/codex-coordinator/",
+    "supportURL": "https://github.com/eyeinthesky6/codex-coordinator/blob/main/SUPPORT.md",
     "privacyPolicyURL": "https://github.com/eyeinthesky6/codex-coordinator/blob/main/PRIVACY.md",
     "termsOfServiceURL": "https://github.com/eyeinthesky6/codex-coordinator/blob/main/TERMS.md",
     "brandColor": "#06142F",
     "composerIcon": "./assets/logo.png",
     "logo": "./assets/logo.png",
     "defaultPrompt": [
-      "Reuse related local tasks to coordinate this goal in the current shared checkout",
-      "Show the active task boundaries in this repository",
-      "Claim this task's bounded paths before making changes"
+      "Help my Codex tasks move in parallel with less duplicate work and fewer crossed edits",
+      "Show me who is working on what and flag work that may collide",
+      "Coordinate this goal across the right existing tasks and keep each task focused"
     ]
   }
 }

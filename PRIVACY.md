@@ -41,7 +41,7 @@ Codex Coordinator does not sell personal information, transmit local coordinatio
 
 ## Retention and deletion
 
-Active records move to small cold receipts at a terminal boundary. Archives are not ordinary runtime input. Users may deactivate a project while preserving all state or separately request a confirmed purge. Purge does not delete native Codex tasks or transcripts. Repository and Git history may retain files a user deliberately committed.
+Active records move to small cold receipts at a terminal boundary. Archives are not ordinary runtime input. Cold receipts remain only in the user's local project until the user runs the confirmed purge operation or removes them through their own repository-retention process. Users may deactivate a project while preserving all state or separately request a confirmed purge. Purge does not delete native Codex tasks or transcripts. Repository and Git history may retain files a user deliberately committed.
 
 ## Security
 
