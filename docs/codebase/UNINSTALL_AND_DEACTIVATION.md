@@ -30,7 +30,7 @@ Deactivation:
 
 - sets only `coordination_enabled: false`;
 - removes only the exact packaged discovery block from `AGENTS.md`;
-- creates no task, pin, heartbeat, schedule, or Mission Control action;
+- creates no task, pin, heartbeat, schedule, or observer action;
 - preserves the marker, active claims, cold receipts, schema-1 history, native tasks and transcripts, Git history, application files, config, env, ignore rules, and unrelated guidance.
 
 Reactivation is allowed only for schema 2 and only after direct user approval. It restores the exact discovery block and marker flag. It starts nothing.

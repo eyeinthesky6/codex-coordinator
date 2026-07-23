@@ -31,11 +31,34 @@ class PackageContractTests(unittest.TestCase):
         self.assertNotIn("create the tasks needed", prompts + agent)
         self.assertNotIn("run doctor across", prompts + agent)
 
+    def test_current_feature_surfaces_do_not_advertise_legacy_product_features(self) -> None:
+        surfaces = [
+            PLUGIN / ".codex-plugin" / "plugin.json",
+            SKILL / "capabilities.json",
+            SKILL / "SKILL.md",
+            SKILL / "agents" / "openai.yaml",
+        ]
+        surfaces.extend(
+            SKILL / "references" / name
+            for name in (
+                "doctor.md",
+                "execution.md",
+                "installation.md",
+                "maintenance.md",
+                "messaging.md",
+                "operations.md",
+                "recovery.md",
+            )
+        )
+        combined = "\n".join(path.read_text(encoding="utf-8") for path in surfaces)
+        for retired_label in ("Mission Control", "v0.3.0"):
+            self.assertNotIn(retired_label, combined)
+
     def test_contract_is_small_and_matches_accepted_architecture(self) -> None:
         contract = json.loads((SKILL / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 27)
+        self.assertEqual(contract["contractVersion"], 28)
         capabilities = contract["capabilities"]
-        self.assertEqual(len(capabilities), 27)
+        self.assertEqual(len(capabilities), 26)
         expected = {
             "corePurpose": "repository-task-boundary-visibility",
             "repositoryLifecycle": "explicit-opt-in",
@@ -57,7 +80,6 @@ class PackageContractTests(unittest.TestCase):
             "sessionStart": "marker-only-no-child-process",
             "stopGuard": "own-active-claim-one-shot-no-transcript",
             "doctor": "read-only-compatibility-reinstall",
-            "missionControl": "not-shipped-separate-package-only",
             "gitWorkflow": "cooperative-exact-file-commits-shared-branch",
         }
         for key, value in expected.items():
@@ -70,13 +92,11 @@ class PackageContractTests(unittest.TestCase):
             self.assertNotIn("://", link)
             self.assertTrue((SKILL / link).is_file(), link)
 
-    def test_guidance_is_modular_but_not_a_reconciliation_hot_path(self) -> None:
+    def test_guidance_is_modular_and_contains_no_retired_reconciliation_lane(self) -> None:
         operations = (SKILL / "references" / "operations.md").read_text(encoding="utf-8")
-        reconciliation = (SKILL / "references" / "reconciliation.md").read_text(encoding="utf-8")
         self.assertLessEqual(len(operations.splitlines()), 15)
         self.assertIn("not a reconciliation loop", operations)
-        self.assertIn("Retired reconciliation lane", reconciliation)
-        self.assertLessEqual(len(reconciliation.splitlines()), 10)
+        self.assertFalse((SKILL / "references" / "reconciliation.md").exists())
 
     def test_execution_retains_limits_warnings_and_cooperative_git_workflow(self) -> None:
         execution = (SKILL / "references" / "execution.md").read_text(encoding="utf-8")
@@ -131,7 +151,7 @@ class PackageContractTests(unittest.TestCase):
         installation = (SKILL / "references" / "installation.md").read_text(encoding="utf-8")
         self.assertIn("schema_version: 2", installation)
         self.assertIn("coordination_enabled: false", installation)
-        self.assertIn("Mission Control is not started", installation)
+        self.assertIn("No optional observer is started", installation)
         self.assertIn("Do not create a Codex task", installation)
         self.assertIn("never store transcripts", installation)
 
@@ -168,6 +188,8 @@ class PackageContractTests(unittest.TestCase):
         wrapper_files = [path for path in source_wrapper.rglob("*") if path.is_file()]
         self.assertEqual(wrapper_files, [])
         self.assertFalse((REPOSITORY / "tests" / "verify_mission_control_ui.py").exists())
+        self.assertFalse((REPOSITORY / "apps" / "__init__.py").exists())
+        self.assertFalse((REPOSITORY / "site" / "assets" / "mission-control.png").exists())
 
     def test_package_contains_no_compiled_python_cache(self) -> None:
         residue = [

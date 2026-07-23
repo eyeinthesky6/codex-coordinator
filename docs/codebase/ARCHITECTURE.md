@@ -84,7 +84,7 @@ The board is the normal visibility path. Peer notices are limited to `COLLISION`
 
 ## SessionStart
 
-The hook parses its JSON input, walks at most 64 parent directories to find a Git marker, reads at most 16 KB, validates schema and fixed paths, and emits a short hint. It does not import or launch Mission Control, install Python, read the board, inspect private Codex data, or create state.
+The hook parses its JSON input, walks at most 64 parent directories to find a Git marker, reads at most 16 KB, validates schema and fixed paths, and emits a short hint. It does not import or launch an observer, install Python, read the board, inspect private Codex data, or create state.
 
 ## Stop guard
 
@@ -100,7 +100,7 @@ Doctor is read-only. It checks six package surfaces: manifest, capability contra
 
 ## Optional observer boundary
 
-No schema-2 observer is shipped. The legacy Mission Control runtime and lifecycle source was removed from the base package and remains recoverable from `v0.3.0` and Git history. Nothing in the base hook, Doctor, state helper, capability contract, or prompts imports or starts an observer.
+No schema-2 observer is shipped. The retired observer runtime and lifecycle source was removed from the base package and remains recoverable from dated decision records and Git history. Nothing in the base hook, Doctor, state helper, capability contract, or prompts imports or starts an observer.
 
 Any future observer must be a new separate package, manually started, read-only, and limited to schema-2 board files. It must not inspect private Codex SQLite or rollout data or expose task, repair, model, provider, schedule, or write controls.
 

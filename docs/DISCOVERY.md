@@ -47,4 +47,4 @@ Active records are capped at 4 KB and contain only bounded ownership metadata. N
 | Codex Coordinator boundary board | An explicitly requested Coordinator reusing related local tasks before assigning two or three complete lanes in one shared checkout | Adds small active-only claim records and advisory path warnings |
 | Hosted project manager | Cross-team and cross-machine planning | Adds a separate service and authority model |
 
-Schema 2 is released as `v0.4.0`. Installation does not enable a repository automatically. `v0.3.0` is retained as legacy rollback evidence and contains the older orchestration design.
+Schema 2 is the current `0.4.0` source candidate, but it is not tagged or published yet. Installation does not enable a repository automatically. The latest stable release is from the retired orchestration line; use the changelog and dated decision records for that history.

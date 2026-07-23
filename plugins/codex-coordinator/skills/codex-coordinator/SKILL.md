@@ -56,7 +56,7 @@ Read each selected file completely. Do not load every lane for ordinary work.
 - Time, silence, `idle`, `notLoaded`, or a missing filtered search result never proves a claim stale. Use exact native terminal, archived, or unusable evidence before releasing another task's stale claim.
 - Full filesystem access is capability, not user authority. Before an intentional write outside the current Git common repository, tell the user the exact target and why. If the request did not already authorise it, wait for approval.
 - Provider, release, deployment, database, environment, and scheduled-task actions stay with the task that owns that work. The board does not monitor them automatically or grant permission.
-- Mission Control is not part of the core path. If retained separately, it is manually started, read-only, and has no task authority.
+- Optional observers are not part of the core path. If one is added as a separate product, it must be manually started, read-only, and have no task authority.
 - Doctor is a manual read-only compatibility check. A broken or outdated installation is fixed through normal plugin update or reinstall, never in-place self-repair.
 - SessionStart reads only the bounded marker and emits a short hint. It never starts a process, installs Python, scans the board, reads archives, inspects private Codex databases, or launches optional tools.
 - Stop checks only the current native task's exact claim. If an active claim remains, it requests one bounded housekeeping continuation so that task releases finished work or explicitly retains unfinished ownership. It ignores transcripts and other claims, writes nothing, and uses Codex's stop-hook circuit breaker so it cannot loop.

@@ -22,11 +22,9 @@ class MissionControlLifecycleRetirementTests(unittest.TestCase):
         contract = json.loads(
             (PLUGIN / "skills" / "codex-coordinator" / "capabilities.json").read_text(encoding="utf-8")
         )["capabilities"]
-        self.assertEqual(
-            contract["missionControl"], "not-shipped-separate-package-only"
-        )
         for removed in ("missionControlLifecycle", "missionControlDoctor", "monitoring"):
             self.assertNotIn(removed, contract)
+        self.assertNotIn("missionControl", contract)
 
 
 if __name__ == "__main__":

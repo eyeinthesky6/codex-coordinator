@@ -79,7 +79,7 @@ class GoalLeadershipContractTests(unittest.TestCase):
 
     def test_capability_contract_describes_boundary_board_not_orchestration(self) -> None:
         contract = json.loads((SKILL_ROOT / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 27)
+        self.assertEqual(contract["contractVersion"], 28)
         capabilities = contract["capabilities"]
         self.assertEqual(capabilities["defaultExecution"], "one-native-task")
         self.assertEqual(
@@ -113,7 +113,28 @@ class GoalLeadershipContractTests(unittest.TestCase):
         self.assertEqual(
             capabilities["stopGuard"], "own-active-claim-one-shot-no-transcript"
         )
-        for removed in ("monitoring", "continuationGuarantee", "providerMonitoring", "scheduledTaskMonitoring"):
+        for removed in (
+            "workerCreation",
+            "coordinatorRole",
+            "doctorDiagnostics",
+            "monitoring",
+            "modelDefault",
+            "reasoningDefault",
+            "registrationDelivery",
+            "workerGranularity",
+            "microtaskExecution",
+            "parallelWorkerTarget",
+            "subagents",
+            "operationsGuidance",
+            "coordinationReadCache",
+            "nativeTaskReads",
+            "continuationGuarantee",
+            "archivedRecovery",
+            "taskLifecycle",
+            "missionControl",
+            "providerMonitoring",
+            "scheduledTaskMonitoring",
+        ):
             self.assertNotIn(removed, capabilities)
 
 

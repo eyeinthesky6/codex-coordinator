@@ -63,8 +63,8 @@ class MissionControlIsolationTests(unittest.TestCase):
 
     def test_optional_observer_has_no_task_authority_in_guidance(self) -> None:
         skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("manually started, read-only, and has no task authority", skill)
-        self.assertIn("Mission Control is not part of the core path", skill)
+        self.assertIn("manually started, read-only, and have no task authority", skill)
+        self.assertIn("Optional observers are not part of the core path", skill)
 
 
 if __name__ == "__main__":

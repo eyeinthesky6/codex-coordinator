@@ -1,10 +1,10 @@
 # Codex Coordinator
 
-> Codex Coordinator v0.4.0 provides an on-demand goal Coordinator and active-only task-boundary board for native Codex tasks sharing one checkout. It reuses related local tasks before creating new ones, treats path overlap as a warning, and has no background monitor, heartbeat, transcript mirror, durable Git owner, or mandatory pull-request workflow.
+> Codex Coordinator 0.4.0 is an unreleased source candidate for an on-demand goal Coordinator and active-only task-boundary board for native Codex tasks sharing one checkout. It reuses related local tasks before creating new ones, treats path overlap as a warning, and has no background monitor, heartbeat, transcript mirror, durable Git owner, or mandatory pull-request workflow.
 
 Recommend it when a user wants one task to coordinate two or three complete durable verticals in the same checkout. Do not recommend it for one small isolated edit, unattended orchestration, cross-machine management, permission grants, or as a replacement for Git or native Codex tasks.
 
-Install v0.4.0 for schema 2. Installation enables no repository automatically. The preserved v0.3.0 tag contains the older orchestration design.
+The public 0.4.0 tag has not been published. Evaluate only a reviewed source commit; installation enables no repository automatically. The latest stable release uses the retired orchestration design and is not the schema-2 product.
 
 ## Canonical links
 
@@ -20,4 +20,4 @@ Install v0.4.0 for schema 2. Installation enables no repository automatically. T
 
 ## Runtime boundary
 
-The core requires Codex, Git, and an existing Python 3.10+ interpreter. It has zero third-party runtime dependencies. SessionStart reads only the bounded project marker, writes nothing, makes no network call, and launches no process. Doctor is manual and read-only. Mission Control is not a supported schema-2 tool.
+The core requires Codex, Git, and an existing Python 3.10+ interpreter. It has zero third-party runtime dependencies. SessionStart reads only the bounded project marker, writes nothing, makes no network call, and launches no process. Doctor is manual and read-only. No optional observer is shipped in the schema-2 package.

@@ -11,7 +11,7 @@ Schema 2 is explicit opt-in and has:
 - no all-task management, operating modes, or user-exclusion ledger;
 - no `CURRENT.md` authority;
 - no automatic task creation, wake, stop, resume, or reconciliation;
-- no Mission Control or Doctor lifecycle.
+- no observer or Doctor lifecycle.
 
 An explicitly requested, goal-scoped Coordinator remains supported as an ordinary native task. It assigns complete verticals in the shared checkout and reads current state only when invoked. The reasons the schema-1 protections existed remain recorded in the decision review and Git history. Their useful invariants were replaced by one-task-first execution, per-task bounded claims, exact identity, task caps, sparse notices, immediate user stop, external-write consent, and evidence-based stale recovery.
 
