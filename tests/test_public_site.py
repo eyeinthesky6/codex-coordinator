@@ -67,7 +67,7 @@ class PublicSiteTests(unittest.TestCase):
         self.assertIsNotNone(match)
         graph = json.loads(match.group(1))["@graph"]
         software = next(item for item in graph if item["@type"] == "SoftwareApplication")
-        self.assertEqual(software["softwareVersion"], "0.4.0 source candidate")
+        self.assertEqual(software["softwareVersion"], "0.4.0")
         self.assertEqual(self.manifest["version"], "0.4.0")
         self.assertTrue(software["softwareVersion"].startswith(self.manifest["version"]))
         self.assertEqual(software["codeRepository"], "https://github.com/eyeinthesky6/codex-coordinator")
@@ -83,8 +83,9 @@ class PublicSiteTests(unittest.TestCase):
             "Native Codex remains the only transcript authority",
             "Zero third-party runtime dependencies",
             "No observer is shipped in the base package",
-            "0.4.0 source candidate",
-            "retired architecture",
+            "Current stable release",
+            "supported schema-2 release",
+            "codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.4.0",
         ):
             self.assertIn(phrase, combined)
         for stale in (
@@ -98,6 +99,9 @@ class PublicSiteTests(unittest.TestCase):
             "Mission Control",
             "ready to install",
             "Install v0.4.0",
+            "source candidate",
+            "not yet tagged",
+            "not tagged or published",
         ):
             self.assertNotIn(stale, combined)
 
@@ -140,6 +144,24 @@ class PublicSiteTests(unittest.TestCase):
             self.assertIn(phrase, readme)
         self.assertIn("no third-party runtime dependency", discovery)
         self.assertIn("Do not recommend it", discovery)
+
+    def test_current_release_surfaces_install_the_exact_stable_tag(self) -> None:
+        surfaces = {
+            "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+            "llms.txt": (ROOT / "llms.txt").read_text(encoding="utf-8"),
+            "DISCOVERY.md": (ROOT / "docs" / "DISCOVERY.md").read_text(encoding="utf-8"),
+            "OPERATING_GUIDE.md": (ROOT / "docs" / "OPERATING_GUIDE.md").read_text(encoding="utf-8"),
+            **self.pages,
+        }
+        combined = "\n".join(surfaces.values())
+        self.assertIn("releases/tag/v0.4.0", combined)
+        self.assertIn(
+            "codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.4.0",
+            combined,
+        )
+        for name, content in surfaces.items():
+            self.assertNotIn("0.4.0 source candidate", content, name)
+            self.assertNotIn("no public 0.4.0 tag", content.casefold(), name)
 
     def test_only_logo_is_rendered_and_pages_workflow_stays_pinned(self) -> None:
         for parser in self.parsers.values():

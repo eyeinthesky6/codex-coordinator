@@ -9,7 +9,7 @@
 <p align="center"><strong>A small task-boundary board for native Codex tasks.</strong></p>
 
 > [!IMPORTANT]
-> Version `0.4.0` is the current schema-2 release candidate on `main`; it is not tagged or published yet. The latest public stable release uses the retired orchestration design and is not the schema-2 product. The current repository marker remains disabled by design, and installing the plugin never enables a project automatically.
+> Version [`0.4.0`](https://github.com/eyeinthesky6/codex-coordinator/releases/tag/v0.4.0) is the current stable schema-2 release. The current repository marker remains disabled by design, and installing the plugin never enables a project automatically.
 
 ## What it is
 
@@ -263,16 +263,16 @@ The acceptance tests cover:
 - legacy deactivation without schema-2 lifecycle creation;
 - optional-tool isolation from the base runtime.
 
-## Evaluate the schema-2 release candidate
+## Install v0.4.0
 
-There is no public `v0.4.0` tag yet. To review the candidate before release, clone a reviewed commit, then add that local checkout as the marketplace source:
+Add the exact stable tag as a Codex marketplace source, then install the plugin:
 
 ```powershell
-codex plugin marketplace add .
+codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.4.0
 codex plugin add codex-coordinator@codex-coordinator
 ```
 
-Installation alone manages no repository. Enable or migrate one project deliberately after reviewing its current tasks and local state. Dated decision records, the changelog, tags, and Git history preserve the retired orchestration design and its rationale.
+Installation alone manages no repository. Enable a new project or migrate a schema-1 project deliberately after reviewing its current tasks and local state. Dated decision records, the changelog, tags, and Git history preserve the retired orchestration design and its rationale.
 
 ## Frequently asked questions
 
