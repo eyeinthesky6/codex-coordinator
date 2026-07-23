@@ -25,9 +25,9 @@
     "@context":"https://schema.org",
     "@type":"FAQPage",
     "mainEntity":[
-      {"@type":"Question","name":"What problem does Codex Coordinator solve?","acceptedAnswer":{"@type":"Answer","text":"It helps when several Codex tasks are working in one repository and you are spending time checking windows, relaying updates, or untangling overlapping work."}},
-      {"@type":"Question","name":"Will it create lots of task windows?","acceptedAnswer":{"@type":"Answer","text":"No. It starts with one task, reuses a suitable related task when possible, and opens another only for a substantial job that benefits from its own context."}},
-      {"@type":"Question","name":"Does it copy my chats?","acceptedAnswer":{"@type":"Answer","text":"No. Task conversations stay in Codex. Coordinator stores only the small amount of local information needed to show who owns what."}}
+      {"@type":"Question","name":"What does Codex Coordinator let me do?","acceptedAnswer":{"@type":"Answer","text":"Give one goal to a few Codex tasks, reuse related tasks before opening more windows, give each task a clear job, and see when two tasks may work on the same thing."}},
+      {"@type":"Question","name":"Will it create lots of task windows?","acceptedAnswer":{"@type":"Answer","text":"No. It starts with one task, reuses a useful related task when possible, and opens another only when a complete job truly benefits from its own task."}},
+      {"@type":"Question","name":"Does it copy my chats?","acceptedAnswer":{"@type":"Answer","text":"No. Task conversations stay in Codex. Coordinator keeps only the small amount of local information needed to show what each task is doing."}}
     ]
   }
   </script>
@@ -49,17 +49,16 @@
     </header>
 
     <div class="faq-list">
-      <article class="faq-item"><h2>What problem does it solve?</h2><p>It helps when several Codex tasks are working in one repository and you are spending time checking windows, relaying updates, or untangling overlapping work.</p></article>
-      <article class="faq-item"><h2>When should I use it?</h2><p>Use it for a larger repository goal that genuinely benefits from two or three durable tasks working at the same time. For one coherent job or a small edit, stay with one Codex task.</p></article>
-      <article class="faq-item"><h2>Will it create lots of task windows?</h2><p>No. It starts with one task, reuses a suitable related task when possible, and opens another only for a substantial job that benefits from its own context.</p></article>
-      <article class="faq-item"><h2>Does it keep watching every task?</h2><p>No. There is no background manager. Ask the Coordinator when you want the current picture or need the finished work brought together.</p></article>
-      <article class="faq-item"><h2>Does it copy my chats?</h2><p>No. Task conversations stay in Codex. Coordinator stores only the small amount of local information needed to show who owns what.</p></article>
-      <article class="faq-item"><h2>Does it create Git worktrees?</h2><p>No. Coordinated tasks stay in the checkout you are already using, so they can share local settings and offline tools. Worktrees remain available when you specifically want file and branch isolation.</p></article>
-      <article class="faq-item"><h2>Does it force a pull-request workflow?</h2><p>No. Direct commits and normal pushes remain available. Use pull requests only when you or the repository already want them.</p></article>
-      <article class="faq-item"><h2>What happens when a task pauses?</h2><p>Its current job and ownership remain visible, so you can resume or reassign the work without copying the whole conversation into another system.</p></article>
-      <article class="faq-item"><h2>What if the plugin is broken?</h2><p>Update or reinstall it through the normal plugin manager. The included health check reports compatibility problems but does not attempt a complicated self-repair.</p></article>
+      <article class="faq-item"><h2>What does it let me do?</h2><p>Give one goal to a few Codex tasks, reuse related tasks before opening more windows, give each task a clear job, and see when two tasks may work on the same thing.</p></article>
+      <article class="faq-item"><h2>When should I use it?</h2><p>Use it when one project genuinely benefits from two or three Codex tasks working at the same time. For one job or a small edit, stay with one Codex task.</p></article>
+      <article class="faq-item"><h2>Will it create lots of task windows?</h2><p>No. It starts with one task, reuses a useful related task when possible, and opens another only when a complete job truly benefits from its own task.</p></article>
+      <article class="faq-item"><h2>Does it keep watching every task?</h2><p>No. Ask Coordinator when you want to see who is doing what or bring finished work together.</p></article>
+      <article class="faq-item"><h2>Does it copy my chats?</h2><p>No. Task conversations stay in Codex. Coordinator keeps only the small amount of local information needed to show what each task is doing.</p></article>
+      <article class="faq-item"><h2>Will it change the way I already work?</h2><p>No. Your tasks can keep using the same project, local tools, branches, commits, and review process.</p></article>
+      <article class="faq-item"><h2>What happens when a task pauses?</h2><p>Its job remains visible, so you can return to it or give the work to another task without copying the whole conversation.</p></article>
+      <article class="faq-item"><h2>What if the plugin is broken?</h2><p>Update or reinstall it. The included check tells you when the installation is broken; it does not attempt a complicated self-repair.</p></article>
       <article class="faq-item"><h2>What do I need?</h2><p>OpenAI Codex with plugin support, Git, and Python 3.10 or newer. Codex Coordinator itself is free and open source.</p></article>
-      <article class="faq-item"><h2>Where are the technical details?</h2><p>The <a href="developers.html">developer page</a> covers the data format, runtime limits, validation, installation behavior, and design history without putting those details in the way of new users.</p></article>
+      <article class="faq-item"><h2>Where are the technical details?</h2><p>The <a href="developers.html">developer page</a> covers how it stores project information, how it handles Git, its limits, tests, and design history.</p></article>
     </div>
   </main>
 

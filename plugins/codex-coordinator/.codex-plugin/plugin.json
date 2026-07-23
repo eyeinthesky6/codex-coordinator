@@ -1,7 +1,7 @@
 {
   "name": "codex-coordinator",
   "version": "0.4.0",
-  "description": "Keep several Codex tasks focused, visible, and inside clear boundaries.",
+  "description": "Give each Codex task a clear job and boundaries that stop duplicate work.",
   "author": {
     "name": "Six Ideas",
     "url": "https://github.com/eyeinthesky6"
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Coordinator",
-    "shortDescription": "Keep Codex tasks on track",
-    "longDescription": "Give Codex Coordinator one project goal. It reuses related tasks, gives each one a clear job, shows who is working on what, and warns when work may collide. It stays with the project you already have without an always-on manager, copied chat history, duplicate project setups, or a forced process.",
+    "shortDescription": "Give Codex tasks clear jobs",
+    "longDescription": "Give Coordinator one goal. It reuses the right existing tasks before opening another, gives each task a clear job, and shows who is doing what. You get less duplicate work and fewer crossed edits, without an always-on manager or copied chats.",
     "developerName": "Six Ideas",
     "category": "Productivity",
     "capabilities": [
@@ -35,9 +35,9 @@
     "composerIcon": "./assets/logo.png",
     "logo": "./assets/logo.png",
     "defaultPrompt": [
-      "Help my Codex tasks move in parallel with less duplicate work and fewer crossed edits",
+      "Help my Codex tasks finish this goal with less duplicate work and fewer crossed edits",
       "Show me who is working on what and flag work that may collide",
-      "Coordinate this goal across the right existing tasks and keep each task focused"
+      "Reuse the right existing tasks for this goal and keep each task focused"
     ]
   }
 }

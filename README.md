@@ -1,6 +1,6 @@
 <h1 align="center">Codex Coordinator</h1>
 
-<p align="center"><strong>Run several Codex tasks without becoming their full-time project manager.</strong></p>
+<p align="center"><strong>Give one goal to a few Codex tasks without losing track of the work.</strong></p>
 
 <p align="center">
   <a href="https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml/badge.svg"></a>
@@ -8,27 +8,27 @@
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-17231f"></a>
 </p>
 
-Running several Codex tasks sounds useful until two of them solve the same problem, one changes work another still needs, and you start opening every window just to understand what is happening.
+Codex Coordinator lets you reuse related tasks, give each task a clear job, and see when two tasks may work on the same thing.
 
-Codex Coordinator gives those tasks a few clear jobs and a simple picture of who owns what. It helps you catch work that may collide before it becomes rework—without a background manager or a second place for your conversations.
+You stop checking every window, repeating the same updates, and fixing duplicate work. Codex still does the work; Coordinator keeps the jobs clear.
 
 **[Website](https://eyeinthesky6.github.io/codex-coordinator/)** · **[Install](#install)** · **[FAQ](https://eyeinthesky6.github.io/codex-coordinator/faq.html)** · **[Ask a question](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a)**
 
-## What it takes off your plate
+## What it lets you do
 
-- Checking every task window to find out who is doing what.
-- Relaying ordinary status updates between related tasks.
-- Discovering too late that two tasks started overlapping work.
-- Guessing who still owns a job after a task pauses or restarts.
-- Creating a fresh task when an existing related task already has useful context.
+- Give one project goal to two or three Codex tasks.
+- Reuse a related task that already knows the work instead of opening another window.
+- Give every task one complete, clear job.
+- See who is doing what without checking every task yourself.
+- Catch crossed work before it becomes rework.
 
 Codex still does the work. Git still keeps the history. You still decide what gets changed or published.
 
 ## How it works
 
-1. **Give it one repository outcome.** Describe the result you want rather than splitting it into tiny commands yourself.
-2. **Keep each task focused.** Coordinator reuses a suitable related task when possible and gives every task a complete job.
-3. **Ask for the current picture.** See what is active, blocked, finished, or likely to overlap without checking every window.
+1. **Tell it the result you want.** Start with one project goal, not separate instructions for every task.
+2. **Let it choose the right tasks.** Coordinator reuses a useful related task first and opens another only when the work truly benefits from it.
+3. **Ask who is doing what.** See each task's job and where work may cross whenever you need the current picture.
 
 | Ask | Work | Review |
 |---|---|---|
@@ -36,13 +36,13 @@ Codex still does the work. Git still keeps the history. You still decide what ge
 
 ## When it helps
 
-Use Codex Coordinator when two or three durable Codex tasks may work in the same repository and unclear ownership would create real rework.
+Use Codex Coordinator when one project genuinely needs two or three Codex tasks at the same time and you would otherwise spend time checking windows or untangling duplicate work.
 
 Keep your workflow simpler when:
 
 - one task can finish the job safely;
 - you only need a quick answer or small edit;
-- a short-lived helper can report directly back to one parent task;
+- a short-lived helper can report directly back to the task you are already using;
 - separate branches or worktrees already give you all the isolation you need.
 
 ## Install
@@ -56,14 +56,14 @@ codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.4.0
 codex plugin add codex-coordinator@codex-coordinator
 ```
 
-Then open a repository in Codex and ask:
+Then open your project in Codex and ask:
 
 ```text
-Use $codex-coordinator to coordinate this project goal:
+Use $codex-coordinator for this project goal:
 <describe the outcome you want>
 ```
 
-Installation does not turn Coordinator on for every repository. You choose where to use it.
+Installation does not turn Coordinator on for every project. You choose where to use it.
 
 You can also find it in the [ChatGPT Plugins directory](https://chatgpt.com/plugins/plugins_6a5c8cb6a5648191a43a76e6a1e637d8) and on [skills.sh](https://skills.sh/eyeinthesky6/codex-coordinator/codex-coordinator).
 
@@ -71,8 +71,8 @@ You can also find it in the [ChatGPT Plugins directory](https://chatgpt.com/plug
 
 - No background monitoring or constant status checks.
 - No copied prompts, chats, reasoning, or tool output.
-- No automatic worktree or branch creation.
-- No required pull-request workflow.
+- No automatic extra project copies or branches.
+- No forced review process.
 - No separate dashboard, database, account, or cloud service.
 - No permission to deploy, publish, change environments, or override your decisions.
 

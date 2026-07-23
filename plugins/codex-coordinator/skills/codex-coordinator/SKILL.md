@@ -1,6 +1,6 @@
 ---
 name: codex-coordinator
-description: Helps several Codex tasks stay focused on clear jobs in one project. Reuses related tasks when possible, shows who owns what, and flags work that may collide without copying chats or becoming another system to manage.
+description: Lets you give one goal to a few Codex tasks, reuse related tasks before opening new ones, give each task a clear job, and see when two tasks may work on the same thing. It does not copy chats or watch tasks in the background.
 ---
 
 # Codex Coordinator

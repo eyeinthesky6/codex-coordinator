@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex Coordinator"
-  short_description: "Keep Codex tasks on track"
-  default_prompt: "Use $codex-coordinator to coordinate this project goal across the right existing tasks and keep each task focused."
+  short_description: "Give Codex tasks clear jobs"
+  default_prompt: "Use $codex-coordinator to reuse the right existing tasks for this goal, give each one a clear job, and show where work may cross."

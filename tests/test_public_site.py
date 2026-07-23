@@ -76,8 +76,10 @@ class PublicSiteTests(unittest.TestCase):
     def test_public_story_leads_with_user_outcome_and_keeps_technical_depth(self) -> None:
         combined = "\n".join(self.pages.values())
         for phrase in (
-            "Stop managing every window",
-            "Give each task a clear job",
+            "without losing track of the work",
+            "Give Coordinator one goal",
+            "reuses the tasks you already have",
+            "Fewer task windows",
             "Free and open source",
             "Does not copy your chats",
             "No background watching",
@@ -86,7 +88,16 @@ class PublicSiteTests(unittest.TestCase):
             "codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.4.0",
         ):
             self.assertIn(phrase, combined)
-        for technical_lead in ("schema-2", "thread UUID", "expected revisions", "Doctor"):
+        for technical_lead in (
+            "schema-2",
+            "thread UUID",
+            "expected revisions",
+            "Doctor",
+            "task-boundary",
+            "shared checkout",
+            "repository-scoped",
+            "goal-scoped",
+        ):
             self.assertNotIn(technical_lead, self.index)
         for stale in (
             "15 minutes by default",
@@ -123,11 +134,11 @@ class PublicSiteTests(unittest.TestCase):
 
     def test_faq_answers_boundaries(self) -> None:
         for phrase in (
-            "What problem does it solve?",
+            "What does it let me do?",
             "Will it create lots of task windows?",
             "Does it keep watching every task?",
             "Does it copy my chats?",
-            "Does it force a pull-request workflow?",
+            "Will it change the way I already work?",
             "What if the plugin is broken?",
         ):
             self.assertIn(phrase, self.faq)
@@ -136,12 +147,12 @@ class PublicSiteTests(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         discovery = (ROOT / "docs" / "DISCOVERY.md").read_text(encoding="utf-8")
         for phrase in (
-            "Run several Codex tasks without becoming their full-time project manager",
-            "What it takes off your plate",
-            "Give it one repository outcome",
+            "Give one goal to a few Codex tasks without losing track of the work",
+            "What it lets you do",
+            "Tell it the result you want",
             "When it helps",
             "What it does not add",
-            "does not turn Coordinator on for every repository",
+            "does not turn Coordinator on for every project",
         ):
             self.assertIn(phrase, readme)
         self.assertIn("no third-party runtime dependency", discovery)
