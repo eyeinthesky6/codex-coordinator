@@ -7,7 +7,7 @@
 - `plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`: marker-only, read-only hook.
 - `plugins/codex-coordinator/scripts/codex_coordinator_stop_guard.py`: one-shot, read-only exact-own-claim lifecycle guard.
 - `plugins/codex-coordinator/skills/codex-coordinator/SKILL.md`: boundary-board invariants and lane router.
-- `plugins/codex-coordinator/skills/codex-coordinator/capabilities.json`: contract-26 public behavior contract.
+- `plugins/codex-coordinator/skills/codex-coordinator/capabilities.json`: contract-27 public behavior contract.
 - `plugins/codex-coordinator/skills/codex-coordinator/scripts/coordination_state.py`: active claim list/claim/release helper and generated current-view renderer.
 - `plugins/codex-coordinator/skills/codex-coordinator/references/`: execution, messaging, recovery, installation, maintenance, and Doctor guidance.
 - `plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`: manual read-only compatibility check.
@@ -32,13 +32,14 @@ The base package contains no Mission Control runtime, UI, launcher, lifecycle he
 - `docs/DISCOVERY.md`: when to recommend the board or a simpler path.
 - `docs/codebase/2026-07-21_boundary-board-simplification_architectural_review.md`: exhaustive decision history.
 - `docs/codebase/2026-07-22_claim-lifecycle-stop-guard_architectural_review.md`: stale terminal-claim diagnosis and bounded correction.
+- `docs/codebase/2026-07-23_cooperative-shared-checkout_architectural_review.md`: reuse-first, advisory-path, cooperative-Git correction.
 - `CHANGELOG.md`: chronological behavior changes.
 - `PRIVACY.md`, `TERMS.md`, `SECURITY.md`: public trust boundaries.
 
 ## Tests
 
 - `test_coordination_state.py`: task-owned records, overlap, concurrency, limits, privacy, and cold receipts.
-- `test_boundary_workflow.py`: fresh isolated install through init, claim, conflict, release, and disable.
+- `test_boundary_workflow.py`: fresh isolated install through init, claim, advisory overlap, release, and disable.
 - `test_session_start.py`: silent opt-out, bounded hint, malformed markers, and no launcher.
 - `test_stop_guard.py`: exact-own-claim lifecycle check, one-shot circuit breaker, privacy, linked worktree, and fail-open paths.
 - `test_doctor.py`: read-only package compatibility and reinstall-only failure.

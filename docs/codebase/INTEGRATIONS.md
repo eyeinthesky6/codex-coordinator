@@ -4,7 +4,7 @@
 
 Codex supplies native task identity, execution, messages, status, and transcripts. Coordinator consumes only an exact native thread UUID supplied when a task publishes its own claim. It never creates, pins, wakes, archives, or polls tasks automatically.
 
-Peer collision notices use the supported native task messenger only after same-repository and exact-recipient checks. The message is non-executable and grants no authority.
+Peer collision notices use the supported native task messenger only after same-repository and exact-recipient checks. The message is non-executable and grants no authority. An explicitly appointed goal Coordinator may also send one bounded in-repository assignment to a suitable related local task; it cannot grant external or destructive authority.
 
 SessionStart remains subject to Codex hook trust. It reads only a bounded project marker and launches no process.
 
@@ -12,7 +12,7 @@ SessionStart remains subject to Codex hook trust. It reads only a bounded projec
 
 Git identifies the repository and primary worktree. The skill resolves the first worktree from `git worktree list --porcelain`; the state helper itself receives the already resolved project root.
 
-The board does not create branches, worktrees, commits, pushes, merges, or pull requests. With multiple writers, one task owns the `git-integration` action. Direct commit/push is the default for one owner; PRs are optional policy.
+The board does not create branches, worktrees, commits, pushes, merges, or pull requests. Coordinated tasks share a branch established before parallel writing. Each task may commit only its reviewed exact files while preserving foreign staged work. `git-integration` is a legacy advisory action, not a durable owner. Direct commit/push is the default; PRs are optional policy.
 
 ## GitHub
 

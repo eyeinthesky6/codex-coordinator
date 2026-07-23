@@ -34,7 +34,7 @@ Also parse changed JSON/YAML where practical and verify that relative package pa
 
 ## Accepted product direction
 
-The accepted target is a small, repository-scoped task boundary and visibility layer. The full reasoning, retained protections, rejected mechanisms, migration gates, and rollback plan are recorded in [the boundary-board simplification review](docs/codebase/2026-07-21_boundary-board-simplification_architectural_review.md).
+The accepted target is a small, repository-scoped task boundary and visibility layer. The original simplification reasoning is recorded in [the boundary-board review](docs/codebase/2026-07-21_boundary-board-simplification_architectural_review.md); the current reuse-first, cooperative shared-checkout contract and retained protections are recorded in [its accepted correction](docs/codebase/2026-07-23_cooperative-shared-checkout_architectural_review.md).
 
 Until that realignment is implemented and the user explicitly re-enables this repository, keep `.codex/coordination/project.yaml` set to `coordination_enabled: false`.
 
@@ -42,8 +42,12 @@ Future changes must preserve these boundaries:
 
 - Native Codex tasks remain the execution and transcript authority.
 - One normal task is the default. Extra durable tasks are for explicit decomposition or independently useful parallel work, not routine commands, checks, or reviews.
+- An explicit goal Coordinator reuses a suitable related local task in the same repository and checkout before creating a new local task. One bounded assignment is allowed; polling and acknowledgement loops are not.
 - Tasks publish only bounded active ownership metadata. Do not store transcripts, reasoning, prompts, tool output, or full-turn ledgers.
-- Keep exact task identity, overlap detection, narrow scope, sparse notices, immediate user stop, external-write consent, and evidence-based stale-claim recovery.
+- Keep exact task identity, advisory path-overlap detection, narrow exact exclusive actions, sparse notices, immediate user stop, external-write consent, and evidence-based stale-claim recovery.
+- A path or ancestor overlap is a warning, not a task-level stop. Pause only an actual incompatible file hunk, concurrent writer command, or exact exclusive action.
+- There is no durable Git owner. Tasks share the established branch, stage and commit only reviewed exact files, preserve foreign staged work, and avoid branch switching, broad staging, history rewrites, or destructive Git cleanup during parallel work.
+- Generated maps, lockfiles, schemas, shared indexes, formatter-wide output, and full gates have no durable task owner. Serialize only an actual writer command.
 - Do not add a resident Coordinator, persistent heartbeat, all-task reconciliation loop, automatic task-window creation, or mandatory pull-request workflow.
 - Mission Control, if retained, is a separately installed, manually started, read-only observer with no task authority.
 - Doctor, if retained, is a manual read-only compatibility check. Recovery is normal plugin update or reinstall, not in-place repair or rollback.

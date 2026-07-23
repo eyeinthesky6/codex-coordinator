@@ -33,22 +33,24 @@ class PackageContractTests(unittest.TestCase):
 
     def test_contract_is_small_and_matches_accepted_architecture(self) -> None:
         contract = json.loads((SKILL / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 26)
+        self.assertEqual(contract["contractVersion"], 27)
         capabilities = contract["capabilities"]
-        self.assertEqual(len(capabilities), 26)
+        self.assertEqual(len(capabilities), 27)
         expected = {
             "corePurpose": "repository-task-boundary-visibility",
             "repositoryLifecycle": "explicit-opt-in",
             "projectLifecycleTool": "dry-run-first-init-deactivate-migrate-reactivate-purge",
             "defaultExecution": "one-native-task",
             "nativeTaskAuthority": "execution-messaging-transcript",
-            "taskCreation": "coordinator-two-or-three-complete-durable-verticals",
+            "taskCreation": "reuse-first-then-local-two-or-three-verticals",
+            "taskReuse": "related-local-task-before-create",
             "goalCoordinator": "user-invoked-goal-scoped-on-demand",
             "goalCoordinationAction": "goal-coordination",
             "taskPlacement": "shared-primary-checkout-current-branch",
             "dependentParallelism": "durable-verticals-or-parent-owned-subagents",
             "claimOwnership": "per-task-json-record",
-            "messagePolicy": "sparse-non-executable-peer-notices",
+            "claimConflictCheck": "advisory-path-overlap-exclusive-action-only",
+            "messagePolicy": "coordinator-one-shot-assignment-and-sparse-peer-notices",
             "transcriptStorage": "none",
             "currentView": "generated-active-only-non-authoritative",
             "automaticFanIn": "none",
@@ -56,7 +58,7 @@ class PackageContractTests(unittest.TestCase):
             "stopGuard": "own-active-claim-one-shot-no-transcript",
             "doctor": "read-only-compatibility-reinstall",
             "missionControl": "not-shipped-separate-package-only",
-            "gitWorkflow": "single-git-integration-owner-shared-checkout",
+            "gitWorkflow": "cooperative-exact-file-commits-shared-branch",
         }
         for key, value in expected.items():
             self.assertEqual(capabilities[key], value)
@@ -76,7 +78,7 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("Retired reconciliation lane", reconciliation)
         self.assertLessEqual(len(reconciliation.splitlines()), 10)
 
-    def test_execution_retains_limits_overlap_and_direct_git_workflow(self) -> None:
+    def test_execution_retains_limits_warnings_and_cooperative_git_workflow(self) -> None:
         execution = (SKILL / "references" / "execution.md").read_text(encoding="utf-8")
         for phrase in (
             "One task is the default",
@@ -84,6 +86,8 @@ class PackageContractTests(unittest.TestCase):
             "twelve is the hard limit",
             "ancestor",
             "git-integration",
+            "warning, not a claim failure",
+            "Stage only explicit files",
             "Direct commits and pushes",
             "Pull requests are optional",
         ):
@@ -97,6 +101,8 @@ class PackageContractTests(unittest.TestCase):
             "complete durable vertical",
             "same primary checkout",
             "current branch",
+            "Reuse it",
+            "GOAL_ASSIGNMENT",
             "Do not poll task status",
             "does not wake the Coordinator automatically",
             "parent-owned subagents",
@@ -104,11 +110,13 @@ class PackageContractTests(unittest.TestCase):
             self.assertIn(phrase, execution)
         self.assertNotIn("poll every", execution.casefold())
 
-    def test_messages_are_sparse_non_executable_and_have_no_ack_chain(self) -> None:
+    def test_messages_allow_one_coordinator_assignment_without_ack_chain(self) -> None:
         messaging = (SKILL / "references" / "messaging.md").read_text(encoding="utf-8")
-        for message_type in ("COLLISION", "DEPENDENCY", "RELEASED"):
+        for message_type in ("GOAL_ASSIGNMENT", "COLLISION", "DEPENDENCY", "RELEASED"):
             self.assertIn(message_type, messaging)
         self.assertIn("non-executable", messaging)
+        self.assertIn("only assignment exception", messaging)
+        self.assertIn("same Git common repository and primary checkout", messaging)
         self.assertIn("or acknowledgement messages", messaging)
         self.assertNotIn("STATUS", messaging)
 

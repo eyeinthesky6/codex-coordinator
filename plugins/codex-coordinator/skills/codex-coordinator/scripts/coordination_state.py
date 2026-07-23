@@ -30,6 +30,7 @@ MAX_PATHS = 32
 MAX_ACTIONS = 16
 MAX_DEPENDENCIES = 16
 CURRENT_VIEW_NAME = "CURRENT.md"
+LEGACY_ADVISORY_ACTIONS = frozenset({"git-integration"})
 
 PROJECT_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 THREAD_ID = re.compile(
@@ -58,10 +59,10 @@ class BoardError(RuntimeError):
 
 
 class ClaimConflict(BoardError):
-    """Raised when a proposed claim overlaps another active claim."""
+    """Raised when a proposed claim overlaps an exclusive active action."""
 
     def __init__(self, conflicts: list[dict[str, Any]]):
-        super().__init__("The requested boundary overlaps an active task claim")
+        super().__init__("The requested exclusive action overlaps an active task claim")
         self.conflicts = conflicts
 
 
@@ -333,8 +334,10 @@ def _path_overlap(left: str, right: str) -> bool:
     return left_parts[:common] == right_parts[:common]
 
 
-def _conflicts(candidate: dict[str, Any], records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    conflicts: list[dict[str, Any]] = []
+def _overlaps(
+    candidate: dict[str, Any], records: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    overlaps: list[dict[str, Any]] = []
     for record in records:
         if record["threadId"] == candidate["threadId"]:
             continue
@@ -350,15 +353,59 @@ def _conflicts(candidate: dict[str, Any], records: list[dict[str, Any]]) -> list
             set(candidate["actions"]).intersection(record["actions"])
         )
         if path_pairs or action_overlap:
-            conflicts.append(
+            overlaps.append(
                 {
                     "threadId": record["threadId"],
                     "title": record["title"],
                     "goal": record["goal"],
                     "pathOverlaps": [
-                        {"requested": left, "owned": right} for left, right in path_pairs
+                        {"requested": left, "owned": right}
+                        for left, right in path_pairs
                     ],
                     "actionOverlaps": action_overlap,
+                }
+            )
+    return overlaps
+
+
+def _warnings(
+    candidate: dict[str, Any], records: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Report possible shared-file work without turning task scope into a lock."""
+
+    warnings: list[dict[str, Any]] = []
+    for overlap in _overlaps(candidate, records):
+        advisory_actions = [
+            action
+            for action in overlap["actionOverlaps"]
+            if action in LEGACY_ADVISORY_ACTIONS
+        ]
+        if overlap["pathOverlaps"] or advisory_actions:
+            warnings.append(
+                {
+                    **overlap,
+                    "actionOverlaps": advisory_actions,
+                }
+            )
+    return warnings
+
+
+def _conflicts(candidate: dict[str, Any], records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return only conflicts that must have one active owner."""
+
+    conflicts: list[dict[str, Any]] = []
+    for overlap in _overlaps(candidate, records):
+        blocking_actions = [
+            action
+            for action in overlap["actionOverlaps"]
+            if action not in LEGACY_ADVISORY_ACTIONS
+        ]
+        if blocking_actions:
+            conflicts.append(
+                {
+                    **overlap,
+                    "pathOverlaps": [],
+                    "actionOverlaps": blocking_actions,
                 }
             )
     return conflicts
@@ -454,10 +501,6 @@ def _render_current_view(marker: dict[str, Any], records: list[dict[str, Any]]) 
     coordinators = [
         record for record in records if "goal-coordination" in record["actions"]
     ]
-    git_owners = [
-        record for record in records if "git-integration" in record["actions"]
-    ]
-
     lines = [
         "# Current coordinated work",
         "",
@@ -475,12 +518,6 @@ def _render_current_view(marker: dict[str, Any], records: list[dict[str, Any]]) 
                 f"Shared goal: {_markdown_cell(coordinator['goal'])}",
             )
         )
-    if git_owners:
-        git_owner = "; ".join(
-            f"`{record['threadId']}` — {_markdown_cell(record['title'])}"
-            for record in git_owners
-        )
-        lines.append(f"Git integration owner: {git_owner}")
     lines.extend(
         (
             "",
@@ -530,6 +567,7 @@ def list_board(project_root: Path) -> dict[str, Any]:
     marker = _load_marker(project_root)
     records = _active_records(marker)
     conflicts: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
     for record in records:
         conflicts.extend(
             {
@@ -538,6 +576,14 @@ def list_board(project_root: Path) -> dict[str, Any]:
             }
             for conflict in _conflicts(record, records)
             if record["threadId"] < conflict["threadId"]
+        )
+        warnings.extend(
+            {
+                "requestedBy": record["threadId"],
+                **warning,
+            }
+            for warning in _warnings(record, records)
+            if record["threadId"] < warning["threadId"]
         )
     return {
         "status": "ok" if not conflicts else "conflict",
@@ -548,6 +594,7 @@ def list_board(project_root: Path) -> dict[str, Any]:
         "hardLimit": HARD_ACTIVE_LIMIT,
         "records": records,
         "conflicts": conflicts,
+        "warnings": warnings,
     }
 
 
@@ -699,6 +746,7 @@ def _claim_boundary_locked(
         "projectId": marker["projectId"],
         "record": candidate,
         "activeCount": len(post_records),
+        "warnings": _warnings(candidate, post_records),
     }
 
 

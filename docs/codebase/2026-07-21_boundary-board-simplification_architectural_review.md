@@ -1,5 +1,7 @@
 # Boundary-board simplification architectural review
 
+> Current correction (2026-07-23): [the cooperative shared-checkout review](2026-07-23_cooperative-shared-checkout_architectural_review.md) keeps the small schema-2 board but supersedes hard path locks, durable `git-integration` ownership, and create-before-reuse behavior. Those mechanisms remain below as decision history and must not be read as the current operating contract.
+
 > **2026-07-22 lifecycle follow-up:** The schema-2 implementation correctly removed orchestration but left terminal claim release as guidance-only. The accepted bounded correction is documented in [the one-shot Stop guard review](2026-07-22_claim-lifecycle-stop-guard_architectural_review.md). It does not change the decision against an always-on/resident monitoring Coordinator, heartbeat, transcript inspection, or private Codex database access.
 
 > **2026-07-23 task-return correction:** A live trial proved only that native task completion does not automatically resume an idle creator. Contract 25 overcorrected by removing the useful Coordinator role. The accepted contract-26 direction restores one explicitly requested, goal-scoped Coordinator that assigns complete verticals on the shared checkout and is available on demand, without polling, heartbeat, or automatic fan-in. See [the corrected native-task return-boundary review](2026-07-22_native-task-return-boundary_architectural_review.md).

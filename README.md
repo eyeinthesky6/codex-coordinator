@@ -19,7 +19,7 @@ Native Codex remains responsible for task windows, messages, execution, status, 
 
 - its exact native task ID;
 - a short title and bounded goal;
-- repository-relative paths and exclusive actions it owns;
+- repository-relative paths where it plans to work and exact exclusive actions it owns;
 - real dependencies and current active or blocked status;
 - timestamps and a revision number.
 
@@ -44,16 +44,16 @@ The accepted rule is now: preserve the safety invariant, remove the always-on me
 | Keep | Remove from the core |
 |---|---|
 | Exact native task identity | Permanent Coordinator task |
-| Narrow path and exclusive-action ownership | Heartbeat and polling |
-| Case-insensitive ancestor overlap checks | Full-goal and per-turn ledgers |
+| Visible planned paths and narrow exclusive-action ownership | Heartbeat and polling |
+| Case-insensitive ancestor overlap warnings | Full-goal and per-turn ledgers |
 | One-task default, three-task normal cap, twelve-task hard cap | Automatic task-window creation |
 | Revision-safe, task-owned records | Status and acknowledgement chatter |
-| Sparse non-executable collision/dependency notices | Provider, schedule, PR, and release monitoring |
+| One bounded Coordinator assignment plus sparse peer notices | Provider, schedule, PR, and release monitoring |
 | Immediate user stop and exact external-write consent | Mandatory PR workflow |
 | Evidence-based stale-claim recovery | Doctor repair and project scanning |
 | Native Codex as transcript authority | Transcript or rollout mirroring |
 
-The complete history, capability-by-capability reasoning, failure modes, rollback plan, and retained protections are in the [boundary-board architectural review](docs/codebase/2026-07-21_boundary-board-simplification_architectural_review.md).
+The complete simplification history is in the [boundary-board architectural review](docs/codebase/2026-07-21_boundary-board-simplification_architectural_review.md). The later evidence that broad claims and one durable Git owner still stopped useful work, plus the cooperative correction, is in the [shared-checkout architectural review](docs/codebase/2026-07-23_cooperative-shared-checkout_architectural_review.md).
 
 ## When to use it
 
@@ -84,6 +84,8 @@ Coordinator is not a cross-machine project manager, workflow engine, scheduler, 
 
 Investigation, implementation, tests, docs, and follow-up fixes for one coherent goal normally stay in one native task. When the user explicitly asks for coordination, a goal-scoped Coordinator may assign two or three substantial verticals. Each vertical receives one complete goal covering its bounded investigation, implementation, focused tests, and documentation.
 
+Before it creates a task, the Coordinator looks for a suitable related local task in the same repository and checkout. It reuses that context with one bounded assignment when the task is not busy with unrelated work or waiting on a user decision. A new local task is the fallback, not the default.
+
 The normal maximum is three active durable tasks. More than three requires a direct user decision recorded on the new claim. Twelve is a hard board limit.
 
 The Coordinator claims the exclusive `goal-coordination` action. Its bounded claim goal is the shared goal. It stays available when the user invokes it again and ends when that goal ends; it does not poll, run a heartbeat, demand progress reports, or wake automatically when another task finishes. There is no automatic fan-in promise. Short dependent checks may still use parent-owned subagents.
@@ -92,17 +94,17 @@ Every coordinated task uses the same primary checkout, current worktree, and cur
 
 ### Claim before substantial writes
 
-Schema 2 keeps one JSON file per active task under `.codex/coordination/active/`. The state helper serializes writes with a tiny OS file lock, checks expected revisions, rejects overlapping paths or exclusive actions, and rechecks before returning.
+Schema 2 keeps one JSON file per active task under `.codex/coordination/active/`. The state helper serializes metadata writes with a tiny OS file lock, checks expected revisions, returns path overlap warnings, rejects only exact exclusive-action conflicts, and rechecks before returning.
 
 Tasks update only their own bounded claim at natural boundaries: start, real scope change, blocked-state change, and completion or stop. Claims are not progress diaries. Generated schema-2 `CURRENT.md` is a non-authoritative, active-only human view that is rebuilt from those claims after state mutations.
 
-Two paths overlap when they are equal or one is an ancestor of the other. Matching is case-insensitive. `.` means the whole repository and should be rare.
+Two paths overlap when they are equal or one is an ancestor of the other. Matching is case-insensitive. That overlap is visibility, not a task stop. Agents re-read shared files and pause only when the same hunk or writer command actually collides. `.` means the whole repository and should be rare.
 
-When more than one writer exists, exactly one task owns the `git-integration` action. All other tasks edit and test only their claimed areas; they do not stage, commit, push, switch branches, create worktrees, reset, restore, stash, rebase, merge, or clean. Pull requests are optional and remain repository or user policy.
+Coordinated tasks stay on one branch established before parallel work. There is no durable Git owner. Each task may commit only the exact files it reviewed: never broad-stage, never include foreign staged work, and never switch branches, rebase, clean, or force-push around other writers. Shared generated maps, schemas, lockfiles, and full gates have no durable owner; only their actual writer command is serialized. Pull requests are optional and remain repository or user policy.
 
 ### Keep communication sparse
 
-The board is the normal visibility path. A direct peer notice is limited to a real `COLLISION`, `DEPENDENCY`, or `RELEASED` event. It is non-executable: it cannot assign work, relay user authority, demand status, or create an acknowledgement chain.
+The board is the normal visibility path. A direct peer notice is limited to a real `COLLISION`, `DEPENDENCY`, or `RELEASED` event and is non-executable. The only assignment exception is one bounded `GOAL_ASSIGNMENT` from the exact active goal Coordinator to a suitable related task in the same repository. It grants no external or destructive authority and creates no acknowledgement chain.
 
 ### Finish cold
 
@@ -279,11 +281,11 @@ Start with one native task. If you explicitly ask it to coordinate, it can claim
 
 ### Does Codex Coordinator replace Git worktrees?
 
-No. Worktrees isolate files and Git history, but this coordination mode intentionally keeps all task windows in the same primary checkout and current branch so they share local settings and offline runners. The board records who owns each path or exclusive action.
+No. Worktrees isolate files and Git history, but this coordination mode intentionally keeps all tasks in the same primary checkout and current branch so they share local settings and offline runners. The board shows planned paths and truly exclusive actions without turning directories into locks.
 
 ### Do I need a pull request workflow?
 
-No. Direct commits and pushes remain the default for one integration owner. Use a PR only when you or repository policy want remote review or an immutable comparison.
+No. Direct commits and non-force pushes remain the default. Each task commits only its reviewed files on the shared branch. Use a PR only when you or repository policy want remote review or an immutable comparison.
 
 ### Does it store full chats or model reasoning?
 

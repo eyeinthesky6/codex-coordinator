@@ -71,7 +71,7 @@
     <header class="page-hero">
       <p class="kicker">Goal-scoped coordination, not background orchestration</p>
       <h1>Keep parallel Codex tasks <span>from crossing wires.</span></h1>
-      <p>Ask one Coordinator to assign two or three complete work lanes in your current checkout. Each task publishes only its active goal and ownership. No polling, extra worktrees, or transcript mirror.</p>
+      <p>Ask one Coordinator to reuse related local tasks before assigning two or three complete work lanes in your current checkout. Each task publishes only its active goal and planned boundary. No polling, extra worktrees, or transcript mirror.</p>
     </header>
 
     <section class="content-block" id="status">
@@ -87,9 +87,9 @@
         <table class="comparison">
           <thead><tr><th>Retained protection</th><th>Simplified mechanism</th></tr></thead>
           <tbody>
-            <tr><td>No duplicate planned writers</td><td>Per-task path and action claims with overlap checks</td></tr>
-            <tr><td>No task-window explosion</td><td>One task by default; two or three complete verticals when explicitly coordinated</td></tr>
-            <tr><td>No message loops</td><td>Board first; sparse non-executable collision notices</td></tr>
+            <tr><td>See possible shared-file work</td><td>Per-task paths produce warnings; exact singular actions remain locked</td></tr>
+            <tr><td>No task-window explosion</td><td>One task by default; reuse related local tasks before creating another</td></tr>
+            <tr><td>No message loops</td><td>One bounded Coordinator assignment; sparse non-executable peer notices</td></tr>
             <tr><td>No stale silent overwrite</td><td>Exact native identity, expected revisions, evidence-based recovery</td></tr>
             <tr><td>No transcript duplication</td><td>Native Codex remains the only transcript authority</td></tr>
           </tbody>
@@ -100,7 +100,7 @@
     <section class="content-block">
       <p class="section-label">What left the core</p>
       <h2>No always-on Coordinator, background monitor, or self-repair engine.</h2>
-      <p>A user-invoked Coordinator stays available for its goal and reads the active board when asked; it never polls workers. SessionStart launches nothing. Doctor is read-only. One task owns Git integration on the shared checkout, and pull requests remain optional.</p>
+      <p>A user-invoked Coordinator stays available for its goal and reads the active board when asked; it never polls workers. SessionStart launches nothing. Doctor is read-only. Tasks cooperatively commit reviewed exact files on the shared branch, and pull requests remain optional.</p>
     </section>
 
     <section class="content-block">

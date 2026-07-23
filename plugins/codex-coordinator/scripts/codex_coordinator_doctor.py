@@ -18,14 +18,15 @@ EXPECTED_CAPABILITIES = {
     "defaultExecution": "one-native-task",
     "nativeTaskAuthority": "execution-messaging-transcript",
     "claimOwnership": "per-task-json-record",
-    "claimConflictCheck": "repo-relative-path-and-exclusive-action",
+    "claimConflictCheck": "advisory-path-overlap-exclusive-action-only",
     "activeTaskLimit": "three-default-twelve-hard-user-override",
-    "taskCreation": "coordinator-two-or-three-complete-durable-verticals",
+    "taskCreation": "reuse-first-then-local-two-or-three-verticals",
+    "taskReuse": "related-local-task-before-create",
     "goalCoordinator": "user-invoked-goal-scoped-on-demand",
     "goalCoordinationAction": "goal-coordination",
     "taskPlacement": "shared-primary-checkout-current-branch",
     "dependentParallelism": "durable-verticals-or-parent-owned-subagents",
-    "messagePolicy": "sparse-non-executable-peer-notices",
+    "messagePolicy": "coordinator-one-shot-assignment-and-sparse-peer-notices",
     "transcriptStorage": "none",
     "currentView": "generated-active-only-non-authoritative",
     "automaticFanIn": "none",
@@ -37,7 +38,7 @@ EXPECTED_CAPABILITIES = {
     "staleClaimRecovery": "native-terminal-evidence",
     "stateTool": "scripts/coordination_state.py",
     "archivePolicy": "cold-compact-receipts",
-    "gitWorkflow": "single-git-integration-owner-shared-checkout",
+    "gitWorkflow": "cooperative-exact-file-commits-shared-branch",
 }
 
 
@@ -217,7 +218,7 @@ def check_package(plugin_root: Path) -> dict[str, Any]:
         capabilities = _json_object(
             root / "skills" / "codex-coordinator" / "capabilities.json"
         )
-        if capabilities.get("contractVersion") != 26:
+        if capabilities.get("contractVersion") != 27:
             raise CheckError("capability contract version must be 26")
         if capabilities.get("capabilities") != EXPECTED_CAPABILITIES:
             raise CheckError("capability contract fields do not match version 26")

@@ -198,7 +198,7 @@ class ClaimLifecycleMachine(RuleBasedStateMachine):
         free_selector=st.integers(min_value=0, max_value=2),
         token=TOKEN,
     )
-    def overlapping_claim_cannot_change_board_or_view(
+    def overlap_is_advisory_unless_the_action_is_exclusive(
         self, active_selector: int, free_selector: int, token: str
     ) -> None:
         active_indices = sorted(self.active)
@@ -208,14 +208,14 @@ class ClaimLifecycleMachine(RuleBasedStateMachine):
         owner = self.active[owner_index]
         paths = list(owner["paths"])
         actions = [] if paths else [str(owner["actions"][0])]
-        board_before = state.list_board(self.root)
-        current_before = self.current.read_bytes()
+        title = f"Overlapping lane {token}"
+        goal = f"Overlapping vertical {token}"
         try:
-            state.claim_boundary(
+            result = state.claim_boundary(
                 self.root,
                 thread_id=THREADS[candidate_index],
-                title=f"Conflicting lane {token}",
-                goal=f"Conflicting vertical {token}",
+                title=title,
+                goal=goal,
                 paths=paths,
                 actions=actions,
                 blocked_by=[],
@@ -224,11 +224,21 @@ class ClaimLifecycleMachine(RuleBasedStateMachine):
                 user_approved_over_limit=False,
             )
         except state.ClaimConflict:
-            pass
+            assert not paths
+            assert actions == ["goal-coordination"]
         else:
-            raise AssertionError("an overlapping claim was accepted")
-        assert state.list_board(self.root) == board_before
-        assert self.current.read_bytes() == current_before
+            assert paths
+            assert result["warnings"]
+            record = result["record"]
+            self.active[candidate_index] = {
+                "revision": record["revision"],
+                "title": title,
+                "goal": goal,
+                "paths": paths,
+                "actions": actions,
+                "status": "active",
+            }
+            self.current_generated = True
 
     @precondition(lambda self: bool(self.active))
     @rule(selector=st.integers(min_value=0, max_value=2), token=TOKEN)
@@ -315,14 +325,19 @@ class ClaimLifecycleMachine(RuleBasedStateMachine):
                 assert THREADS[index] not in current
         for private_field in ("createdAt", "updatedAt", "revision", "closedAt"):
             assert private_field not in current
-        if 0 in self.active:
+        coordinator_indices = [
+            index
+            for index, expected in self.active.items()
+            if "goal-coordination" in expected["actions"]
+        ]
+        if coordinator_indices:
+            assert len(coordinator_indices) == 1
             assert current.count("Coordinator:") == 1
             assert current.count("Shared goal:") == 1
-            assert current.count("Git integration owner:") == 1
         else:
             assert "Coordinator:" not in current
             assert "Shared goal:" not in current
-            assert "Git integration owner:" not in current
+        assert "Git integration owner:" not in current
 
 
 TestClaimLifecycleProperties = ClaimLifecycleMachine.TestCase
