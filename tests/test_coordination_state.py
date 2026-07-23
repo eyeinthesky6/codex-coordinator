@@ -291,7 +291,10 @@ class CoordinationStateTests(unittest.TestCase):
                 active.symlink_to(external, target_is_directory=True)
             except OSError:
                 self.skipTest("directory symlinks are unavailable")
-            with self.assertRaisesRegex(state.BoardError, "symlink or junction"):
+            with self.assertRaisesRegex(
+                state.BoardError,
+                "symlink or junction|escapes the coordination root",
+            ):
                 state.list_board(root)
 
     def test_invalid_identity_and_paths_fail_before_write(self) -> None:
