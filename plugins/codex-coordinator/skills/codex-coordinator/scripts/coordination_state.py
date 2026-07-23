@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Read and update the local Codex task-boundary board.
 
-The board stores one small JSON claim per active Codex task. It never reads or
-stores task transcripts, prompts, reasoning, tool output, or full-turn logs.
+The board stores one small JSON claim per active Codex task and generates a
+human-readable active view from those claims. It never reads or stores task
+transcripts, prompts, reasoning, tool output, or full-turn logs.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ MAX_RECORD_BYTES = 4096
 MAX_PATHS = 32
 MAX_ACTIONS = 16
 MAX_DEPENDENCIES = 16
+CURRENT_VIEW_NAME = "CURRENT.md"
 
 PROJECT_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 THREAD_ID = re.compile(
@@ -434,6 +436,96 @@ def _encode(value: dict[str, Any]) -> bytes:
     return payload
 
 
+def _markdown_cell(value: str) -> str:
+    """Keep validated claim text inert inside the generated Markdown table."""
+
+    return (
+        value.replace("\\", "\\\\")
+        .replace("|", "\\|")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def _render_current_view(marker: dict[str, Any], records: list[dict[str, Any]]) -> bytes:
+    """Render the small human view from canonical active claims only."""
+
+    coordinators = [
+        record for record in records if "goal-coordination" in record["actions"]
+    ]
+    git_owners = [
+        record for record in records if "git-integration" in record["actions"]
+    ]
+
+    lines = [
+        "# Current coordinated work",
+        "",
+        "> Generated active-only view. Schema-2 JSON claims in `active/` are canonical.",
+        "",
+        f"Project: `{marker['projectId']}`",
+        f"Active lanes: {len(records)}",
+    ]
+    if len(coordinators) == 1:
+        coordinator = coordinators[0]
+        lines.extend(
+            (
+                "Coordinator: "
+                f"`{coordinator['threadId']}` — {_markdown_cell(coordinator['title'])}",
+                f"Shared goal: {_markdown_cell(coordinator['goal'])}",
+            )
+        )
+    if git_owners:
+        git_owner = "; ".join(
+            f"`{record['threadId']}` — {_markdown_cell(record['title'])}"
+            for record in git_owners
+        )
+        lines.append(f"Git integration owner: {git_owner}")
+    lines.extend(
+        (
+            "",
+            "| Task | Goal | Owns | Status | Depends on |",
+            "| --- | --- | --- | --- | --- |",
+        )
+    )
+    for record in records:
+        task = f"{_markdown_cell(record['title'])} (`{record['threadId']}`)"
+        ownership = [f"path: {path}" for path in record["paths"]]
+        ownership.extend(f"action: {action}" for action in record["actions"])
+        dependencies = record["blockedBy"] or ["—"]
+        lines.append(
+            "| "
+            + " | ".join(
+                (
+                    task,
+                    _markdown_cell(record["goal"]),
+                    _markdown_cell(", ".join(ownership)),
+                    record["status"],
+                    _markdown_cell(", ".join(dependencies)),
+                )
+            )
+            + " |"
+        )
+    if not records:
+        lines.append("| — | — | — | — | — |")
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def _refresh_current_view(
+    marker: dict[str, Any], records: list[dict[str, Any]]
+) -> bool:
+    """Best-effort refresh; a derived view can never veto canonical state."""
+
+    try:
+        _atomic_write(
+            marker["coordinationRoot"] / CURRENT_VIEW_NAME,
+            _render_current_view(marker, records),
+        )
+    except (BoardError, OSError, UnicodeError):
+        return False
+    return True
+
+
 def list_board(project_root: Path) -> dict[str, Any]:
     marker = _load_marker(project_root)
     records = _active_records(marker)
@@ -600,6 +692,8 @@ def _claim_boundary_locked(
                 pass
         raise
 
+    _refresh_current_view(marker, post_records)
+
     return {
         "status": "claimed" if existing is None else "updated",
         "projectId": marker["projectId"],
@@ -666,20 +760,35 @@ def _release_boundary_locked(
     if _is_linklike(archive_root):
         raise BoardError("The archive path must not be a symlink or junction")
     stamp = closed_at.replace(":", "").replace("-", "")
-    archive_path = archive_root / f"{thread_id}-{stamp}.json"
     payload = _encode(receipt)
+    archive_path: Path | None = None
     try:
-        with archive_path.open("xb") as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
+        for ordinal in range(10_000):
+            suffix = "" if ordinal == 0 else f"-{ordinal}"
+            candidate = archive_root / f"{thread_id}-{stamp}{suffix}.json"
+            try:
+                with candidate.open("xb") as stream:
+                    stream.write(payload)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                archive_path = candidate
+                break
+            except FileExistsError:
+                continue
+        if archive_path is None:
+            raise OSError("Cannot allocate a unique compact receipt name")
         (marker["activeRoot"] / f"{thread_id}.json").unlink()
     except OSError as error:
         try:
-            archive_path.unlink(missing_ok=True)
+            if archive_path is not None:
+                archive_path.unlink(missing_ok=True)
         except OSError:
             pass
         raise BoardError(f"Cannot release claim safely: {error}") from error
+    _refresh_current_view(
+        marker,
+        [item for item in records if item["threadId"] != thread_id],
+    )
     return {
         "status": "released",
         "projectId": marker["projectId"],

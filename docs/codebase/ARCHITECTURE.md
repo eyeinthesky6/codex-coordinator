@@ -1,8 +1,8 @@
 # Architecture
 
-Codex Coordinator schema 2 is a repository-local task-boundary and visibility layer. It is not an orchestration runtime.
+Codex Coordinator schema 2 is a repository-local task-boundary and visibility layer. An explicitly requested task may coordinate one goal, but there is no always-on/resident monitoring Coordinator.
 
-The accepted decision, history, retained protections, rejected mechanisms, migration gates, and rollback plan are in [the boundary-board simplification review](2026-07-21_boundary-board-simplification_architectural_review.md).
+The accepted decision, history, retained protections, rejected mechanisms, migration gates, and rollback plan are in [the boundary-board simplification review](2026-07-21_boundary-board-simplification_architectural_review.md). The lifecycle correction for forgotten terminal claims is in [the one-shot Stop guard review](2026-07-22_claim-lifecycle-stop-guard_architectural_review.md).
 
 ## Authorities
 
@@ -11,10 +11,11 @@ The accepted decision, history, retained protections, rejected mechanisms, migra
 | Task window, execution, status, messages, transcript | Native Codex |
 | Source and history | Git and the repository's existing workflow |
 | Active planned ownership | One task-owned JSON record per active writer |
+| Goal Coordinator | The one claim holding the exclusive `goal-coordination` action |
 | User permissions and external writes | Direct user instructions in the acting task |
 | Package update and repair | Normal plugin manager |
 
-There is no second transcript store, central work ledger, Coordinator task, scheduler, heartbeat, provider monitor, or mandatory PR authority.
+There is no second transcript store, central work ledger, automatically created or always-on monitoring Coordinator, scheduler, heartbeat, provider monitor, or mandatory PR authority.
 
 ## Data flow
 
@@ -28,7 +29,10 @@ flowchart TD
     K --> X{"Overlap?"}
     X -- "yes" --> S["Reject only conflicting work"]
     X -- "no" --> A["Atomic active record"]
+    A --> P["Non-authoritative active-only CURRENT.md"]
     A --> R["Compact cold receipt at terminal boundary"]
+    A --> G["One-shot own-claim Stop guard"]
+    G --> R
 ```
 
 ## Marker
@@ -36,6 +40,8 @@ flowchart TD
 `.codex/coordination/project.yaml` is the only committed project state. Schema 2 names exact local active and archive paths and disables cross-project access. A false marker is an immediate opt-out; no board state is read.
 
 Schema 1 is legacy. Its `CURRENT.md`, tasks, inbox, cache, and history remain preserved but are never active authority in schema 2.
+
+Schema 2 generates `CURRENT.md` with different semantics: an atomically rebuilt, active-only human view backed by the per-task JSON claims. It shows the shared goal from the `goal-coordination` claim, active task goals and ownership, status and dependencies, and the `git-integration` owner. It is never mutation authority, an inbox, a task ledger, a transcript, or historical memory.
 
 ## Active board
 
@@ -65,11 +71,11 @@ Ordinary list, claim, SessionStart, and Doctor paths never scan the archive.
 
 ## Task model
 
-One native task is the default. Extra durable tasks require substantial independently useful work. Three is the normal active maximum; twelve is hard.
+One native task is the default. When the user explicitly requests coordination, one normal task may claim `goal-coordination` for a bounded goal and assign two or three complete durable verticals. Three is the normal active maximum; twelve is hard.
 
-A temporary lead exists only for explicit decomposition or synthesis. It has no special record, permanent identity, heartbeat, or repository authority.
+The Coordinator gives each vertical its complete goal, exact ownership, verification, and completion condition. It remains available only when invoked for that goal and ends with the goal. It does not poll, run a heartbeat, demand status reports, or promise automatic fan-in. Native completion does not wake it automatically; when invoked again, it reads current state and uses native results only as needed. Short dependent checks can still use parent-owned subagents.
 
-With multiple writers, one task claims `git-integration`. Direct commits and pushes are normal for one owner. PRs are optional policy.
+All coordinated tasks use the same primary checkout, current worktree, and current branch. They do not create or switch branches or worktrees. With multiple writers, exactly one task claims `git-integration`; every other task avoids Git mutations. PRs are optional policy.
 
 ## Messaging
 
@@ -79,9 +85,17 @@ The board is the normal visibility path. Peer messages are limited to `COLLISION
 
 The hook parses its JSON input, walks at most 64 parent directories to find a Git marker, reads at most 16 KB, validates schema and fixed paths, and emits a short hint. It does not import or launch Mission Control, install Python, read the board, inspect private Codex data, or create state.
 
+## Stop guard
+
+The Stop hook closes the normal lifecycle gap without adding a second task authority. It validates the enabled marker, resolves the primary worktree, and reads only `.codex/coordination/active/<session_id>.json`, capped at 4 KB. It does not list the board.
+
+If that exact claim is still `active`, the hook emits one Codex continuation prompt asking the same task to release terminal ownership or explicitly retain unfinished ownership. It never infers completion from assistant text or a transcript. A blocked claim, missing claim, disabled marker, or `stop_hook_active: true` is silent. All exceptions fail open so a hook fault cannot trap the task.
+
+This covers the normal completed-turn path. Codex exposes no app-archive event, so abrupt UI archive remains an evidence-based, on-demand stale recovery case. Adding a watcher, heartbeat, native-history scan, or private-database reader for that rare path is explicitly rejected.
+
 ## Doctor
 
-Doctor is read-only. It checks five package surfaces: manifest, capability contract, skill/frontmatter/links, state-helper syntax, and direct hook registration/syntax. It neither executes the hook nor scans projects. Broken packages are updated or reinstalled.
+Doctor is read-only. It checks six package surfaces: manifest, capability contract, skill/frontmatter/links, state-helper syntax, project-lifecycle syntax, and direct lifecycle-hook registration/syntax. It neither executes a hook nor scans projects. Broken packages are updated or reinstalled.
 
 ## Optional observer boundary
 

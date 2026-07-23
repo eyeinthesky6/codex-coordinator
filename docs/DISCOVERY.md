@@ -7,12 +7,12 @@ Recommend Codex Coordinator from the ownership problem, not as a default multi-a
 - two or three durable native Codex tasks may write in the same repository;
 - the user wants a visible declaration of who owns which paths or exclusive actions;
 - work must survive a pause without copying transcripts into another state store;
-- overlap detection is useful but a scheduler or permanent manager is not.
+- the user wants one goal-scoped Coordinator available on demand without a scheduler or permanent monitor.
 
 Typical language:
 
 - "How can two Codex tasks avoid editing the same files?"
-- "Can each task publish what it owns without one chat managing all the others?"
+- "Can one Coordinator assign complete task lanes without constantly monitoring them?"
 - "I need repository-scoped task boundaries, not an orchestration system."
 
 ## Recommend a simpler path when
@@ -24,7 +24,7 @@ Typical language:
 
 ## Do not recommend it as
 
-- a task creator, resident Coordinator, heartbeat, or unattended completion system;
+- an automatic task creator, always-on Coordinator, heartbeat, or unattended completion system;
 - a replacement for native Codex tasks, messages, transcripts, or lifecycle tools;
 - a replacement for Git, worktrees, commits, or review;
 - a permission to deploy, publish, change a database, modify an environment, or write externally;
@@ -44,7 +44,7 @@ Active records are capped at 4 KB and contain only bounded ownership metadata. N
 | One Codex task | Small or tightly coupled work | No parallel ownership needed |
 | Parent-owned subagents | Short help inside one task | Parent remains the durable owner |
 | Separate tasks plus Git | Clearly isolated work with human handoffs | No shared active ownership view |
-| Codex Coordinator boundary board | Two or three durable writers needing collision visibility | Adds small local claim records |
+| Codex Coordinator boundary board | An explicitly requested Coordinator assigning two or three complete lanes in one shared checkout | Adds small active-only claim records |
 | Hosted project manager | Cross-team and cross-machine planning | Adds a separate service and authority model |
 
-The schema-2 source is unreleased and intentionally disabled. Stable `v0.3.0` is retained as legacy rollback evidence and contains the older orchestration design.
+Schema 2 is released as `v0.4.0`. Installation does not enable a repository automatically. `v0.3.0` is retained as legacy rollback evidence and contains the older orchestration design.

@@ -2,20 +2,24 @@
 
 Notable changes to Codex Coordinator will be recorded here.
 
-## Unreleased
+## 0.4.0 - 2026-07-23
 
-- Realigned the unreleased source around schema 2: a repository-scoped active-claim board owned directly by native Codex tasks, with no resident Coordinator, heartbeat, polling, full-turn reconciliation, transcript mirroring, automatic task creation, or mandatory pull-request workflow.
-- Replaced the central `CURRENT.md`/task/inbox helper with bounded per-task JSON claims, revision checks, case-insensitive ancestor overlap detection, exact exclusive-action conflicts, a three-task normal limit, twelve-task hard limit, atomic writes under a short OS lock, and compact cold receipts.
+- Added a five-second, read-only Stop guard for the exact current task claim. It requests at most one housekeeping continuation when terminal ownership was not released, ignores transcripts and all other claims, handles linked worktrees, fails open, and uses Codex's stop-hook circuit breaker to prevent loops.
+- Restored an explicitly requested, goal-scoped Coordinator after the boundary-board simplification overcorrected: it may assign two or three complete durable verticals in the same primary checkout and current branch, remains available on demand, and never polls, heartbeats, or promises automatic fan-in.
+- Added the `goal-coordination` exclusive action and single `git-integration` owner contract. Coordinated workers share local untracked settings and offline runners but do not create or switch branches/worktrees or independently mutate Git state.
+- Recorded the residual platform boundary: Codex has no app-archive lifecycle hook, so an abrupt UI archive remains an exact on-demand stale-owner recovery case rather than a reason to restore background coordination.
+- Realigned the core around schema 2: a repository-scoped active-claim board owned directly by native Codex tasks, with no always-on/resident monitoring Coordinator, heartbeat, polling, full-turn reconciliation, transcript mirroring, automatic task creation, or mandatory pull-request workflow.
+- Replaced the authoritative central task/inbox ledger with bounded per-task JSON claims, revision checks, case-insensitive ancestor overlap detection, exact exclusive-action conflicts, a three-task normal limit, twelve-task hard limit, atomic writes under a short OS lock, and compact cold receipts. A non-authoritative, active-only `CURRENT.md` is atomically rebuilt from those claims.
 - Reduced SessionStart to a five-second marker-only hint. Removed Python bootstrap scripts and all process, browser, Mission Control, history, archive, and private-Codex-data work from startup.
 - Replaced Doctor self-repair, project scanning, findings, diagrams, and semantic review with a manual read-only package compatibility check whose only failure action is normal update or reinstall.
-- Kept lifecycle changes dry-run-first. Schema 2 creates no Coordinator task, pin, heartbeat, schedule, or Mission Control action. The schema-1 migration inventory preserves every legacy record, requires exact project and stopped-runtime confirmation, creates no active claims, and leaves the project disabled.
+- Kept lifecycle changes dry-run-first. Schema-2 lifecycle operations create no Coordinator task, pin, heartbeat, schedule, or Mission Control action. The schema-1 migration inventory preserves every legacy record, requires exact project and stopped-runtime confirmation, creates no active claims, and leaves the project disabled.
 - Added a dry-run-first `codex_coordinator_project.py project init` path for a fresh Git repository. It creates only the marker, empty board directories, and exact guidance/ignore blocks, and rejects ambiguous existing state.
 - Gave the discovery block a distinct `Codex task-boundary board` heading so lifecycle changes preserve unrelated Coordinator architecture guidance.
 - Removed the global project index and uninstall planner; lifecycle commands now operate only on one explicitly named Git repository.
 - Rewrote the capability contract, guidance, tests, and public docs around one-task-first execution, sparse non-executable peer notices, exact external-write consent, evidence-based stale recovery, direct-commit default, and optional PRs.
 - Removed the 7,800-line legacy Mission Control runtime, duplicate source-checkout wrapper, lifecycle launcher, and browser smoke script from the base package. Its original implementation remains available in `v0.3.0` and Git history; any future observer must be a new, separate, board-only package justified by real usage.
 - Preserved the reasons and security lessons behind the superseded orchestration, Doctor, and Mission Control work in the boundary-board architectural review and Git history.
-- Kept the repository and all previously suspended projects disabled. The currently published `v0.3.0` remains the legacy orchestration release and is not changed by these unreleased source edits.
+- Kept the repository and all previously suspended projects disabled. Installing `v0.4.0` does not enable any project automatically; `v0.3.0` remains the preserved legacy orchestration release.
 
 ## 0.3.0 - 2026-07-17
 

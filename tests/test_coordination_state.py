@@ -7,6 +7,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -105,6 +106,117 @@ class CoordinationStateTests(unittest.TestCase):
             self.assertEqual(updated["status"], "updated")
             self.assertEqual(updated["record"]["revision"], 2)
             self.assertEqual(updated["record"]["paths"], ["src/b"])
+
+    def test_current_view_tracks_create_update_and_release(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            current = root / ".codex" / "coordination" / "CURRENT.md"
+
+            _claim(
+                root,
+                0,
+                "src/a",
+                actions=["goal-coordination", "git-integration"],
+            )
+            created = current.read_text(encoding="utf-8")
+            self.assertIn("Generated active-only view", created)
+            self.assertIn(THREADS[0], created)
+            self.assertIn("Coordinator:", created)
+            self.assertIn("Shared goal: Own bounded area 0", created)
+            self.assertIn("path: src/a", created)
+            self.assertIn("Git integration owner:", created)
+
+            current.write_text("corrupt stale view\n", encoding="utf-8")
+            _claim(
+                root,
+                0,
+                "src/b",
+                expected_revision=1,
+                title="Updated lane",
+                goal="Updated bounded goal",
+                status="blocked",
+                actions=["goal-coordination", "git-integration"],
+            )
+            updated = current.read_text(encoding="utf-8")
+            self.assertNotIn("corrupt stale view", updated)
+            self.assertNotIn("Own bounded area 0", updated)
+            self.assertNotIn("path: src/a", updated)
+            self.assertIn("Updated lane", updated)
+            self.assertIn("Updated bounded goal", updated)
+            self.assertIn("path: src/b", updated)
+            self.assertIn("blocked", updated)
+
+            current.unlink()
+            state.release_boundary(
+                root,
+                thread_id=THREADS[0],
+                expected_revision=2,
+                final_status="completed",
+            )
+            released = current.read_text(encoding="utf-8")
+            self.assertIn("Active lanes: 0", released)
+            self.assertNotIn(THREADS[0], released)
+            self.assertNotIn("Updated lane", released)
+            self.assertNotIn("Updated bounded goal", released)
+
+    def test_current_view_never_reads_private_or_historical_files(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            coordination = root / ".codex" / "coordination"
+            archive = coordination / "archive"
+            archive.mkdir()
+            (coordination / "private.jsonl").write_text(
+                "PRIVATE_TRANSCRIPT_SENTINEL", encoding="utf-8"
+            )
+            (archive / "old.json").write_text(
+                json.dumps({"goal": "ARCHIVED_HISTORY_SENTINEL"}), encoding="utf-8"
+            )
+
+            _claim(root, 0, "src/a")
+            current = (coordination / "CURRENT.md").read_text(encoding="utf-8")
+            self.assertNotIn("PRIVATE_TRANSCRIPT_SENTINEL", current)
+            self.assertNotIn("ARCHIVED_HISTORY_SENTINEL", current)
+            self.assertNotIn("Coordinator:", current)
+            self.assertNotIn("Shared goal:", current)
+            for private_field in ("createdAt", "updatedAt", "revision", "closedAt"):
+                self.assertNotIn(private_field, current)
+
+    def test_repeated_release_in_one_second_uses_unique_receipts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            state, "_now", return_value="2026-07-23T04:42:08Z"
+        ):
+            root = _project(directory)
+            for cycle in range(2):
+                _claim(root, 0, f"src/cycle-{cycle}")
+                released = state.release_boundary(
+                    root,
+                    thread_id=THREADS[0],
+                    expected_revision=1,
+                    final_status="completed",
+                )
+                self.assertEqual(released["status"], "released")
+            receipts = list(
+                (root / ".codex" / "coordination" / "archive").glob("*.json")
+            )
+            self.assertEqual(len(receipts), 2)
+            self.assertNotEqual(receipts[0].name, receipts[1].name)
+
+    def test_broken_current_view_never_blocks_canonical_claims(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            current = root / ".codex" / "coordination" / "CURRENT.md"
+            current.mkdir()
+
+            claimed = _claim(root, 0, "src/a")
+            self.assertEqual(claimed["status"], "claimed")
+            self.assertEqual(state.list_board(root)["activeCount"], 1)
+            self.assertTrue(current.is_dir())
+
+            current.rmdir()
+            _claim(root, 0, "src/b", expected_revision=1)
+            rebuilt = current.read_text(encoding="utf-8")
+            self.assertIn("path: src/b", rebuilt)
+            self.assertNotIn("path: src/a", rebuilt)
 
     def test_disjoint_claims_proceed_without_messages_or_central_owner(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -241,9 +353,10 @@ class CoordinationStateTests(unittest.TestCase):
 
     def test_source_contains_no_ledger_inbox_or_transcript_reader(self) -> None:
         source = STATE_TOOL.read_text(encoding="utf-8")
-        for forbidden in ("CURRENT.md", "scan_inbox", "rollout", "sqlite", "transcript"):
+        self.assertIn('CURRENT_VIEW_NAME = "CURRENT.md"', source)
+        for forbidden in ("scan_inbox", "rollout", "sqlite", "transcript"):
             if forbidden == "transcript":
-                self.assertIn("never reads or\nstores task transcripts", source)
+                self.assertIn("never reads or stores task\ntranscripts", source)
             else:
                 self.assertNotIn(forbidden, source)
 

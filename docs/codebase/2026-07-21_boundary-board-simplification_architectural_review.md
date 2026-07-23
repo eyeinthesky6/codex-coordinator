@@ -1,5 +1,9 @@
 # Boundary-board simplification architectural review
 
+> **2026-07-22 lifecycle follow-up:** The schema-2 implementation correctly removed orchestration but left terminal claim release as guidance-only. The accepted bounded correction is documented in [the one-shot Stop guard review](2026-07-22_claim-lifecycle-stop-guard_architectural_review.md). It does not change the decision against an always-on/resident monitoring Coordinator, heartbeat, transcript inspection, or private Codex database access.
+
+> **2026-07-23 task-return correction:** A live trial proved only that native task completion does not automatically resume an idle creator. Contract 25 overcorrected by removing the useful Coordinator role. The accepted contract-26 direction restores one explicitly requested, goal-scoped Coordinator that assigns complete verticals on the shared checkout and is available on demand, without polling, heartbeat, or automatic fan-in. See [the corrected native-task return-boundary review](2026-07-22_native-task-return-boundary_architectural_review.md).
+
 - **Date:** 2026-07-21
 - **Decision status:** Accepted product direction
 - **Implementation status:** Schema-2 core and dry-run migration implemented and validated in source; legacy observer removed from the base package; release and real-project migration remain open
@@ -16,7 +20,7 @@ It covers:
 - the original package shape and the current package shape;
 - every capability-contract addition, why it was introduced, the benefit it sought, and its resulting cost;
 - which protections must survive the simplification;
-- a target architecture with no resident Coordinator task;
+- a target architecture with no always-on/resident monitoring Coordinator;
 - failure modes that could appear if the simplification is implemented too aggressively;
 - Doctor and Mission Control placement;
 - a staged migration, validation, and rollback plan.
@@ -27,7 +31,7 @@ The first checkpoint recorded only the decision and repository opt-out. The curr
 
 Codex Coordinator should become a repository-scoped **task boundary and visibility layer**.
 
-The default product should have no resident Coordinator task, no persistent heartbeat, no all-task monitoring loop, and no requirement for one task to reconcile every other task. Native Codex tasks remain the execution and transcript authority. Coordinator records only the minimum active metadata needed to answer:
+The default product should have no always-on/resident monitoring Coordinator, no persistent heartbeat, no all-task monitoring loop, and no requirement for one task to reconcile every other task. Native Codex tasks remain the execution and transcript authority. An explicitly requested Coordinator remains available on demand for its bounded goal. Coordinator records only the minimum active metadata needed to answer:
 
 1. Which task owns this work?
 2. What is that task's bounded goal?
@@ -35,7 +39,7 @@ The default product should have no resident Coordinator task, no persistent hear
 4. Is another task blocked on it?
 5. Has the task completed, stopped, or released its claim?
 
-A temporary lead role may exist only when the user explicitly requests decomposition, coordinated delivery, or a consolidated result. It is goal-scoped and ends with that goal. It is not a permanent repository task and does not turn repository enablement into continuous management.
+One native task remains the default. When the user explicitly requests coordination, one normal, goal-scoped task claims `goal-coordination`, assigns two or three complete durable verticals in the same primary checkout and current branch, and remains available when the user invokes it again. It does not poll or promise automatic fan-in. Parent-owned subagents remain available for short dependent checks.
 
 Mission Control becomes a separately optional, manually started observer. Doctor becomes a small manual compatibility check whose failure action is to reinstall or update the plugin. Automatic installed-file repair, scheduled project scanning, semantic review, and Doctor findings leave the core.
 
@@ -111,9 +115,9 @@ Examples:
 | Required invariant | Current mechanism | Simplified mechanism |
 |---|---|---|
 | No two planned owners for the same scope | One Coordinator owns all assignments and canonical reconciliation | Each task publishes its own bounded active claim; another task checks the board before writing |
-| No task explosion | Coordinator classifies, creates, inventories, and archives workers | Default one task; additional durable tasks require explicit user decomposition or independently useful parallel work |
+| No task explosion | Coordinator classifies, creates, inventories, and archives workers | Default one task; an explicit goal Coordinator assigns only two or three complete durable verticals |
 | No message explosion | Coordinator mediates messages and processes inbox ledgers | Direct, sparse, non-executable dependency/collision notices; no acknowledgement or status chatter |
-| No lost goal work | Per-turn full ledger plus heartbeat return path | Each task owns its own outcome; a temporary lead consolidates only when explicitly requested |
+| No lost goal work | Per-turn full ledger plus heartbeat return path | Complete vertical assignments plus bounded active claims; the Coordinator integrates only when invoked again and makes no automatic-wake promise |
 | No stale installed behavior | Capability contract plus Doctor atomic self-repair | Small compatibility/version check; on failure, report “plugin is broken or outdated—reinstall/update it” |
 | No private transcript duplication | Host cursor and no-mirror rules | Native Codex remains the only transcript owner; the board never reads or stores transcript bodies |
 | No silent external writes | Coordinator consent and provider reconciliation | Every task retains advance disclosure and exact user authority for external writes |
@@ -215,7 +219,7 @@ The initial release had no `capabilities.json`.
 | Capability | Reason and benefit | Effect/cost | Target |
 |---|---|---|---|
 | `workerCreation` | Replace empty holding turns and second assignment messages with the real job in the first prompt | Less chatter and faster useful work | Retain when the user explicitly creates/decomposes work |
-| `coordinatorRole` | Keep a lead control-first rather than having it also edit ordinary product files | Clear ownership separation | Demote to an optional temporary lead role |
+| `coordinatorRole` | Keep a lead control-first rather than having it also edit ordinary product files | Clear ownership separation | Retain only as an explicitly requested, goal-scoped, on-demand Coordinator under `goal-coordination` |
 | `monitoring` | Keep an unfinished delegated goal from being forgotten after the lead's turn ends | A temporary heartbeat appeared useful for unattended goals | Remove from the default product; allow only explicit native monitoring outside the boundary board |
 | `modelDefault` | Respect the user's configured model | Avoids hard-coded model drift | Keep as host behavior, not a core coordination capability |
 | `reasoningDefault` | Avoid silently inheriting expensive reasoning settings | Cost control | Keep as general task-generation guidance only if task creation remains |
@@ -228,7 +232,7 @@ The initial release had no `capabilities.json`.
 | Capability | Reason and benefit | Effect/cost | Target |
 |---|---|---|---|
 | `archivedRecovery` | Let an original user request recover an unusable owner without a ritual second approval | Prevented stale ownership deadlocks | Retain as on-demand stale-claim recovery |
-| `continuationGuarantee` | Require evidence that unfinished work would be revisited | Prevented false “I will monitor” promises | Remove the guarantee and heartbeat; a temporary lead must state honestly when it will not continue automatically |
+| `continuationGuarantee` | Require evidence that unfinished work would be revisited | Prevented false “I will monitor” promises | Remove automatic wake and monitoring promises; the goal Coordinator is available only when invoked again |
 | `coordinationReadCache` | Avoid repeatedly rereading immutable inbox records | Reduced some repeated file reads | Remove with the central inbox reconciliation loop |
 | `doctorDiagnostics` | Produce deterministic JSON and optional Mermaid evidence for installation drift | Better troubleshooting | Replace with a small check and reinstall/update instruction |
 | `microtaskExecution` | Keep tests, lookups, and low-risk small fixes in the current task or a parent-owned subagent | Prevented visible task explosion | Retain |
@@ -329,13 +333,14 @@ flowchart LR
     notify --> decision["Owner or user resolves the boundary"]
     decision --> work
 
-    lead["Optional temporary lead, only by explicit request"] -. "creates or consolidates bounded work" .-> task
+    coordinator["Explicit goal Coordinator"] -. "assigns complete verticals and returns on demand" .-> task
+    subagents["Optional parent-owned subagents"] -. "return short checks to same task" .-> work
     observer["Optional manual Mission Control"] -. "reads board only" .-> check
 
     classDef native fill:#102b3a,stroke:#56d6d2,color:#ffffff;
     classDef board fill:#17152f,stroke:#8b7cf6,color:#ffffff;
     class user,task,work,finish native;
-    class check,claim,notify,decision,lead,observer board;
+    class check,claim,notify,decision,coordinator,subagents,observer board;
 ```
 
 ### State ownership
@@ -343,30 +348,30 @@ flowchart LR
 The physical schema should be finalized during implementation, but it must satisfy these constraints:
 
 - `project.yaml` remains the stable repository identity and opt-in marker.
-- Each active task owns one small record; no lead task is the sole writer for every task.
+- Each active task owns one small record; the goal Coordinator claims only its own `goal-coordination` action and never writes other tasks' records.
 - Active records contain only: schema version, project ID, native thread ID, short goal, status, owned relative paths or exclusive resources, dependencies, and updated time/event cursor.
 - Active records have a strict size bound and never contain transcript, reasoning, prompts, tool output, provider payloads, test logs, or whole diffs.
 - Terminal work leaves the active board immediately and produces one compact cold receipt: outcome, artifact or commit references, blocker/decision if any, and completion time.
 - Cold receipts are not loaded during ordinary work.
-- Cross-task notices are append-only, recipient-specific, bounded, and used only for a real dependency, collision, stop, or user decision.
+- Cross-task notices are recipient-specific, bounded, and used only for a real dependency, collision, stop, or user decision. There is no inbox ledger.
 - The board is metadata and coordination evidence, not a filesystem lock, security sandbox, scheduler, or authority to mutate another task.
 
-A likely implementation can reuse `project.yaml`, task records, the inbox concept, and the state helper while removing `CURRENT.md` as a manually reconciled single-writer authority. A per-owner active-record directory is safer than letting multiple tasks rewrite one board file. This shape requires a deliberate schema decision and migration; it must not be improvised during a behavior-only edit.
+The implementation reuses `project.yaml`, per-owner active records, and the state helper. `CURRENT.md` is a generated, non-authoritative, active-only human view atomically rebuilt from those records. It is not a manually reconciled single-writer authority, inbox, task ledger, or second authority.
 
 ### Activation
 
 - Global installation is inert.
 - A repository marker means boundary-board support is available.
 - A normal isolated task performs at most one bounded overlap check before substantial writes.
-- If no relevant active claim exists, it proceeds normally and does not create a lead task.
+- If no relevant active claim exists, it proceeds normally and does not create a Coordinator unless the user explicitly requested one.
 - If overlap exists, the second task stops only the overlapping action and emits one bounded notice.
-- A temporary lead exists only after an explicit user request to split, coordinate, or consolidate a goal.
+- An explicit Coordinator may assign two or three complete durable verticals, all on the same primary checkout, current worktree, and current branch. Short dependent checks may stay inside one task using parent-owned subagents.
 - No background monitoring starts merely because a repository is enabled.
 
 ### Task creation limits
 
 - Default: one active task.
-- Create another durable task only for independently useful work that can proceed with a distinct boundary.
+- Create another durable task only under direct user decomposition or an explicit goal Coordinator, and only for a complete vertical with a distinct boundary.
 - Reuse one thread for investigation, implementation, tests, documentation, and follow-up inside the same coherent goal.
 - Keep microtasks in the current owner or parent-owned subagents.
 - Normal maximum: three active durable tasks.
@@ -386,7 +391,7 @@ A likely implementation can reuse `project.yaml`, task records, the inbox concep
 
 - Continuous project orchestration.
 - Automatic completion of a multi-task shared goal.
-- A permanent lead or consolidated final report for ordinary tasks.
+- A permanent lead, background Coordinator, or automatic consolidated report.
 - Provider, pull-request, release, or schedule monitoring unless the current task explicitly owns that outcome.
 - Cross-machine synchronization.
 - Enforcement against a task that ignores the board.
@@ -428,7 +433,7 @@ The simplification must not remove these protections:
 | Peer message spoofing | One task commands another or claims user authority | Peer messages are non-executable; validate exact project/sender/recipient; only direct user input or the recipient's own scope authorizes action | The system cannot authenticate beyond the host's native task identity |
 | Board record corruption or incompatible schema | A malformed record is treated as no owner | Validate bounded records; unknown schema blocks only overlapping action and reports reinstall/update or migration need | Do not freeze unrelated disjoint work |
 | One task claims the whole repository | Other useful work starves | Require narrow claims, show broad claims visibly, and let the user narrow or override them | Some genuinely broad refactors must serialize work |
-| No lead means a multi-task goal lacks a final synthesis | Workers finish individually but nobody produces the combined answer | Promise consolidation only when the user explicitly creates a temporary lead goal; otherwise each task reports its own outcome | The boundary board is deliberately not a scheduler or delivery manager |
+| Coordinator is not resumed after task completion | Native completion does not automatically wake another task | State that the Coordinator is on demand; when the user invokes it again, read active claims and native results as needed | The board deliberately does not promise automatic fan-in or unattended delivery |
 | Direct commits from several tasks collide | Index/branch/history changes conflict despite disjoint source paths | Keep one explicit Git integration owner whenever more than one writer exists | Direct commits remain the default for one owner; PR is optional policy |
 | Optional observer reaches into private Codex storage | Host updates break the dashboard or expose excessive history | Mission Control reads only the supported board contract; no `state_*.sqlite`, rollout-tail, transcript, or diagnostic-log coupling in the target | Native task details beyond the board may be unavailable, which is acceptable |
 | Installed package and source diverge | Old behavior continues silently | Small version/contract check reports the installed and required versions and tells the user to reinstall/update | No automatic repair; the user must deliberately run the normal package-manager action |
@@ -454,7 +459,7 @@ The most likely future regression is not missing a feature; it is reintroducing 
 
 Reject future core changes that:
 
-- require a resident lead task;
+- require an always-on/resident monitoring or automatically created lead task;
 - scan all native tasks on every turn;
 - add a heartbeat for visibility;
 - add provider, schedule, release, or deployment checks to ordinary task completion;
@@ -507,7 +512,7 @@ The native Codex UI plus the compact board/status command is the current visibil
 The target borrows patterns rather than importing another agent runtime:
 
 - [Claude Code agent teams](https://code.claude.com/docs/en/agent-teams) separates a shared task list from each teammate's context and warns that cost scales with active teammates. The shared-list pattern fits; always-on team creation does not.
-- [OpenAI Agents SDK orchestration](https://openai.github.io/openai-agents-python/multi_agent/) distinguishes a manager calling bounded specialists from handoffs. That supports an optional temporary lead, not a permanent repository manager.
+- [OpenAI Agents SDK orchestration](https://openai.github.io/openai-agents-python/multi_agent/) distinguishes a manager calling bounded specialists from handoffs. That supports parent-owned specialists inside one task, not a durable native task waiting for peer tasks to return.
 - [LangGraph subgraph persistence](https://docs.langchain.com/oss/python/langgraph/use-subgraphs) recommends per-invocation or stateless subagents for independent work and reserves persistent state for real multi-turn need. That supports cold receipts and private task context.
 - [AutoGen](https://microsoft.github.io/autogen/stable/index.html) is an event-driven framework with an optional distributed agent runtime for multi-process agent communication and lifecycle management. That is more machinery than this product requires.
 
@@ -536,7 +541,7 @@ This phase should prefer behavior-only changes where possible and leave existing
 **Source status: implemented.** Schema 2 uses one strict task-owned JSON file per active writer and one compact cold receipt per release. Schema-1 records remain preserved and ignored.
 
 - Define a versioned per-owner active record and compact terminal receipt.
-- Decide whether `CURRENT.md` becomes a generated view or is removed in a schema migration.
+- Keep generated `CURRENT.md` active-only and non-authoritative; per-task claims remain the mutation and conflict-check authority.
 - Add bounded overlap detection and task-owned record updates.
 - Define stale-claim resolution using exact native evidence.
 - Define a small, recipient-specific peer-notice format.
@@ -582,7 +587,9 @@ The implementation is not complete until tests prove both reduced overhead and r
 - Two tasks with disjoint paths proceed without contacting one another.
 - Two tasks with overlapping paths produce one bounded collision notice and no duplicate writer.
 - One coherent goal reuses one task for investigation, edits, tests, documentation, and follow-up.
-- Microtasks remain inside the owner or parent-owned subagents.
+- An explicit Coordinator assigns at most two or three complete verticals; microtasks remain inside the owner or parent-owned subagents.
+- All coordinated task windows stay on the same primary checkout, current worktree, and current branch, with one `git-integration` owner.
+- Coordinator lifecycle tests prove `goal-coordination`, on-demand availability, no polling, and no automatic fan-in promise.
 - Normal task count stays at one and never exceeds three without direct user authority.
 - No registration, acceptance, availability, status, or completion acknowledgement messages are emitted.
 - Direct user stop applies immediately.
@@ -624,7 +631,7 @@ The schema-2 source checkpoint implements:
 - revision checks, atomic writes, and a short cross-platform OS lock around mutations;
 - compact cold receipts that ordinary reads never scan;
 - a marker-only five-second SessionStart with no child process or Python bootstrap;
-- a schema-22 contract with 19 product-level fields instead of the schema-19 41-key orchestration mirror, including one explicit dry-run-first project lifecycle capability;
+- a schema-25 contract with 21 product-level fields instead of the schema-19 41-key orchestration mirror, including explicit dry-run-first project lifecycle, one-shot own-claim Stop guard, and parent-owned dependent parallelism;
 - a manual read-only Doctor whose only repair recommendation is update or reinstall;
 - schema-2 lifecycle operations with no task, pin, heartbeat, schedule, or Mission Control actions;
 - legacy schema-1 preservation and cleanup reporting without reactivation;
@@ -681,7 +688,7 @@ The real paths traced were:
 4. **High — Removing the lead without task-owned claims would create a race and stale-ownership gap.** The simplification needs per-owner bounded state and evidence-based stale-claim transfer.
 5. **Medium — Many later capabilities should survive as invariants but not as always-on subsystems.** Task limits, sparse messaging, exact routing, user authority, external-write disclosure, and native-history ownership remain core protections.
 6. **Medium — The capability contract mirrors implementation detail.** A slim protocol manifest is useful, but 41 machine-enforced policy keys create upgrade and repair coupling.
-7. **Medium — The product promise must narrow.** A boundary board cannot promise automatic multi-task completion, provider monitoring, or consolidated delivery unless the user explicitly requests a temporary lead.
+7. **Medium — The product promise must narrow without removing useful coordination.** A boundary board cannot promise automatic multi-task completion, provider monitoring, or automatic cross-task delivery. An explicit Coordinator can still assign complete verticals and integrate them when invoked again.
 
 ## Recommended fixes
 

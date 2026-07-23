@@ -32,9 +32,18 @@ The runtime uses only the Python standard library. Optional property tests may s
 - the hook never launches a process, Python installer, browser, or Mission Control;
 - the registered timeout is five seconds and bootstrap scripts are absent.
 
+`test_stop_guard.py` proves:
+
+- disabled, absent, unowned, blocked, and circuit-breaker paths are silent;
+- only the exact active `session_id` claim produces one bounded continuation;
+- transcript and assistant-message input is ignored and never returned;
+- malformed claims fail open rather than wedging the task;
+- linked worktrees resolve the primary board;
+- Stop registration is matcher-free, direct, and capped at five seconds.
+
 `test_doctor.py` proves:
 
-- the packaged manifest, schema-22 contract, skill links, state and project-lifecycle helpers, and hook are compatible;
+- the packaged manifest, schema-25 contract, skill links, state and project-lifecycle helpers, both lifecycle hooks, and independent-native-task/dependent-subagent guidance are compatible;
 - malformed or drifted packages report `broken` and `update_or_reinstall`;
 - compact output omits detailed findings and local paths;
 - legacy `--apply` and separate repair targets write nothing;
@@ -54,7 +63,7 @@ The runtime uses only the Python standard library. Optional property tests may s
 
 ## Architecture regressions
 
-Package and leadership tests enforce the one-task default, explicit temporary lead, small capability contract, optional PR policy, sparse non-executable messaging, evidence-based stale recovery, no transcript store, no provider/schedule monitoring, no Python bootstrap, and no optional-tool reachability.
+Package and leadership tests enforce the one-task default, a user-invoked goal Coordinator, complete durable verticals in one shared checkout, parent-owned subagents for short dependent checks, one Git integration owner, the small capability contract, optional PR policy, sparse non-executable messaging, evidence-based stale recovery, no transcript store, no provider/schedule monitoring, no Python bootstrap, and no optional-tool reachability.
 
 Mission Control and Doctor-scanner tests no longer validate their old behavior. They now prove those components are absent from or isolated outside the schema-2 base runtime. A future optional observer needs a separate package and its own tests before it can be supported.
 
@@ -64,6 +73,7 @@ Before release, measure at least:
 
 - disabled SessionStart;
 - enabled SessionStart;
+- enabled Stop with no own claim and with one exact active claim;
 - empty `list`;
 - three-record `list`;
 - one claim and release;

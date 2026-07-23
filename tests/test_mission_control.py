@@ -16,11 +16,7 @@ class MissionControlIsolationTests(unittest.TestCase):
             PLUGIN / "mission_control",
             REPOSITORY / "apps" / "mission_control",
         ):
-            shipped_files = [
-                path
-                for path in root.rglob("*")
-                if path.is_file() and "__pycache__" not in path.parts
-            ]
+            shipped_files = [path for path in root.rglob("*") if path.is_file()]
             self.assertEqual(shipped_files, [])
         self.assertFalse((PLUGIN / "scripts" / "mission_control_lifecycle.py").exists())
         self.assertFalse((REPOSITORY / "tests" / "verify_mission_control_ui.py").exists())
@@ -52,12 +48,18 @@ class MissionControlIsolationTests(unittest.TestCase):
             "task transcript",
             "tool output",
             "provider response",
-            "current.md",
         ):
             if forbidden in {"task transcript", "tool output"}:
                 continue
             self.assertNotIn(forbidden, state)
-        self.assertIn("never reads or\nstores task transcripts", state)
+        self.assertIn("never reads or stores task transcripts", " ".join(state.split()))
+        for legacy_field in (
+            "coordination epoch",
+            "pending commands",
+            "resume queue",
+            "turn_reconciliation",
+        ):
+            self.assertNotIn(legacy_field, state)
 
     def test_optional_observer_has_no_task_authority_in_guidance(self) -> None:
         skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")

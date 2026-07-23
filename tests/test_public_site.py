@@ -67,20 +67,23 @@ class PublicSiteTests(unittest.TestCase):
         self.assertIsNotNone(match)
         graph = json.loads(match.group(1))["@graph"]
         software = next(item for item in graph if item["@type"] == "SoftwareApplication")
+        self.assertEqual(software["softwareVersion"], "0.4.0")
+        self.assertEqual(self.manifest["version"], "0.4.0")
         self.assertEqual(software["softwareVersion"], self.manifest["version"])
         self.assertEqual(software["codeRepository"], "https://github.com/eyeinthesky6/codex-coordinator")
         self.assertEqual(software["offers"]["price"], "0")
 
-    def test_public_story_matches_boundary_board_and_unreleased_status(self) -> None:
+    def test_public_story_matches_boundary_board_and_release_status(self) -> None:
         combined = "\n".join(self.pages.values())
         for phrase in (
-            "Task boundaries, not orchestration",
-            "No permanent manager task",
+            "Goal-scoped coordination, not background orchestration",
+            "No always-on Coordinator",
+            "current shared checkout",
             "One task by default",
             "Native Codex remains the only transcript authority",
             "Zero third-party runtime dependencies",
             "No observer is shipped in the base package",
-            "v0.3.0",
+            "v0.4.0",
             "older orchestration",
         ):
             self.assertIn(phrase, combined)
@@ -111,7 +114,7 @@ class PublicSiteTests(unittest.TestCase):
 
     def test_faq_answers_boundaries(self) -> None:
         for phrase in (
-            "Does Codex Coordinator replace Git worktrees?",
+            "Does Codex Coordinator create Git worktrees?",
             "Does it create task windows?",
             "Does it store chats or reasoning?",
             "Does it keep watching in the background?",

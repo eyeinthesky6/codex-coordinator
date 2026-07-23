@@ -9,11 +9,11 @@
 <p align="center"><strong>A small task-boundary board for native Codex tasks.</strong></p>
 
 > [!IMPORTANT]
-> The boundary-board realignment is implemented in source but is not released or enabled yet. The current repository marker remains disabled. The latest stable tag, `v0.3.0`, contains the older orchestration design; do not enable that release if your goal is the simplified behavior described here.
+> Version `0.4.0` is the schema-2, on-demand Coordinator release. The current repository marker remains disabled by design; installing the plugin never enables a project automatically. The preserved `v0.3.0` tag contains the older orchestration design.
 
 ## What it is
 
-Codex Coordinator helps with coordinating multiple OpenAI Codex tasks in the same Git repository without putting one permanent task in charge of all the others.
+Codex Coordinator helps with coordinating multiple OpenAI Codex tasks in the same Git repository and primary checkout. One normal task may act as an explicitly requested, goal-scoped Coordinator, but nothing runs as a permanent manager.
 
 Native Codex remains responsible for task windows, messages, execution, status, and transcripts. Coordinator adds one small local board. Each active writer publishes only:
 
@@ -33,7 +33,7 @@ flowchart LR
     B --> R["Terminal claim becomes one compact cold receipt"]
 ```
 
-There is no resident Coordinator task, heartbeat, polling loop, inbox ledger, automatic task creation, required pull request, or automatic Mission Control process.
+There is no always-on/resident monitoring Coordinator, automatically created Coordinator task, heartbeat, polling loop, inbox ledger, task ledger, required pull request, or automatic Mission Control process.
 
 ## Why the product changed
 
@@ -75,26 +75,30 @@ Coordinator is not a cross-machine project manager, workflow engine, scheduler, 
 | One Codex task | One coherent outcome | No parallel ownership needed |
 | Parent-owned subagents | Short independent checks inside one task | Parent remains the durable owner |
 | Git branches or worktrees | File and history isolation | Do not describe task ownership by themselves |
-| Boundary board | Two or three durable native tasks in one repository | Advisory ownership metadata only |
+| Boundary board | Two or three durable native tasks in one shared checkout | Advisory ownership metadata only |
 | Project manager | Teams, machines, schedules, reporting | Separate service and authority model |
 
 ## Core operating model
 
 ### One task first
 
-Investigation, implementation, tests, docs, and follow-up fixes for one coherent goal stay in one native task. A second or third durable task is justified only when its outcome is substantial, independently useful, and safely parallel.
+Investigation, implementation, tests, docs, and follow-up fixes for one coherent goal normally stay in one native task. When the user explicitly asks for coordination, a goal-scoped Coordinator may assign two or three substantial verticals. Each vertical receives one complete goal covering its bounded investigation, implementation, focused tests, and documentation.
 
 The normal maximum is three active durable tasks. More than three requires a direct user decision recorded on the new claim. Twelve is a hard board limit.
 
-A temporary lead may split or combine work only when the user explicitly asks for decomposition or a consolidated result. It is not pinned, retained, or given a heartbeat.
+The Coordinator claims the exclusive `goal-coordination` action. Its bounded claim goal is the shared goal. It stays available when the user invokes it again and ends when that goal ends; it does not poll, run a heartbeat, demand progress reports, or wake automatically when another task finishes. There is no automatic fan-in promise. Short dependent checks may still use parent-owned subagents.
+
+Every coordinated task uses the same primary checkout, current worktree, and current branch. This preserves untracked settings, offline runners, and machine-specific runtime context. Coordinated tasks do not create or switch branches or worktrees.
 
 ### Claim before substantial writes
 
 Schema 2 keeps one JSON file per active task under `.codex/coordination/active/`. The state helper serializes writes with a tiny OS file lock, checks expected revisions, rejects overlapping paths or exclusive actions, and rechecks before returning.
 
+Tasks update only their own bounded claim at natural boundaries: start, real scope change, blocked-state change, and completion or stop. Claims are not progress diaries. Generated schema-2 `CURRENT.md` is a non-authoritative, active-only human view that is rebuilt from those claims after state mutations.
+
 Two paths overlap when they are equal or one is an ancestor of the other. Matching is case-insensitive. `.` means the whole repository and should be rare.
 
-When more than one writer exists, one task owns the `git-integration` action. Direct commits and pushes are the normal path for a single owner. Pull requests are optional and remain repository or user policy.
+When more than one writer exists, exactly one task owns the `git-integration` action. All other tasks edit and test only their claimed areas; they do not stage, commit, push, switch branches, create worktrees, reset, restore, stash, rebase, merge, or clean. Pull requests are optional and remain repository or user policy.
 
 ### Keep communication sparse
 
@@ -103,6 +107,8 @@ The board is the normal visibility path. A direct peer notice is limited to a re
 ### Finish cold
 
 Completion, stop, supersession, or proven stale ownership moves the active claim to one compact archive receipt. Archives are not read during ordinary work. Native task history remains in Codex and is never copied into Coordinator state.
+
+A five-second Stop guard catches the common failure that caused a false active task here: the task reaches its final answer but forgets to release its own claim. It reads only that exact claim and requests one housekeeping continuation. It never reads a transcript or scans other tasks, and Codex's `stop_hook_active` signal makes the continuation one-shot.
 
 ## Project marker
 
@@ -177,6 +183,21 @@ The hook is marker-only. For an enabled schema-2 repository it emits a short rem
 
 The hook timeout is five seconds. A disabled or absent marker produces no output.
 
+## Stop guard
+
+The Stop hook is a bounded lifecycle guard, not a Coordinator loop. For an enabled schema-2 repository it:
+
+- validates the marker and exact native `session_id`;
+- resolves the primary worktree, including a linked-worktree task;
+- reads at most one 4 KB claim named by that exact ID;
+- stays silent when no claim exists, the project is disabled, or the claim is already blocked;
+- requests one continuation when the exact claim remains active, asking the same task to release finished work or explicitly retain unfinished ownership;
+- fails open on hook or state errors so it cannot wedge the task.
+
+It does not read `transcript_path`, assistant text, reasoning, tool output, archives, other claims, native history, or private Codex databases. It writes no state and creates no task or message.
+
+Codex has no app-archive lifecycle event. Abruptly archiving an unfinished task can therefore still leave its claim behind; recover that exact owner only when a later overlap needs it and native evidence proves the task archived or unusable. This residual gap does not justify a resident watcher.
+
 ## Doctor
 
 Doctor is a manual, read-only package compatibility check:
@@ -185,7 +206,7 @@ Doctor is a manual, read-only package compatibility check:
 python plugins/codex-coordinator/scripts/codex_coordinator_doctor.py --check
 ```
 
-It checks the manifest, capability contract, skill links, Python syntax, and direct hook registration. It does not scan projects or repair files. A broken result says to update or reinstall through the normal plugin manager. Legacy `--apply` is rejected without writing.
+It checks the manifest, capability contract, skill links, Python syntax, project-lifecycle helper, and exact SessionStart/Stop registration. It does not scan projects or repair files. A broken result says to update or reinstall through the normal plugin manager. Legacy `--apply` is rejected without writing.
 
 ## Mission Control status
 
@@ -240,25 +261,25 @@ The acceptance tests cover:
 - legacy deactivation without schema-2 lifecycle creation;
 - optional-tool isolation from the base runtime.
 
-## Release status
+## Install the schema-2 release
 
-The source realignment is unreleased. The current public stable release is `v0.3.0`:
+Install version `v0.4.0` from the marketplace source:
 
 ```powershell
-codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.3.0
+codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.4.0
 ```
 
-That tag is preserved as rollback evidence and contains the older orchestration design. A new tag must not be published until schema-2 migration, optional-tool separation, performance evidence, documentation, and explicit user approval are complete.
+Installation alone manages no repository. Enable or migrate one project deliberately after reviewing its current tasks and local state. The older `v0.3.0` orchestration release remains preserved as rollback and decision-history evidence.
 
 ## Frequently asked questions
 
 ### How do I coordinate multiple Codex agents in one repository?
 
-Start with one native task. Add another durable task only for substantial independent work, then let each writer publish its own narrow claim. The board detects planned overlap; it does not manage the tasks.
+Start with one native task. If you explicitly ask it to coordinate, it can claim `goal-coordination` and assign two or three complete verticals in the same checkout. Each writer publishes its own narrow claim. Return to the Coordinator when you want the current state or combined result; it does not monitor the tasks in the background.
 
 ### Does Codex Coordinator replace Git worktrees?
 
-No. Worktrees isolate files and Git history. The board records who plans to own which paths or exclusive actions. Use both when both forms of separation add value.
+No. Worktrees isolate files and Git history, but this coordination mode intentionally keeps all task windows in the same primary checkout and current branch so they share local settings and offline runners. The board records who owns each path or exclusive action.
 
 ### Do I need a pull request workflow?
 
