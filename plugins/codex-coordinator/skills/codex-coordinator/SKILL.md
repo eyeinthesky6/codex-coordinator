@@ -1,11 +1,11 @@
 ---
 name: codex-coordinator
-description: Keeps parallel Codex tasks in one shared Git checkout inside clear, visible boundaries. Uses a small local active-claim board and an optional user-invoked, goal-scoped Coordinator; it does not create background management, a heartbeat, scheduler, transcript store, or mandatory pull-request workflow.
+description: Helps several Codex tasks stay focused on clear jobs in one project. Reuses related tasks when possible, shows who owns what, and flags work that may collide without copying chats or becoming another system to manage.
 ---
 
 # Codex Coordinator
 
-Codex Coordinator is a task-boundary and visibility layer around native Codex tasks. Native Codex remains responsible for tasks, execution, messages, status, and transcripts. This skill records only the minimum metadata needed to avoid planned overlap.
+Codex Coordinator is a task-boundary and visibility layer around native Codex tasks. Native Codex remains responsible for tasks, execution, messages, status, and transcripts. This skill records only the minimum metadata needed to avoid planned overlap. It does not create background management.
 
 Supported project marker schema: `2`. A schema-1 enabled project is legacy state and must be migrated before coordinated writes. A disabled marker remains an opt-out and is not read further.
 

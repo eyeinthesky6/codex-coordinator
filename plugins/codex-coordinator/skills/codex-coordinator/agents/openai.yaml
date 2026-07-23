@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex Coordinator"
-  short_description: "Coordinate parallel Codex work"
-  default_prompt: "Use $codex-coordinator to reuse related local tasks and coordinate this goal in complete bounded lanes on the current shared checkout, without background monitoring."
+  short_description: "Keep Codex tasks on track"
+  default_prompt: "Use $codex-coordinator to coordinate this project goal across the right existing tasks and keep each task focused."

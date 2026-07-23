@@ -1,7 +1,7 @@
 {
   "name": "codex-coordinator",
   "version": "0.4.0",
-  "description": "Coordinate parallel Codex tasks in one shared checkout with a small active-only boundary board.",
+  "description": "Keep several Codex tasks focused, visible, and inside clear boundaries.",
   "author": {
     "name": "Six Ideas",
     "url": "https://github.com/eyeinthesky6"
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Coordinator",
-    "shortDescription": "Coordinate parallel Codex work",
-    "longDescription": "When asked, a goal-scoped Coordinator reuses suitable related local tasks before assigning complete Codex task lanes in the current shared checkout. Each writer publishes only its active goal, planned paths, and narrow exclusive actions so overlap is visible without an always-on manager, task-level path locks, durable Git owner, heartbeat, transcript mirror, extra worktree, or required pull-request workflow.",
+    "shortDescription": "Keep Codex tasks on track",
+    "longDescription": "Give Codex Coordinator one project goal. It reuses related tasks, gives each one a clear job, shows who is working on what, and warns when work may collide. It stays with the project you already have without an always-on manager, copied chat history, duplicate project setups, or a forced process.",
     "developerName": "Six Ideas",
     "category": "Productivity",
     "capabilities": [

@@ -3,27 +3,27 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Codex Coordinator — A small task-boundary board for Codex</title>
-  <meta name="description" content="Assign complete Codex task lanes in one shared checkout without background monitoring, worktree sprawl, or transcript mirroring.">
+  <title>Codex Coordinator — Run several Codex tasks without managing every window</title>
+  <meta name="description" content="Give Codex tasks clear jobs, see who owns what, and catch crossed work before it becomes rework.">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
   <meta name="google-site-verification" content="NMvrZiG-hLYRIF4eme-25FTskwq9YfP_Yt5hhco7q2k">
-  <meta name="theme-color" content="#06142f">
+  <meta name="theme-color" content="#f4f1e9">
   <link rel="canonical" href="https://eyeinthesky6.github.io/codex-coordinator/">
   <link rel="sitemap" type="application/xml" href="https://eyeinthesky6.github.io/codex-coordinator/sitemap.xml">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Codex Coordinator">
-  <meta property="og:title" content="Codex Coordinator — Parallel tasks, clear lanes">
-  <meta property="og:description" content="An on-demand Coordinator and active-only boundary board for native Codex tasks.">
+  <meta property="og:title" content="Run several Codex tasks without managing every window">
+  <meta property="og:description" content="Clear jobs, visible ownership, and fewer crossed edits when several Codex tasks work together.">
   <meta property="og:url" content="https://eyeinthesky6.github.io/codex-coordinator/">
   <meta property="og:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Codex Coordinator">
-  <meta name="twitter:description" content="Assign parallel Codex tasks without crossing wires or creating extra worktrees.">
+  <meta name="twitter:description" content="Stop checking every Codex task window just to know who is doing what.">
   <meta name="twitter:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&amp;family=DM+Mono:wght@400;500&amp;family=Syne:wght@500;600;700&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&amp;family=DM+Mono:wght@400;500&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script type="application/ld+json">
   {
@@ -34,7 +34,7 @@
         "@id": "https://eyeinthesky6.github.io/codex-coordinator/#website",
         "url": "https://eyeinthesky6.github.io/codex-coordinator/",
         "name": "Codex Coordinator",
-        "description": "An on-demand Coordinator and repository-local active boundary board for native Codex tasks.",
+        "description": "Run several Codex tasks without managing every window.",
         "inLanguage": "en"
       },
       {
@@ -44,13 +44,17 @@
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": ["Windows", "macOS", "Linux"],
         "softwareVersion": "0.4.0",
-        "softwareRequirements": "OpenAI Codex with plugin and hook support; Git; Python 3.10 or newer",
-        "description": "Open-source goal coordination and active-boundary plugin for native Codex tasks sharing one checkout.",
+        "softwareRequirements": "OpenAI Codex with plugin support; Git; Python 3.10 or newer",
+        "description": "Helps several Codex tasks stay focused on clear jobs and out of each other's way.",
         "url": "https://eyeinthesky6.github.io/codex-coordinator/",
         "codeRepository": "https://github.com/eyeinthesky6/codex-coordinator",
         "isAccessibleForFree": true,
         "offers": {"@type":"Offer","price":"0","priceCurrency":"USD"},
-        "sameAs": ["https://github.com/eyeinthesky6/codex-coordinator","https://t.me/+ra4BQ7-_5uM2MDY1"],
+        "sameAs": [
+          "https://github.com/eyeinthesky6/codex-coordinator",
+          "https://chatgpt.com/plugins/plugins_6a5c8cb6a5648191a43a76e6a1e637d8",
+          "https://skills.sh/eyeinthesky6/codex-coordinator/codex-coordinator"
+        ],
         "license": "https://opensource.org/license/mit",
         "author": {"@type":"Organization","name":"Six Ideas"}
       }
@@ -60,62 +64,171 @@
 </head>
 <body id="top">
   <a class="skip-link" href="#main-content">Skip to main content</a>
+
   <header class="site-header">
     <nav class="nav shell" aria-label="Primary navigation">
-      <a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="37" height="37">Codex Coordinator</a>
-      <div class="nav-links"><a href="#architecture">Architecture</a><a href="#status">Status</a><a href="faq.html">FAQ</a><a href="developers.html">Developers</a><a href="https://github.com/eyeinthesky6/codex-coordinator">GitHub</a></div>
+      <a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="36" height="36">Codex Coordinator</a>
+      <div class="nav-links">
+        <a href="#how">How it helps</a>
+        <a href="#demo">See it work</a>
+        <a href="faq.html">FAQ</a>
+        <a href="developers.html">For developers</a>
+        <a class="nav-cta" href="#install">Install</a>
+      </div>
     </nav>
   </header>
 
-  <main id="main-content" class="shell">
-    <header class="page-hero">
-      <p class="kicker">Goal-scoped coordination, not background orchestration</p>
-      <h1>Keep parallel Codex tasks <span>from crossing wires.</span></h1>
-      <p>Ask one Coordinator to reuse related local tasks before assigning two or three complete work lanes in your current checkout. Each task publishes only its active goal and planned boundary. No polling, extra worktrees, or transcript mirror.</p>
-    </header>
+  <main id="main-content">
+    <section class="hero shell">
+      <div class="hero-copy">
+        <p class="eyebrow">For people running several Codex tasks</p>
+        <h1>Run several Codex tasks. <em>Stop managing every window.</em></h1>
+        <p class="lede">Give each task a clear job, see who owns what, and catch work that may collide before it becomes rework.</p>
+        <div class="actions">
+          <a class="button primary" href="#install">Install for Codex</a>
+          <a class="button quiet" href="#demo">Watch the three-step workflow</a>
+        </div>
+        <ul class="trust-row" aria-label="Product highlights">
+          <li>Free and open source</li>
+          <li>Works with your existing setup</li>
+          <li>Does not copy your chats</li>
+        </ul>
+      </div>
 
-    <section class="content-block" id="status">
-      <p class="section-label">Current stable release · 0.4.0</p>
-      <h2>The small schema-2 boundary board is published.</h2>
-      <p><a href="https://github.com/eyeinthesky6/codex-coordinator/releases/tag/v0.4.0">Read the v0.4.0 release</a> or install its exact tag through the Codex plugin marketplace. Installation enables no repository automatically.</p>
+      <figure class="hero-visual">
+        <div class="visual-label"><span>01</span> Start with one outcome</div>
+        <img src="assets/demos/01-ask-and-split.gif" alt="A Codex goal being divided into a few clear tasks" width="960" height="600">
+        <figcaption>Describe the result you want. Coordinator gives the work a few clear owners.</figcaption>
+      </figure>
     </section>
 
-    <section class="content-block" id="architecture">
-      <p class="section-label">Small hot path</p>
-      <h2>Native Codex does the work. The board only shows planned ownership.</h2>
-      <div class="comparison-wrap">
-        <table class="comparison">
-          <thead><tr><th>Retained protection</th><th>Simplified mechanism</th></tr></thead>
-          <tbody>
-            <tr><td>See possible shared-file work</td><td>Per-task paths produce warnings; exact singular actions remain locked</td></tr>
-            <tr><td>No task-window explosion</td><td>One task by default; reuse related local tasks before creating another</td></tr>
-            <tr><td>No message loops</td><td>One bounded Coordinator assignment; sparse non-executable peer notices</td></tr>
-            <tr><td>No stale silent overwrite</td><td>Exact native identity, expected revisions, evidence-based recovery</td></tr>
-            <tr><td>No transcript duplication</td><td>Native Codex remains the only transcript authority</td></tr>
-          </tbody>
-        </table>
+    <section class="problem-band" aria-labelledby="problem-heading">
+      <div class="shell problem-layout">
+        <div>
+          <p class="eyebrow">The hidden cost</p>
+          <h2 id="problem-heading">Parallel work should save time—not turn you into the full-time go-between.</h2>
+        </div>
+        <div class="problem-list">
+          <article><span>01</span><p>You open every task window just to understand what is happening.</p></article>
+          <article><span>02</span><p>Two tasks start solving the same problem or touch the same area.</p></article>
+          <article><span>03</span><p>A paused task leaves you guessing who still owns the work.</p></article>
+        </div>
       </div>
     </section>
 
-    <section class="content-block">
-      <p class="section-label">What left the core</p>
-      <h2>No always-on Coordinator, background monitor, or self-repair engine.</h2>
-      <p>A user-invoked Coordinator stays available for its goal and reads the active board when asked; it never polls workers. SessionStart launches nothing. Doctor is read-only. Tasks cooperatively commit reviewed exact files on the shared branch, and pull requests remain optional.</p>
+    <section class="section shell" id="how" aria-labelledby="how-heading">
+      <div class="section-heading">
+        <p class="eyebrow">What changes</p>
+        <h2 id="how-heading">A few clear jobs. One shared picture.</h2>
+        <p>Codex still does the work. Coordinator simply makes ownership visible and keeps each task focused.</p>
+      </div>
+      <ol class="steps">
+        <li>
+          <span>1</span>
+          <div><h3>Give it one outcome</h3><p>Describe the repository result you want, not a long list of tiny commands.</p></div>
+        </li>
+        <li>
+          <span>2</span>
+          <div><h3>Keep every task in its lane</h3><p>Related tasks are reused when possible. Each task gets a complete job and shows where it plans to work.</p></div>
+        </li>
+        <li>
+          <span>3</span>
+          <div><h3>Ask for the current picture</h3><p>See what is active, blocked, or likely to overlap without checking every window yourself.</p></div>
+        </li>
+      </ol>
     </section>
 
-    <section class="content-block">
-      <p class="section-label">Runtime</p>
-      <h2>Zero third-party runtime dependencies</h2>
-      <p>Requires Codex, Git, and an existing Python 3.10+ interpreter. No database, daemon, queue, pip package, npm package, Python installer, or OS package-manager call.</p>
+    <section class="demo-section" id="demo" aria-labelledby="demo-heading">
+      <div class="section shell demo-layout">
+        <div class="demo-copy">
+          <p class="eyebrow">See the workflow</p>
+          <h2 id="demo-heading">From one goal to clear ownership.</h2>
+          <p>Three short views show the whole experience. No dashboard to operate and no constant status loop.</p>
+        </div>
+        <div class="demo-viewer">
+          <div class="demo-tabs" role="tablist" aria-label="Coordinator workflow">
+            <button class="demo-tab active" type="button" role="tab" aria-selected="true" aria-controls="demo-ask" data-demo-tab="demo-ask"><span>1</span>Ask</button>
+            <button class="demo-tab" type="button" role="tab" aria-selected="false" aria-controls="demo-work" data-demo-tab="demo-work" tabindex="-1"><span>2</span>Work</button>
+            <button class="demo-tab" type="button" role="tab" aria-selected="false" aria-controls="demo-result" data-demo-tab="demo-result" tabindex="-1"><span>3</span>Review</button>
+          </div>
+          <figure class="demo-panel" id="demo-ask" role="tabpanel">
+            <img src="assets/demos/01-ask-and-split.gif" alt="One project goal becoming a few clear tasks" width="960" height="600">
+            <figcaption><strong>Ask once.</strong> Start with the result you want.</figcaption>
+          </figure>
+          <figure class="demo-panel" id="demo-work" role="tabpanel" hidden>
+            <img src="assets/demos/02-tasks-at-work.gif" alt="Several Codex tasks working on separate owned jobs" width="960" height="600">
+            <figcaption><strong>Keep lanes clear.</strong> Each task shows its job and planned work.</figcaption>
+          </figure>
+          <figure class="demo-panel" id="demo-result" role="tabpanel" hidden>
+            <img src="assets/demos/03-one-result.gif" alt="A current view of completed and active Codex work" width="960" height="600">
+            <figcaption><strong>See the picture.</strong> Ask what finished, what remains, and what may collide.</figcaption>
+          </figure>
+        </div>
+      </div>
     </section>
 
-    <section class="content-block">
-      <p class="section-label">Read the evidence</p>
-      <h2>The protections and the mistakes are both documented.</h2>
-      <p><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/docs/codebase/2026-07-21_boundary-board-simplification_architectural_review.md">Architecture decision and capability history</a> · <a href="developers.html">Developer contract</a> · <a href="faq.html">FAQ</a></p>
+    <section class="section shell" aria-labelledby="calm-heading">
+      <div class="calm-card">
+        <div>
+          <p class="eyebrow">Designed to stay out of your way</p>
+          <h2 id="calm-heading">Useful coordination without another system to manage.</h2>
+        </div>
+        <ul class="plain-checks">
+          <li><strong>No background watching.</strong> Check the current picture when you need it.</li>
+          <li><strong>No copied chat history.</strong> Codex remains the home for task conversations.</li>
+          <li><strong>No duplicate project setup.</strong> Tasks can share the local tools you already rely on.</li>
+          <li><strong>No forced process.</strong> Keep the way of working that already suits your project.</li>
+        </ul>
+        <a class="text-link" href="developers.html">Read the technical design and privacy details <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+
+    <section class="install-section" id="install" aria-labelledby="install-heading">
+      <div class="section shell install-layout">
+        <div class="install-copy">
+          <p class="eyebrow">Free and open source</p>
+          <h2 id="install-heading">Add it to Codex in two commands.</h2>
+          <p>Install the current stable release, open a repository, and describe the outcome you want coordinated.</p>
+          <div class="listing-links">
+            <a href="https://chatgpt.com/plugins/plugins_6a5c8cb6a5648191a43a76e6a1e637d8">View in ChatGPT Plugins</a>
+            <a href="https://skills.sh/eyeinthesky6/codex-coordinator/codex-coordinator">View on skills.sh</a>
+            <a href="https://github.com/eyeinthesky6/codex-coordinator">View source on GitHub</a>
+          </div>
+        </div>
+        <div class="install-steps">
+          <div class="install-step">
+            <span>1</span>
+            <div><h3>Install the plugin</h3><div class="command"><code id="install-command">codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.4.0
+codex plugin add codex-coordinator@codex-coordinator</code><button class="copy" type="button" data-copy="install-command">Copy</button></div></div>
+          </div>
+          <div class="install-step">
+            <span>2</span>
+            <div><h3>Give it a real goal</h3><div class="command"><code id="prompt-command">Use $codex-coordinator to coordinate this project goal:
+&lt;describe the outcome you want&gt;</code><button class="copy" type="button" data-copy="prompt-command">Copy</button></div></div>
+          </div>
+          <p class="install-note">Installation never turns Coordinator on for every repository. You choose where to use it.</p>
+          <span class="sr-only" id="copy-status" aria-live="polite"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section shell community" aria-labelledby="community-heading">
+      <div><p class="eyebrow">Built in the open</p><h2 id="community-heading">Try it on a real workload.</h2></div>
+      <p>If several Codex tasks have made you check windows, relay updates, or untangle crossed work, try the workflow and tell us where it still gets in your way.</p>
+      <div class="community-actions">
+        <a class="button primary" href="https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a">Ask a question</a>
+        <a class="button quiet" href="https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/ideas">Share a use case</a>
+      </div>
     </section>
   </main>
 
-  <footer class="site-footer"><div class="footer-grid shell"><span>Codex Coordinator · Independent open-source project · MIT License</span><div class="footer-links"><a href="https://github.com/eyeinthesky6/codex-coordinator">Source</a><a href="https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a">Q&amp;A</a><a href="https://t.me/+ra4BQ7-_5uM2MDY1">Telegram</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/PRIVACY.md">Privacy</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/TERMS.md">Terms</a></div></div></footer>
+  <footer class="site-footer">
+    <div class="footer-grid shell">
+      <span>Codex Coordinator · Free, independent, open source</span>
+      <div class="footer-links"><a href="faq.html">FAQ</a><a href="developers.html">Developers</a><a href="https://github.com/eyeinthesky6/codex-coordinator">GitHub</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/PRIVACY.md">Privacy</a><a href="https://github.com/eyeinthesky6/codex-coordinator/blob/main/TERMS.md">Terms</a></div>
+    </div>
+    <p class="independent shell">Codex Coordinator is an independent third-party project and is not affiliated with or endorsed by OpenAI.</p>
+  </footer>
+  <script src="site.js"></script>
 </body>
 </html>

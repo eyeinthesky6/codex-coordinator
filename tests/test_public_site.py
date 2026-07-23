@@ -73,21 +73,21 @@ class PublicSiteTests(unittest.TestCase):
         self.assertEqual(software["codeRepository"], "https://github.com/eyeinthesky6/codex-coordinator")
         self.assertEqual(software["offers"]["price"], "0")
 
-    def test_public_story_matches_boundary_board_and_release_status(self) -> None:
+    def test_public_story_leads_with_user_outcome_and_keeps_technical_depth(self) -> None:
         combined = "\n".join(self.pages.values())
         for phrase in (
-            "Goal-scoped coordination, not background orchestration",
-            "No always-on Coordinator",
-            "current shared checkout",
-            "One task by default",
-            "Native Codex remains the only transcript authority",
-            "Zero third-party runtime dependencies",
-            "No observer is shipped in the base package",
-            "Current stable release",
+            "Stop managing every window",
+            "Give each task a clear job",
+            "Free and open source",
+            "Does not copy your chats",
+            "No background watching",
+            "Technical design, boundaries, and validation",
             "supported schema-2 release",
             "codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.4.0",
         ):
             self.assertIn(phrase, combined)
+        for technical_lead in ("schema-2", "thread UUID", "expected revisions", "Doctor"):
+            self.assertNotIn(technical_lead, self.index)
         for stale in (
             "15 minutes by default",
             "Quiet scheduled follow-up",
@@ -116,17 +116,19 @@ class PublicSiteTests(unittest.TestCase):
                     self.assertIn(link.split("#", 1)[0], self.pages, f"{name}: {link}")
         links = self.parsers["index.html"].links
         self.assertIn("https://github.com/eyeinthesky6/codex-coordinator", links)
-        self.assertIn("https://t.me/+ra4BQ7-_5uM2MDY1", links)
+        self.assertIn("https://chatgpt.com/plugins/plugins_6a5c8cb6a5648191a43a76e6a1e637d8", links)
+        self.assertIn("https://skills.sh/eyeinthesky6/codex-coordinator/codex-coordinator", links)
         self.assertIn("faq.html", links)
         self.assertIn("developers.html", links)
 
     def test_faq_answers_boundaries(self) -> None:
         for phrase in (
-            "Does Codex Coordinator create Git worktrees?",
-            "Does it create task windows?",
-            "Does it store chats or reasoning?",
-            "Does it keep watching in the background?",
-            "Can Doctor repair the installation?",
+            "What problem does it solve?",
+            "Will it create lots of task windows?",
+            "Does it keep watching every task?",
+            "Does it copy my chats?",
+            "Does it force a pull-request workflow?",
+            "What if the plugin is broken?",
         ):
             self.assertIn(phrase, self.faq)
 
@@ -134,16 +136,16 @@ class PublicSiteTests(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         discovery = (ROOT / "docs" / "DISCOVERY.md").read_text(encoding="utf-8")
         for phrase in (
-            "coordinating multiple OpenAI Codex tasks in the same Git repository",
-            "Codex Coordinator vs worktrees, subagents, and project managers",
-            "How do I coordinate multiple Codex agents in one repository?",
-            "Does Codex Coordinator replace Git worktrees?",
-            "exact native Codex thread ID",
-            "Zero third-party runtime dependencies",
+            "Run several Codex tasks without becoming their full-time project manager",
+            "What it takes off your plate",
+            "Give it one repository outcome",
+            "When it helps",
+            "What it does not add",
+            "does not turn Coordinator on for every repository",
         ):
             self.assertIn(phrase, readme)
         self.assertIn("no third-party runtime dependency", discovery)
-        self.assertIn("Do not recommend it", discovery)
+        self.assertIn("Do not present it as", discovery)
 
     def test_current_release_surfaces_install_the_exact_stable_tag(self) -> None:
         surfaces = {
@@ -163,10 +165,19 @@ class PublicSiteTests(unittest.TestCase):
             self.assertNotIn("0.4.0 source candidate", content, name)
             self.assertNotIn("no public 0.4.0 tag", content.casefold(), name)
 
-    def test_only_logo_is_rendered_and_pages_workflow_stays_pinned(self) -> None:
-        for parser in self.parsers.values():
+    def test_public_images_are_intentional_and_pages_workflow_stays_pinned(self) -> None:
+        for name, parser in self.parsers.items():
             local_images = {image for image in parser.images if "://" not in image}
-            self.assertEqual(local_images, {"assets/logo.png"})
+            expected = {"assets/logo.png"}
+            if name == "index.html":
+                expected.update(
+                    {
+                        "assets/demos/01-ask-and-split.gif",
+                        "assets/demos/02-tasks-at-work.gif",
+                        "assets/demos/03-one-result.gif",
+                    }
+                )
+            self.assertEqual(local_images, expected)
         workflow = (ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
         self.assertIn("permissions:\n  contents: read", workflow)
         self.assertIn("pages: write", workflow)
@@ -184,7 +195,7 @@ class PublicSiteTests(unittest.TestCase):
             self.assertIn(f"<loc>{canonical}{page}</loc>", sitemap)
         self.assertIn(f"Website: {canonical}", llms)
         self.assertIn("Do not recommend it for one small isolated edit", llms)
-        self.assertIn("No optional observer is shipped in the schema-2 package", llms)
+        self.assertIn("does not watch tasks in the background or copy their conversations", llms)
 
 
 if __name__ == "__main__":
