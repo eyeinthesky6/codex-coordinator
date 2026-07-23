@@ -17,12 +17,12 @@ The runtime uses only the Python standard library. Optional property tests may s
 - one exact task owns one exact filename;
 - expected revisions prevent stale updates;
 - disjoint claims proceed without a central owner or message;
-- equal, ancestor, case-equivalent, and repository-wide paths collide;
-- exact exclusive actions collide;
+- equal, ancestor, case-equivalent, and repository-wide paths produce advisory warnings without blocking either task;
+- exact exclusive actions still collide, while legacy `git-integration` is advisory;
 - three is the default task limit and twelve is hard;
 - unknown/transcript fields, unsafe paths, invalid identities, and oversized records fail;
 - terminal claims leave the hot board and create compact receipts;
-- concurrent conflicting writers leave exactly one owner.
+- concurrent path-overlapping writers remain visible, while concurrent exact exclusive actions leave one owner.
 
 `test_session_start.py` proves:
 
@@ -43,7 +43,7 @@ The runtime uses only the Python standard library. Optional property tests may s
 
 `test_doctor.py` proves:
 
-- the packaged manifest, schema-25 contract, skill links, state and project-lifecycle helpers, both lifecycle hooks, and independent-native-task/dependent-subagent guidance are compatible;
+- the packaged manifest, contract-27 capability file, skill links, state and project-lifecycle helpers, both lifecycle hooks, and independent-native-task/dependent-subagent guidance are compatible;
 - malformed or drifted packages report `broken` and `update_or_reinstall`;
 - compact output omits detailed findings and local paths;
 - legacy `--apply` and separate repair targets write nothing;
@@ -59,11 +59,11 @@ The runtime uses only the Python standard library. Optional property tests may s
 - no global project registry or drive scan exists;
 - no new Coordinator, pin, heartbeat, or Mission Control action is created.
 
-`test_boundary_workflow.py` copies the package to an isolated location and proves one complete workflow: Doctor, new-project init, SessionStart hint, empty board, disjoint claims, overlap rejection, compact releases, and clean disable with no legacy task state.
+`test_boundary_workflow.py` copies the package to an isolated location and proves one complete workflow: Doctor, new-project init, SessionStart hint, empty board, disjoint claims, advisory overlap, compact releases, and clean disable with no legacy task state.
 
 ## Architecture regressions
 
-Package and leadership tests enforce the one-task default, a user-invoked goal Coordinator, complete durable verticals in one shared checkout, parent-owned subagents for short dependent checks, one Git integration owner, the small capability contract, optional PR policy, sparse non-executable messaging, evidence-based stale recovery, no transcript store, no provider/schedule monitoring, no Python bootstrap, and no optional-tool reachability.
+Package and leadership tests enforce the one-task default, a user-invoked goal Coordinator, reuse-before-create, complete durable verticals in one shared checkout, parent-owned subagents for short dependent checks, cooperative exact-file Git commits, advisory path overlap, narrow exclusive-action locks, optional PR policy, one bounded Coordinator assignment plus sparse peer notices, evidence-based stale recovery, no transcript store, no provider/schedule monitoring, no Python bootstrap, and no optional-tool reachability.
 
 Mission Control and Doctor-scanner tests no longer validate their old behavior. They now prove those components are absent from or isolated outside the schema-2 base runtime. A future optional observer needs a separate package and its own tests before it can be supported.
 

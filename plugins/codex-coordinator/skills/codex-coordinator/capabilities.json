@@ -1,5 +1,5 @@
 {
-  "contractVersion": 26,
+  "contractVersion": 27,
   "capabilities": {
     "corePurpose": "repository-task-boundary-visibility",
     "repositoryLifecycle": "explicit-opt-in",
@@ -7,14 +7,15 @@
     "defaultExecution": "one-native-task",
     "nativeTaskAuthority": "execution-messaging-transcript",
     "claimOwnership": "per-task-json-record",
-    "claimConflictCheck": "repo-relative-path-and-exclusive-action",
+    "claimConflictCheck": "advisory-path-overlap-exclusive-action-only",
     "activeTaskLimit": "three-default-twelve-hard-user-override",
-    "taskCreation": "coordinator-two-or-three-complete-durable-verticals",
+    "taskCreation": "reuse-first-then-local-two-or-three-verticals",
+    "taskReuse": "related-local-task-before-create",
     "goalCoordinator": "user-invoked-goal-scoped-on-demand",
     "goalCoordinationAction": "goal-coordination",
     "taskPlacement": "shared-primary-checkout-current-branch",
     "dependentParallelism": "durable-verticals-or-parent-owned-subagents",
-    "messagePolicy": "sparse-non-executable-peer-notices",
+    "messagePolicy": "coordinator-one-shot-assignment-and-sparse-peer-notices",
     "transcriptStorage": "none",
     "currentView": "generated-active-only-non-authoritative",
     "automaticFanIn": "none",
@@ -26,6 +27,6 @@
     "staleClaimRecovery": "native-terminal-evidence",
     "stateTool": "scripts/coordination_state.py",
     "archivePolicy": "cold-compact-receipts",
-    "gitWorkflow": "single-git-integration-owner-shared-checkout"
+    "gitWorkflow": "cooperative-exact-file-commits-shared-branch"
   }
 }

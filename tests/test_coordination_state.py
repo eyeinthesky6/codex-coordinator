@@ -124,7 +124,7 @@ class CoordinationStateTests(unittest.TestCase):
             self.assertIn("Coordinator:", created)
             self.assertIn("Shared goal: Own bounded area 0", created)
             self.assertIn("path: src/a", created)
-            self.assertIn("Git integration owner:", created)
+            self.assertNotIn("Git integration owner:", created)
 
             current.write_text("corrupt stale view\n", encoding="utf-8")
             _claim(
@@ -228,24 +228,38 @@ class CoordinationStateTests(unittest.TestCase):
         self.assertEqual(report["conflicts"], [])
         self.assertFalse(any("coordinator" in key.casefold() for key in report))
 
-    def test_ancestor_case_and_repository_wide_paths_conflict(self) -> None:
+    def test_ancestor_case_and_repository_wide_paths_warn_without_blocking(self) -> None:
         cases = (("src", "src/app.py"), ("SRC/App.py", "src/app.py"), (".", "docs/a.md"))
         for owned, requested in cases:
             with self.subTest(owned=owned, requested=requested), tempfile.TemporaryDirectory() as directory:
                 root = _project(directory)
                 _claim(root, 0, owned)
-                with self.assertRaises(state.ClaimConflict) as raised:
-                    _claim(root, 1, requested)
-                conflict = raised.exception.conflicts[0]
-                self.assertEqual(conflict["threadId"], THREADS[0])
-                self.assertTrue(conflict["pathOverlaps"])
+                claimed = _claim(root, 1, requested)
+                warning = claimed["warnings"][0]
+                self.assertEqual(warning["threadId"], THREADS[0])
+                self.assertTrue(warning["pathOverlaps"])
+                report = state.list_board(root)
+                self.assertEqual(report["status"], "ok")
+                self.assertEqual(report["activeCount"], 2)
+                self.assertTrue(report["warnings"])
 
     def test_exact_exclusive_action_conflicts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = _project(directory)
-            _claim(root, 0, "src/a", actions=["git-integration"])
+            _claim(root, 0, "src/a", actions=["release"])
             with self.assertRaises(state.ClaimConflict):
-                _claim(root, 1, "docs/b", actions=["git-integration"])
+                _claim(root, 1, "docs/b", actions=["release"])
+
+    def test_legacy_git_integration_action_is_advisory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            _claim(root, 0, "src/a", actions=["git-integration"])
+            claimed = _claim(root, 1, "docs/b", actions=["git-integration"])
+            self.assertEqual(claimed["status"], "claimed")
+            self.assertEqual(
+                claimed["warnings"][0]["actionOverlaps"], ["git-integration"]
+            )
+            self.assertEqual(state.list_board(root)["status"], "ok")
 
     def test_default_and_hard_task_limits_require_user_override(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -330,7 +344,7 @@ class CoordinationStateTests(unittest.TestCase):
             self.assertNotIn("transcript", receipt)
             self.assertLess(receipts[0].stat().st_size, 1024)
 
-    def test_conflicting_concurrent_claims_leave_one_owner(self) -> None:
+    def test_concurrent_path_overlap_keeps_both_lanes_visible(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = _project(directory)
             barrier = threading.Barrier(2)
@@ -340,6 +354,32 @@ class CoordinationStateTests(unittest.TestCase):
                 barrier.wait()
                 try:
                     _claim(root, index, "shared/path")
+                    outcomes.append("claimed")
+                except state.ClaimConflict:
+                    outcomes.append("conflict")
+                except Exception as error:  # surfaced below with its exact type
+                    outcomes.append(type(error).__name__)
+
+            threads = [threading.Thread(target=worker, args=(index,)) for index in range(2)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=5)
+            self.assertEqual(sorted(outcomes), ["claimed", "claimed"])
+            report = state.list_board(root)
+            self.assertEqual(report["activeCount"], 2)
+            self.assertTrue(report["warnings"])
+
+    def test_concurrent_exclusive_action_keeps_one_owner(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            barrier = threading.Barrier(2)
+            outcomes: list[str] = []
+
+            def worker(index: int) -> None:
+                barrier.wait()
+                try:
+                    _claim(root, index, f"area/{index}", actions=["deployment"])
                     outcomes.append("claimed")
                 except state.ClaimConflict:
                     outcomes.append("conflict")

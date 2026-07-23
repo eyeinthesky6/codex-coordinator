@@ -8,7 +8,7 @@ Time, silence, `idle`, `notLoaded`, an old timestamp, a filtered discovery miss,
 
 1. Read the claim from the primary worktree and note its exact thread UUID and revision.
 2. Inspect that exact native Codex task. Retry once with an unfiltered inventory when a filtered lookup misses.
-3. If it is running or its state remains uncertain, preserve the claim and stop only overlapping work.
+3. If it is running or its state remains uncertain, preserve the claim. A path warning alone does not stop work; pause only an actual incompatible hunk, writer command, or exact exclusive action.
 4. If exact native evidence proves it terminal, archived, or unusable, compare its goal and boundary with the current direct user request.
 5. The user's request to continue the same required work authorises a conflict-free replacement; it does not authorise unrelated work or another repository.
 6. Release the stale claim with its current revision and `--status stale-owner-confirmed`, then create the replacement task's own claim. Never edit the former task's file in place.

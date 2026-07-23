@@ -13,7 +13,8 @@ These are release and provider conditions, not evidence of an application-code d
 ## Product boundaries to preserve
 
 - Coordination records are local to the primary checkout and do not synchronize between machines.
-- Coordinated task windows stay in that shared checkout and current branch. The product does not create worktrees; one task owns Git integration.
+- Coordinated tasks stay in that shared checkout and current branch. The product does not create worktrees and has no durable Git owner; each task commits only reviewed exact files.
+- Path overlap is advisory. A future change must not restore broad directory locks or durable ownership of generated assets and gates without new user evidence and an architecture decision.
 - The SessionStart hook is a bounded marker hint, not proof of current ownership.
 - Users must review and trust the hook; changed hooks may be skipped until reviewed again.
 - The protocol depends on small YAML and JSON records staying compatible with the documented schemas.
@@ -43,5 +44,6 @@ These are release and provider conditions, not evidence of an application-code d
 - `plugins/codex-coordinator/skills/codex-coordinator/scripts/coordination_state.py`
 - `docs/codebase/2026-07-21_boundary-board-simplification_architectural_review.md`
 - `docs/codebase/2026-07-22_claim-lifecycle-stop-guard_architectural_review.md`
+- `docs/codebase/2026-07-23_cooperative-shared-checkout_architectural_review.md`
 - `tests/`
 - `.github/`

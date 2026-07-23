@@ -34,15 +34,26 @@ class GoalLeadershipContractTests(unittest.TestCase):
         self.assertIn("parent-owned subagents", content)
         self.assertNotIn("pinned Coordinator remains", content)
 
-    def test_all_coordinated_tasks_share_checkout_branch_and_one_git_owner(self) -> None:
+    def test_all_coordinated_tasks_share_checkout_and_use_cooperative_git(self) -> None:
         content = "\n".join(
             (SKILL_ROOT / path).read_text(encoding="utf-8")
             for path in ("SKILL.md", "references/execution.md")
         )
         self.assertIn("same primary checkout, current worktree, and current branch", content)
         self.assertIn("Do not create or switch branches or worktrees", content)
-        self.assertIn("exactly one `git-integration`", content)
-        self.assertIn("do not mutate Git state", content)
+        self.assertIn("There is no durable Git owner", content)
+        self.assertIn("staging only explicit files", content)
+        self.assertIn("git-integration` is a legacy advisory action", content)
+
+    def test_coordinator_reuses_related_task_before_creation(self) -> None:
+        content = "\n".join(
+            (SKILL_ROOT / path).read_text(encoding="utf-8")
+            for path in ("SKILL.md", "references/execution.md", "references/messaging.md")
+        )
+        self.assertIn("Reuse before create", content)
+        self.assertIn("related local task", content)
+        self.assertIn("GOAL_ASSIGNMENT", content)
+        self.assertIn("no acknowledgement chain", content)
 
     def test_active_state_is_sparse_and_current_view_is_non_authoritative(self) -> None:
         content = "\n".join(
@@ -68,13 +79,14 @@ class GoalLeadershipContractTests(unittest.TestCase):
 
     def test_capability_contract_describes_boundary_board_not_orchestration(self) -> None:
         contract = json.loads((SKILL_ROOT / "capabilities.json").read_text(encoding="utf-8"))
-        self.assertEqual(contract["contractVersion"], 26)
+        self.assertEqual(contract["contractVersion"], 27)
         capabilities = contract["capabilities"]
         self.assertEqual(capabilities["defaultExecution"], "one-native-task")
         self.assertEqual(
             capabilities["taskCreation"],
-            "coordinator-two-or-three-complete-durable-verticals",
+            "reuse-first-then-local-two-or-three-verticals",
         )
+        self.assertEqual(capabilities["taskReuse"], "related-local-task-before-create")
         self.assertEqual(
             capabilities["goalCoordinator"],
             "user-invoked-goal-scoped-on-demand",
@@ -96,7 +108,7 @@ class GoalLeadershipContractTests(unittest.TestCase):
         self.assertEqual(capabilities["transcriptStorage"], "none")
         self.assertEqual(
             capabilities["gitWorkflow"],
-            "single-git-integration-owner-shared-checkout",
+            "cooperative-exact-file-commits-shared-branch",
         )
         self.assertEqual(
             capabilities["stopGuard"], "own-active-claim-one-shot-no-transcript"

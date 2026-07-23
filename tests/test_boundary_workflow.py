@@ -185,7 +185,7 @@ class BoundaryWorkflowTests(unittest.TestCase):
             self.assertEqual(disjoint["activeCount"], 2)
             self.assertIn("Active lanes: 2", current.read_text(encoding="utf-8"))
 
-            code, rejected = self._json_command(
+            code, overlap = self._json_command(
                 state,
                 "claim",
                 "--project-root",
@@ -201,11 +201,12 @@ class BoundaryWorkflowTests(unittest.TestCase):
                 "--expected-revision",
                 "0",
             )
-            self.assertEqual(code, 2)
-            self.assertEqual(rejected["status"], "conflict")
-            self.assertEqual(rejected["conflicts"][0]["threadId"], first)
+            self.assertEqual(code, 0)
+            self.assertEqual(overlap["status"], "claimed")
+            self.assertEqual(overlap["activeCount"], 3)
+            self.assertEqual(overlap["warnings"][0]["threadId"], first)
 
-            for thread_id in (first, second):
+            for thread_id in (first, second, conflicting):
                 code, released = self._json_command(
                     state,
                     "release",
@@ -233,7 +234,7 @@ class BoundaryWorkflowTests(unittest.TestCase):
             receipts = list(
                 (root / ".codex" / "coordination" / "archive").glob("*.json")
             )
-            self.assertEqual(len(receipts), 2)
+            self.assertEqual(len(receipts), 3)
 
             code, disabled = self._json_command(
                 lifecycle,

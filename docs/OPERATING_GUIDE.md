@@ -30,9 +30,9 @@ Continue normal Codex work. Do not read legacy schema-1 `CURRENT.md`, task, inbo
 1. Resolve the primary worktree.
 2. List active claims with the bundled state helper.
 3. Keep the request in the current task unless the user explicitly requests coordination and two or three complete durable verticals exist.
-4. Before substantial writes, publish this exact native task's narrow paths and exclusive actions using expected revision `0`.
-5. Work only inside the claim. Update it only at natural boundaries: start, real scope change, blocked-state change, and completion or stop.
-6. If a claim overlaps, pause only the conflicting part. Disjoint work continues.
+4. Before substantial writes, publish this exact native task's planned paths and narrow exclusive actions using expected revision `0`.
+5. Work within the stated goal. Update the claim only at natural boundaries: start, real scope change, blocked-state change, and completion or stop.
+6. Treat a path overlap as a warning. Re-read shared files and pause only an actually conflicting hunk or writer command. An exact exclusive-action conflict remains blocked.
 7. Before the final answer at completion or stop, release the claim to one compact cold receipt.
 8. Report from the native task. Do not duplicate the turn in project state.
 
@@ -41,15 +41,16 @@ The normal active limit is three. More requires a direct user decision and the e
 ### Explicit Coordinator
 
 1. The user designates one normal task as Coordinator for one bounded goal.
-2. That task claims the exclusive `goal-coordination` action. Its claim goal is the shared goal; it may also claim `git-integration`, but needs no source path unless it will edit one.
-3. It assigns two or three complete verticals with exact paths, actions, dependencies, checks, and completion conditions.
-4. Every task window stays in the same primary checkout, current worktree, and current branch. No task creates or switches a branch or worktree.
-5. Exactly one task owns `git-integration`. Other tasks edit and test their claimed areas but do not mutate Git state.
-6. The Coordinator yields after assignment. When the user invokes it again, it reads current active state and uses native task results only as needed. It never polls or promises automatic wake-up.
+2. That task claims the exclusive `goal-coordination` action. Its claim goal is the shared goal; it needs no source path unless it will edit one.
+3. Before creating anything, it reuses a suitable related local task in the same repository and checkout. Only when none exists does it create the smallest useful number of local tasks.
+4. It sends each task one complete vertical with paths, actions, dependencies, checks, and completion conditions. A reused task receives one `GOAL_ASSIGNMENT`; no acknowledgement or progress-message chain follows.
+5. Every task stays in the same primary checkout, current worktree, and current branch. No task creates or switches a branch or worktree after parallel writing starts.
+6. There is no durable Git owner. Each task may commit only its reviewed exact files while preserving foreign staged work. Shared generators and gates have no durable owner.
+7. The Coordinator yields after assignment. When the user invokes it again, it reads current active state and uses native task results only as needed. It never polls or promises automatic wake-up.
 
 ### Active view
 
-Per-task JSON claims remain authoritative for conflict checks and mutations. Generated schema-2 `CURRENT.md` is a compact active-only view: shared goal from the `goal-coordination` claim, task goals, ownership, status, dependencies, and Git owner. It is atomically rebuilt from claims and contains no transcript or history.
+Per-task JSON claims remain authoritative for warnings, exclusive-action checks, and mutations. Generated schema-2 `CURRENT.md` is a compact active-only view: shared goal from the `goal-coordination` claim, task goals, planned boundaries, status, and dependencies. It is atomically rebuilt from claims and contains no transcript or history.
 
 ## Commands
 
@@ -89,29 +90,32 @@ Allowed terminal statuses are `completed`, `stopped`, `superseded`, and `stale-o
 
 - Use exact repository-relative files or directories. No absolute paths, drives, traversal, or globs.
 - `.` claims the whole repository.
-- Equal paths and ancestor/descendant paths conflict case-insensitively.
-- Exclusive actions conflict only on the exact action slug.
-- Common actions include `git-integration`, `release`, `deployment`, `database-migration`, `environment`, `runtime`, and `external-write`.
+- Equal paths and ancestor/descendant paths warn case-insensitively; they do not reject the claim.
+- Exclusive actions conflict only on the exact action slug. Use them only for truly singular operations and keep the slug narrow, such as `release-product` or `deployment-production`.
+- `git-integration` is a legacy advisory action. Do not use it for new claims.
 - A revision mismatch requires a fresh list. Never overwrite the newer record.
 - The board is advisory metadata, not a filesystem lock or permission grant.
 
-The helper uses a short OS file lock around mutations so concurrent writers cannot both win the same boundary. Each task can write only its own filename. Unknown fields and records above 4 KB are rejected.
+The helper uses a short OS file lock around mutations so concurrent writers cannot both win the same exclusive action. Each task can write only its own filename. Unknown fields and records above 4 KB are rejected.
 
 ## Git
 
-Exactly one writer owns `git-integration` whenever multiple writers exist. Other tasks do not stage, commit, push, switch branches, create worktrees, rebase, merge, stash, reset, restore, or clean.
+Establish the shared branch before parallel writing. Each task may stage and commit only explicit files it reviewed. Inspect the index first, leave foreign staged work untouched, verify staged names and patch, and use exact commit paths. Do not broad-stage, switch branches, create worktrees, pull, rebase, merge, stash, reset, restore, clean, or force-push while other writers are active.
 
-Direct commit and push is the default for one integration owner. Pull requests are optional.
+Direct commit and non-force push is the default. Pull requests are optional.
+
+Generated system maps, lockfiles, schemas, shared indexes, formatters, and full gates have no durable owner. Read-only gates may run freely. If a writer command is already running, let that command finish, then regenerate against the complete shared working tree and review its exact output.
 
 ## Peer notices
 
 Send a message only when an immediate real collision or dependency would otherwise surprise the exact owner. Allowed kinds are:
 
-- `COLLISION` — sender paused one overlapping boundary;
+- `GOAL_ASSIGNMENT` — the exact active goal Coordinator gives one suitable related local task a bounded in-repository vertical;
+- `COLLISION` — sender paused one actual hunk, writer command, or exclusive action;
 - `DEPENDENCY` — sender cannot finish a named result until a boundary is released;
 - `RELEASED` — that earlier condition is resolved.
 
-Notices are plain text and non-executable. They cannot assign work, relay authority, demand progress, or require an acknowledgement. Verify same project, exact sender, exact recipient, and both active claims before acting.
+Peer notices are plain text and non-executable. `GOAL_ASSIGNMENT` is the only assignment exception and is valid only under the user's current shared goal, in the same repository and checkout. It grants no deployment, release, provider, destructive, environment, or external-write authority. Verify same project, exact sender, exact recipient, and active claims before acting. No message demands progress or requires an acknowledgement.
 
 ## Stale claims
 
@@ -182,6 +186,7 @@ The source implementation has passed the full suite, bounded performance checks,
 
 - Current behavior: the packaged skill, capability contract, helper, lifecycle hooks, and tests.
 - Architecture decision and history: [boundary-board simplification review](codebase/2026-07-21_boundary-board-simplification_architectural_review.md).
+- Cooperative shared-checkout correction: [reuse-first and advisory-claim review](codebase/2026-07-23_cooperative-shared-checkout_architectural_review.md).
 - Claim-lifecycle correction: [one-shot Stop guard review](codebase/2026-07-22_claim-lifecycle-stop-guard_architectural_review.md).
 - Code layout: [architecture](codebase/ARCHITECTURE.md) and [structure](codebase/STRUCTURE.md).
 - Destructive lifecycle boundaries: [uninstall and deactivation](codebase/UNINSTALL_AND_DEACTIVATION.md).

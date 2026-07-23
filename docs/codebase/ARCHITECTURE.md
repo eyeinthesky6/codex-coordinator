@@ -2,7 +2,7 @@
 
 Codex Coordinator schema 2 is a repository-local task-boundary and visibility layer. An explicitly requested task may coordinate one goal, but there is no always-on/resident monitoring Coordinator.
 
-The accepted decision, history, retained protections, rejected mechanisms, migration gates, and rollback plan are in [the boundary-board simplification review](2026-07-21_boundary-board-simplification_architectural_review.md). The lifecycle correction for forgotten terminal claims is in [the one-shot Stop guard review](2026-07-22_claim-lifecycle-stop-guard_architectural_review.md).
+The accepted decision, history, retained protections, rejected mechanisms, migration gates, and rollback plan are in [the boundary-board simplification review](2026-07-21_boundary-board-simplification_architectural_review.md). The cooperative shared-checkout correction is in [its follow-up review](2026-07-23_cooperative-shared-checkout_architectural_review.md). The lifecycle correction for forgotten terminal claims is in [the one-shot Stop guard review](2026-07-22_claim-lifecycle-stop-guard_architectural_review.md).
 
 ## Authorities
 
@@ -26,8 +26,9 @@ flowchart TD
     T["Native Codex task"] --> C["Claim or update own exact UUID record"]
     C --> V["Validate schema, size, paths, actions, revision"]
     V --> K["Short OS mutation lock"]
-    K --> X{"Overlap?"}
-    X -- "yes" --> S["Reject only conflicting work"]
+    K --> W["Return advisory path warnings"]
+    W --> X{"Exact exclusive action conflict?"}
+    X -- "yes" --> S["Reject that singular action"]
     X -- "no" --> A["Atomic active record"]
     A --> P["Non-authoritative active-only CURRENT.md"]
     A --> R["Compact cold receipt at terminal boundary"]
@@ -41,7 +42,7 @@ flowchart TD
 
 Schema 1 is legacy. Its `CURRENT.md`, tasks, inbox, cache, and history remain preserved but are never active authority in schema 2.
 
-Schema 2 generates `CURRENT.md` with different semantics: an atomically rebuilt, active-only human view backed by the per-task JSON claims. It shows the shared goal from the `goal-coordination` claim, active task goals and ownership, status and dependencies, and the `git-integration` owner. It is never mutation authority, an inbox, a task ledger, a transcript, or historical memory.
+Schema 2 generates `CURRENT.md` with different semantics: an atomically rebuilt, active-only human view backed by the per-task JSON claims. It shows the shared goal from the `goal-coordination` claim, active task goals and planned boundaries, status, and dependencies. It is never mutation authority, an inbox, a task ledger, a transcript, or historical memory.
 
 ## Active board
 
@@ -59,7 +60,7 @@ Schema 2 generates `CURRENT.md` with different semantics: an atomically rebuilt,
 
 Unknown fields are rejected. Every file is capped at 4 KB. The active board is capped at twelve records and ordinary creation stops at three without a direct user decision.
 
-Path overlap is case-insensitive and ancestor-aware. Exclusive actions conflict by exact slug. Each mutation runs inside a short cross-platform OS file lock, verifies expected revision, writes atomically, and performs a post-write conflict check.
+Path overlap is case-insensitive and ancestor-aware, but it produces a warning rather than rejecting a task. Exact exclusive actions are the only claim-level conflict. Each mutation runs inside a short cross-platform OS file lock, verifies expected revision, writes atomically, and performs a post-write exclusive-action check.
 
 The lock serializes metadata updates only. It is not a source-file lock or permission system.
 
@@ -73,13 +74,13 @@ Ordinary list, claim, SessionStart, and Doctor paths never scan the archive.
 
 One native task is the default. When the user explicitly requests coordination, one normal task may claim `goal-coordination` for a bounded goal and assign two or three complete durable verticals. Three is the normal active maximum; twelve is hard.
 
-The Coordinator gives each vertical its complete goal, exact ownership, verification, and completion condition. It remains available only when invoked for that goal and ends with the goal. It does not poll, run a heartbeat, demand status reports, or promise automatic fan-in. Native completion does not wake it automatically; when invoked again, it reads current state and uses native results only as needed. Short dependent checks can still use parent-owned subagents.
+The Coordinator gives each vertical its complete goal, visible boundary, verification, and completion condition. Before creating a task, it reuses a suitable related local task in the same repository and checkout. It remains available only when invoked for that goal and ends with the goal. It does not poll, run a heartbeat, demand status reports, or promise automatic fan-in. Native completion does not wake it automatically; when invoked again, it reads current state and uses native results only as needed. Short dependent checks can still use parent-owned subagents.
 
-All coordinated tasks use the same primary checkout, current worktree, and current branch. They do not create or switch branches or worktrees. With multiple writers, exactly one task claims `git-integration`; every other task avoids Git mutations. PRs are optional policy.
+All coordinated tasks use the same primary checkout, current worktree, and current branch. They do not create or switch branches or worktrees after parallel writing starts. There is no durable Git owner: each task may stage and commit only its reviewed exact files while preserving foreign staged work. Shared generated assets and full gates have no durable owner; only an actual writer command is serialized. PRs are optional policy.
 
 ## Messaging
 
-The board is the normal visibility path. Peer messages are limited to `COLLISION`, `DEPENDENCY`, and `RELEASED`. They are plain-text, sparse, exact-recipient, same-project, and non-executable. There are no registration, acceptance, progress, status, thanks, or acknowledgement chains.
+The board is the normal visibility path. Peer notices are limited to `COLLISION`, `DEPENDENCY`, and `RELEASED`; they are plain-text, sparse, exact-recipient, same-project, and non-executable. One `GOAL_ASSIGNMENT` is allowed from the exact active goal Coordinator to a suitable related local task for bounded in-repository work. It grants no external or destructive authority. There are no registration, acceptance, progress, status, thanks, or acknowledgement chains.
 
 ## SessionStart
 
@@ -105,7 +106,7 @@ Any future observer must be a new separate package, manually started, read-only,
 
 ## Failure posture
 
-Fail closed on an enabled unsupported marker, malformed claim, wrong project, invalid exact identity, lost revision, unresolved overlap, unclear external authority, or safety-critical conflict. Keep disjoint authorized work moving.
+Fail closed on an enabled unsupported marker, malformed claim, wrong project, invalid exact identity, lost revision, an exact exclusive-action conflict, unclear external authority, or a safety-critical actual write collision. Path warnings alone do not stop work.
 
 Silence, age, idle, timeout, and filtered discovery misses never prove staleness. Releasing another owner's record requires exact native terminal, archived, or unusable evidence plus a current user request covering the same unfinished work.
 
