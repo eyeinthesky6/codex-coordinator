@@ -1,6 +1,6 @@
 # Codex Coordinator operating guide
 
-This guide describes the schema-2 boundary board released in `v0.4.0`. A repository remains disabled until the user reviews its migration or installation and explicitly enables it.
+This guide describes the schema-2 boundary board implemented in the unreleased `0.4.0` source candidate. A repository remains disabled until the user reviews its migration or installation and explicitly enables it.
 
 ## Choose the smallest path
 
@@ -131,7 +131,7 @@ Provider, schedule, release, environment, database, and deployment actions remai
 
 ## SessionStart
 
-SessionStart reads only the marker and emits a short hint for an enabled compatible project. It never reads the board, archives, native histories, private Codex databases, or legacy records. It launches no process, Python installer, browser, Mission Control, task, message, heartbeat, or schedule.
+SessionStart reads only the marker and emits a short hint for an enabled compatible project. It never reads the board, archives, native histories, private Codex databases, or legacy records. It launches no process, Python installer, browser, observer, task, message, heartbeat, or schedule.
 
 ## Stop guard
 
@@ -153,9 +153,9 @@ Results are `healthy` or `broken`. Broken means update or reinstall the plugin. 
 
 Doctor does not scan projects, write findings, run a model, create a diagram, start an observer, copy files, repair, or roll back.
 
-## Mission Control
+## Optional observers
 
-Mission Control is not shipped in the schema-2 base package. The schema-1 runtime, UI, launchers, and lifecycle helper remain available only in historical Git revisions such as `v0.3.0`.
+No observer is shipped in the schema-2 base package. The retired runtime, UI, launchers, and lifecycle helper remain available only in dated decision records and historical Git revisions.
 
 A future optional observer requires a new separate package and usage evidence. It must be manually started, read-only, and limited to the public active-board schema. It must not inspect private Codex SQLite or rollout files or have Doctor, model, task, schedule, or write authority.
 

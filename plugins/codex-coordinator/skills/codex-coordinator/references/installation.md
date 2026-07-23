@@ -7,7 +7,7 @@ Read this file completely only when the user asks to install, enable, disable, o
 - The plugin installs one global skill and one small read-only SessionStart hook.
 - Python 3.10 or newer must already be available. Installation never installs Python, changes PATH, invokes an OS package manager, or asks for administrator access.
 - SessionStart reads only the bounded project marker and launches no child process or optional tool.
-- Mission Control is not started or installed as part of project enablement.
+- No optional observer is started or installed as part of project enablement.
 - Project state contains a trackable marker, ignored active claims and cold receipts, plus a generated active-only `CURRENT.md` view after the first claim. That view is never authority. There is no always-on Coordinator, heartbeat, inbox, or task transcript store.
 
 ## Enablement preflight
@@ -71,7 +71,7 @@ Repeat with `--apply` only after the plan is approved. The helper rejects an exi
 
 1. Create or migrate the marker only under direct user authority or the explicit repository trigger in the main skill.
 2. Add the exact ignore and discovery blocks.
-3. Do not create a Codex task, `CURRENT.md`, task contract, inbox, heartbeat, Mission Control process, Doctor schedule, or placeholder record.
+3. Do not create a Codex task, `CURRENT.md`, task contract, inbox, heartbeat, observer process, Doctor schedule, or placeholder record.
 4. Validate the marker and run the state helper's empty `list` command.
 5. Keep the project single-task until each real writer can publish its own exact native claim.
 

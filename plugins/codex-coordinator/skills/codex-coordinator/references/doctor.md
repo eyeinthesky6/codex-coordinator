@@ -8,12 +8,12 @@ Run the installed script from its package:
 python scripts/codex_coordinator_doctor.py --check
 ```
 
-It verifies only the packaged manifest, contract-27 capability file, skill frontmatter and links, state-helper syntax, project-lifecycle syntax, exact SessionStart/Stop registration, and hook syntax. It does not run a hook, inspect projects, read Codex databases or transcripts, scan rollouts, write diagrams, compare private paths, or modify installed files.
+It verifies only the packaged manifest, contract-28 capability file, skill frontmatter and links, state-helper syntax, project-lifecycle syntax, exact SessionStart/Stop registration, and hook syntax. It does not run a hook, inspect projects, read Codex databases or transcripts, scan rollouts, write diagrams, compare private paths, or modify installed files.
 
 Results are `healthy` or `broken`. On `broken`, report:
 
 > Codex Coordinator is broken or outdated. Update or reinstall the plugin from its configured marketplace or source.
 
-Do not copy files, repair targets, roll back an installation, create a task, start Mission Control, or schedule a follow-up. The plugin manager owns update and reinstall.
+Do not copy files, repair targets, roll back an installation, create a task, start an optional observer, or schedule a follow-up. The plugin manager owns update and reinstall.
 
 Legacy `--apply` requests are rejected without writing and return the same update-or-reinstall action.

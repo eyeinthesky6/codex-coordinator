@@ -20,9 +20,9 @@ GitHub hosts source, CI, releases, Discussions, security reporting, and the stat
 
 Current provider settings, checks, protections, releases, and PR state can change independently. Read them through their owning interface when the user's task specifically requires them.
 
-## Mission Control
+## Optional observers
 
-There is no schema-2 Mission Control integration or runtime in the base package. A future observer would require a separate package and must use only the public board, start manually, remain read-only, and have no private Codex, Doctor, model, task, provider, schedule, or write integration.
+There is no schema-2 observer integration or runtime in the base package. A future observer would require a separate package and must use only the public board, start manually, remain read-only, and have no private Codex, Doctor, model, task, provider, schedule, or write integration.
 
 ## Doctor and plugin manager
 

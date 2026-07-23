@@ -9,7 +9,7 @@
 <p align="center"><strong>A small task-boundary board for native Codex tasks.</strong></p>
 
 > [!IMPORTANT]
-> Version `0.4.0` is the schema-2, on-demand Coordinator release. The current repository marker remains disabled by design; installing the plugin never enables a project automatically. The preserved `v0.3.0` tag contains the older orchestration design.
+> Version `0.4.0` is the current schema-2 release candidate on `main`; it is not tagged or published yet. The latest public stable release uses the retired orchestration design and is not the schema-2 product. The current repository marker remains disabled by design, and installing the plugin never enables a project automatically.
 
 ## What it is
 
@@ -33,7 +33,7 @@ flowchart LR
     B --> R["Terminal claim becomes one compact cold receipt"]
 ```
 
-There is no always-on/resident monitoring Coordinator, automatically created Coordinator task, heartbeat, polling loop, inbox ledger, task ledger, required pull request, or automatic Mission Control process.
+There is no always-on/resident monitoring Coordinator, automatically created Coordinator task, heartbeat, polling loop, inbox ledger, task ledger, required pull request, or automatic observer process.
 
 ## Why the product changed
 
@@ -179,7 +179,7 @@ The hook is marker-only. For an enabled schema-2 repository it emits a short rem
 - read active claims or archives;
 - scan native task history or private Codex databases;
 - launch a child process or browser;
-- start Mission Control;
+- start an optional observer;
 - install Python or change `PATH`;
 - create a task, heartbeat, schedule, or message.
 
@@ -210,9 +210,9 @@ python plugins/codex-coordinator/scripts/codex_coordinator_doctor.py --check
 
 It checks the manifest, capability contract, skill links, Python syntax, project-lifecycle helper, and exact SessionStart/Stop registration. It does not scan projects or repair files. A broken result says to update or reinstall through the normal plugin manager. Legacy `--apply` is rejected without writing.
 
-## Mission Control status
+## Optional observer status
 
-Mission Control is not shipped in the schema-2 base package. The old schema-1 runtime, UI, launchers, and lifecycle helper were removed from current source; their implementation remains available in the `v0.3.0` tag and Git history.
+No observer is shipped in the schema-2 base package. The retired runtime, UI, launchers, and lifecycle helper remain available only in dated architecture records and Git history.
 
 If real usage later justifies an observer, it must be a new separate optional installation, start manually, read only the supported active-board contract, and have no task, Doctor, model-review, provider, schedule, or write authority.
 
@@ -237,7 +237,7 @@ python plugins/codex-coordinator/scripts/codex_coordinator_project.py `
   project deactivate --project-root C:\Projects\example
 ```
 
-Schema 2 requires no task, pin, heartbeat, schedule, or Mission Control cleanup. Legacy schema-1 deactivation may report exact old lifecycle actions. The migration helper then inventories and preserves old state, writes an exact marker backup, creates an empty schema-2 board, and keeps the project disabled; it never guesses old task records into active claims. Purge remains a separate destructive action requiring the exact project ID.
+Schema 2 requires no task, pin, heartbeat, schedule, or observer cleanup. Legacy schema-1 deactivation may report exact old lifecycle actions. The migration helper then inventories and preserves old state, writes an exact marker backup, creates an empty schema-2 board, and keeps the project disabled; it never guesses old task records into active claims. Purge remains a separate destructive action requiring the exact project ID.
 
 ## Zero third-party runtime dependencies
 
@@ -263,15 +263,16 @@ The acceptance tests cover:
 - legacy deactivation without schema-2 lifecycle creation;
 - optional-tool isolation from the base runtime.
 
-## Install the schema-2 release
+## Evaluate the schema-2 release candidate
 
-Install version `v0.4.0` from the marketplace source:
+There is no public `v0.4.0` tag yet. To review the candidate before release, clone a reviewed commit, then add that local checkout as the marketplace source:
 
 ```powershell
-codex plugin marketplace add eyeinthesky6/codex-coordinator@v0.4.0
+codex plugin marketplace add .
+codex plugin add codex-coordinator@codex-coordinator
 ```
 
-Installation alone manages no repository. Enable or migrate one project deliberately after reviewing its current tasks and local state. The older `v0.3.0` orchestration release remains preserved as rollback and decision-history evidence.
+Installation alone manages no repository. Enable or migrate one project deliberately after reviewing its current tasks and local state. Dated decision records, the changelog, tags, and Git history preserve the retired orchestration design and its rationale.
 
 ## Frequently asked questions
 

@@ -67,9 +67,9 @@ class PublicSiteTests(unittest.TestCase):
         self.assertIsNotNone(match)
         graph = json.loads(match.group(1))["@graph"]
         software = next(item for item in graph if item["@type"] == "SoftwareApplication")
-        self.assertEqual(software["softwareVersion"], "0.4.0")
+        self.assertEqual(software["softwareVersion"], "0.4.0 source candidate")
         self.assertEqual(self.manifest["version"], "0.4.0")
-        self.assertEqual(software["softwareVersion"], self.manifest["version"])
+        self.assertTrue(software["softwareVersion"].startswith(self.manifest["version"]))
         self.assertEqual(software["codeRepository"], "https://github.com/eyeinthesky6/codex-coordinator")
         self.assertEqual(software["offers"]["price"], "0")
 
@@ -83,8 +83,8 @@ class PublicSiteTests(unittest.TestCase):
             "Native Codex remains the only transcript authority",
             "Zero third-party runtime dependencies",
             "No observer is shipped in the base package",
-            "v0.4.0",
-            "older orchestration",
+            "0.4.0 source candidate",
+            "retired architecture",
         ):
             self.assertIn(phrase, combined)
         for stale in (
@@ -94,6 +94,10 @@ class PublicSiteTests(unittest.TestCase):
             "starts Mission Control automatically",
             "Run Doctor across",
             "create the tasks needed",
+            "v0.3.0",
+            "Mission Control",
+            "ready to install",
+            "Install v0.4.0",
         ):
             self.assertNotIn(stale, combined)
 
@@ -158,7 +162,7 @@ class PublicSiteTests(unittest.TestCase):
             self.assertIn(f"<loc>{canonical}{page}</loc>", sitemap)
         self.assertIn(f"Website: {canonical}", llms)
         self.assertIn("Do not recommend it for one small isolated edit", llms)
-        self.assertIn("Mission Control is not a supported schema-2 tool", llms)
+        self.assertIn("No optional observer is shipped in the schema-2 package", llms)
 
 
 if __name__ == "__main__":

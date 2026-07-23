@@ -7,7 +7,7 @@
 - `plugins/codex-coordinator/scripts/codex_coordinator_session_start.py`: marker-only, read-only hook.
 - `plugins/codex-coordinator/scripts/codex_coordinator_stop_guard.py`: one-shot, read-only exact-own-claim lifecycle guard.
 - `plugins/codex-coordinator/skills/codex-coordinator/SKILL.md`: boundary-board invariants and lane router.
-- `plugins/codex-coordinator/skills/codex-coordinator/capabilities.json`: contract-27 public behavior contract.
+- `plugins/codex-coordinator/skills/codex-coordinator/capabilities.json`: contract-28 public behavior contract.
 - `plugins/codex-coordinator/skills/codex-coordinator/scripts/coordination_state.py`: active claim list/claim/release helper and generated current-view renderer.
 - `plugins/codex-coordinator/skills/codex-coordinator/references/`: execution, messaging, recovery, installation, maintenance, and Doctor guidance.
 - `plugins/codex-coordinator/scripts/codex_coordinator_doctor.py`: manual read-only compatibility check.
@@ -23,7 +23,7 @@
 
 ## Optional observer boundary
 
-The base package contains no Mission Control runtime, UI, launcher, lifecycle helper, or browser test. The removed schema-1 implementation remains available from `v0.3.0` and Git history. Any future observer requires a separate package and must consume only the public schema-2 board.
+The base package contains no observer runtime, UI, launcher, lifecycle helper, or browser test. The removed implementation remains available from dated decision records and Git history. Any future observer requires a separate package and must consume only the public schema-2 board.
 
 ## Public and contributor docs
 
