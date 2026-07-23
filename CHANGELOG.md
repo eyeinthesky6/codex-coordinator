@@ -2,9 +2,11 @@
 
 Notable changes to Codex Coordinator will be recorded here.
 
-## [Unreleased] - target 0.4.0
+## [Unreleased]
 
-- Corrected public release status: schema 2 is implemented on `main`, but no `v0.4.0` tag or GitHub Release exists yet. Current pages now describe a source candidate instead of publishing a broken install command.
+## 0.4.0 - 2026-07-23
+
+- Published schema 2 as the supported `v0.4.0` task-boundary board and documented the exact tagged Codex marketplace install path.
 - Removed the last inert legacy residues from current feature surfaces: the unlinked retired reconciliation guide, empty `apps` package marker, unreferenced dashboard screenshot, and old dashboard key/name in the capability and normal guidance contracts. Exact names remain only where schema-1 migration, regression tests, the changelog, or dated decision history needs them.
 - Corrected the remaining over-control in the schema-2 workflow: path and ancestor overlap now produce advisory warnings, while only exact truly exclusive actions block. Existing `git-integration` claims are treated as legacy advisory metadata.
 - Added reuse-before-create. An explicit goal Coordinator first reuses a suitable related local task in the same repository and checkout through one bounded assignment; a new local task is the fallback, with no acknowledgement or polling loop.
@@ -24,7 +26,7 @@ Notable changes to Codex Coordinator will be recorded here.
 - Rewrote the capability contract, guidance, tests, and public docs around one-task-first execution, one bounded Coordinator assignment plus sparse peer notices, exact external-write consent, evidence-based stale recovery, direct-commit default, and optional PRs.
 - Removed the 7,800-line legacy Mission Control runtime, duplicate source-checkout wrapper, lifecycle launcher, and browser smoke script from the base package. Its original implementation remains available in `v0.3.0` and Git history; any future observer must be a new, separate, board-only package justified by real usage.
 - Preserved the reasons and security lessons behind the superseded orchestration, Doctor, and Mission Control work in the boundary-board architectural review and Git history.
-- Kept the repository and all previously suspended projects disabled. The future `v0.4.0` install will not enable any project automatically; `v0.3.0` remains the preserved legacy orchestration release.
+- Kept the repository and all previously suspended projects disabled. The `v0.4.0` install does not enable any project automatically; `v0.3.0` remains preserved as the legacy orchestration release.
 
 ## 0.3.0 - 2026-07-17
 

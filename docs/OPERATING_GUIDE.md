@@ -1,6 +1,6 @@
 # Codex Coordinator operating guide
 
-This guide describes the schema-2 boundary board implemented in the unreleased `0.4.0` source candidate. A repository remains disabled until the user reviews its migration or installation and explicitly enables it.
+This guide describes the schema-2 boundary board released as `0.4.0`. A repository remains disabled until the user reviews its migration or installation and explicitly enables it.
 
 ## Choose the smallest path
 

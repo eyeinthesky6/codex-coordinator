@@ -2,8 +2,8 @@
 
 ## Current release gates
 
-- The repository is public. A release candidate is not supported until it passes protected CI, is merged, tagged, published, and verified from a clean checkout of that exact tag.
-- Schema 2 is the `0.4.0` release-candidate contract, while maintainer projects remain disabled until deliberately re-enabled. Passing source tests does not by itself prove a published, installed, or re-enabled workflow.
+- The repository is public. A future release candidate is not supported until it passes protected CI, is merged, tagged, published, and verified from a clean checkout of that exact tag.
+- Schema 2 is the stable `0.4.0` contract. Maintainer projects remain disabled until deliberately re-enabled; a published plugin never proves or changes a project's enablement state.
 - The base package contains no observer. Any future observer is a separate product decision and cannot be restored by copying the retired runtime forward.
 - GitHub branch protection, required CI, secret scanning, push protection, private vulnerability reporting, and CodeQL are enabled. Provider controls must still be read back for each release.
 - Immutable future releases are not enabled; tags and GitHub Release state therefore remain part of the maintainer's release discipline.
