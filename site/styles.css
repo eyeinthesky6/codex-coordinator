@@ -82,6 +82,13 @@ h1 em { color: var(--accent); font-style: normal; }
 .problem-list span { color: #9cc8ba; font: 500 12px/1.8 var(--mono); }
 .problem-list p { margin: 0; color: #e4e4dc; font-size: 20px; line-height: 1.48; }
 
+.pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.pain-card { padding: 28px; background: var(--white); border: 1px solid var(--line); border-radius: 7px; }
+.pain-card blockquote { margin: 0 0 28px; color: var(--ink); font-family: var(--display); font-size: 26px; font-weight: 500; line-height: 1.12; }
+.pain-card h3 { margin: 0 0 10px; font-size: 20px; }
+.pain-card p { margin: 0; color: var(--ink-soft); line-height: 1.55; }
+.native-note { margin: 22px 0 0; padding: 20px 24px; background: var(--paper-deep); border-left: 3px solid var(--accent); line-height: 1.55; }
+
 .section { padding-block: clamp(76px, 9vw, 118px); }
 .section-heading { display: grid; grid-template-columns: .35fr 1fr .65fr; gap: clamp(28px, 5vw, 65px); align-items: end; margin-bottom: 54px; }
 .section-heading .eyebrow { align-self: start; }
@@ -188,6 +195,7 @@ h1 em { color: var(--accent); font-style: normal; }
   .community-actions { grid-column: 1 / -1; flex-direction: row; }
   .content-layout { grid-template-columns: 1fr; }
   .side-nav { position: static; grid-template-columns: repeat(4, 1fr); }
+  .pain-grid { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 720px) {
@@ -222,6 +230,8 @@ h1 em { color: var(--accent); font-style: normal; }
   .faq-item { grid-template-columns: 1fr; gap: 14px; }
   .side-nav { grid-template-columns: 1fr 1fr; }
   .page-hero { padding-top: 62px; }
+  .pain-grid { grid-template-columns: 1fr; }
+  .pain-card { padding: 24px 23px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

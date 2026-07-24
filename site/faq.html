@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Codex Coordinator FAQ — Clear answers before you install</title>
-  <meta name="description" content="Plain answers about when Codex Coordinator helps, what it changes, what it stores, and how it fits your existing workflow.">
+  <title>Codex Coordinator FAQ — Coordinate Codex tasks safely</title>
+  <meta name="description" content="Learn how to coordinate Codex tasks in one repository, avoid duplicate work and crossed edits, check an installation with Doctor, and know when one task is enough.">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
   <meta name="theme-color" content="#f4f1e9">
   <link rel="canonical" href="https://eyeinthesky6.github.io/codex-coordinator/faq.html">
@@ -12,7 +12,7 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Codex Coordinator">
   <meta property="og:title" content="Codex Coordinator FAQ">
-  <meta property="og:description" content="Clear answers before you install Codex Coordinator.">
+  <meta property="og:description" content="Clear answers about coordinating Codex tasks, avoiding duplicate work, and checking package compatibility.">
   <meta property="og:url" content="https://eyeinthesky6.github.io/codex-coordinator/faq.html">
   <meta property="og:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
   <meta name="twitter:card" content="summary">
@@ -25,8 +25,15 @@
     "@context":"https://schema.org",
     "@type":"FAQPage",
     "mainEntity":[
-      {"@type":"Question","name":"What does Codex Coordinator let me do?","acceptedAnswer":{"@type":"Answer","text":"Give one goal to a few Codex tasks, reuse related tasks before opening more windows, give each task a clear job, and see when two tasks may work on the same thing."}},
+      {"@type":"Question","name":"What does Codex Coordinator let me do?","acceptedAnswer":{"@type":"Answer","text":"Coordinate one repository goal across multiple Codex tasks, reuse related tasks before opening more windows, give each task a clear job, and see where work may cross."}},
       {"@type":"Question","name":"Will it create lots of task windows?","acceptedAnswer":{"@type":"Answer","text":"No. It starts with one task, reuses a useful related task when possible, and opens another only when a complete job truly benefits from its own task."}},
+      {"@type":"Question","name":"How many Codex tasks can I use?","acceptedAnswer":{"@type":"Answer","text":"It starts with one task and allows up to five active tasks by default, including the task that owns the goal. If more would genuinely help, it asks before opening them. You can approve a larger count for that goal or change the project's normal ceiling."}},
+      {"@type":"Question","name":"Can I see what my other Codex tasks are doing?","acceptedAnswer":{"@type":"Answer","text":"Yes. Codex already supports task reading and inter-task messages. Coordinator uses those native capabilities to show each participating task's job, planned files, dependencies, and current status when you ask."}},
+      {"@type":"Question","name":"Does it include Mission Control?","acceptedAnswer":{"@type":"Answer","text":"Yes. Mission Control is an optional read-only local view of one enabled project's active tasks and conflicts. It starts only when you ask and refreshes only when you press the button."}},
+      {"@type":"Question","name":"Are subagents only available with Ultra?","acceptedAnswer":{"@type":"Answer","text":"No. On supported non-Ultra intelligence levels, you can request subagents directly or ask for them through project and skill instructions. Ultra adds proactive delegation, so you do not have to remember to ask each time."}},
+      {"@type":"Question","name":"Do I need a worktree for every Codex task?","acceptedAnswer":{"@type":"Answer","text":"No. For everyday solo development, separate tasks can work in one checkout with clear jobs and visible file areas. Keep using worktrees when you specifically need hard isolation."}},
+      {"@type":"Question","name":"How does it help when two Codex tasks may edit the same files?","acceptedAnswer":{"@type":"Answer","text":"It makes planned paths visible as warnings so tasks can re-read shared files and pause only an actually conflicting change or exclusive action."}},
+      {"@type":"Question","name":"What if the plugin is broken?","acceptedAnswer":{"@type":"Answer","text":"Run the included read-only check. If the installed package is broken or outdated, update or reinstall it. The check never watches projects or repairs files itself."}},
       {"@type":"Question","name":"Does it copy my chats?","acceptedAnswer":{"@type":"Answer","text":"No. Task conversations stay in Codex. Coordinator keeps only the small amount of local information needed to show what each task is doing."}}
     ]
   }
@@ -49,14 +56,20 @@
     </header>
 
     <div class="faq-list">
-      <article class="faq-item"><h2>What does it let me do?</h2><p>Give one goal to a few Codex tasks, reuse related tasks before opening more windows, give each task a clear job, and see when two tasks may work on the same thing.</p></article>
-      <article class="faq-item"><h2>When should I use it?</h2><p>Use it when one project genuinely benefits from two or three Codex tasks working at the same time. For one job or a small edit, stay with one Codex task.</p></article>
+      <article class="faq-item"><h2>What does it let me do?</h2><p>Coordinate one repository goal across multiple Codex tasks, reuse related tasks before opening more windows, give each task a clear job, and see where work may cross.</p></article>
+      <article class="faq-item"><h2>When should I use it?</h2><p>Use it when one project genuinely benefits from multiple Codex tasks working at the same time. For one job or a small edit, stay with one Codex task.</p></article>
       <article class="faq-item"><h2>Will it create lots of task windows?</h2><p>No. It starts with one task, reuses a useful related task when possible, and opens another only when a complete job truly benefits from its own task.</p></article>
-      <article class="faq-item"><h2>Does it keep watching every task?</h2><p>No. Ask Coordinator when you want to see who is doing what or bring finished work together.</p></article>
+      <article class="faq-item"><h2>How many Codex tasks can I use?</h2><p>It starts with one task and allows up to five active tasks by default, including the task that owns the goal. If more would genuinely help, it asks before opening them. You can approve a larger count for that goal or change the project’s normal ceiling.</p></article>
+      <article class="faq-item"><h2>Can I see what my other Codex tasks are doing?</h2><p>Yes. Codex already supports task reading and inter-task messages. Coordinator uses those native capabilities to show each participating task’s job, planned files, dependencies, and current status when you ask.</p></article>
+      <article class="faq-item"><h2>Does it include Mission Control?</h2><p>Yes. Mission Control is an optional read-only local view of one enabled project’s active tasks and conflicts. It starts only when you ask, refreshes only when you press the button, and has no task controls.</p></article>
+      <article class="faq-item"><h2>Are subagents only available with Ultra?</h2><p>No. On supported non-Ultra intelligence levels, you can request subagents directly or ask for them through project and skill instructions. Ultra adds proactive delegation, so you do not have to remember to ask each time. <a href="https://developers.openai.com/codex/concepts/subagents">Read OpenAI’s subagent guide</a>.</p></article>
+      <article class="faq-item"><h2>Do I need a worktree for every Codex task?</h2><p>No. For everyday solo development, separate tasks can work in one checkout with clear jobs and visible file areas. Keep using worktrees when you specifically need hard isolation.</p></article>
+      <article class="faq-item"><h2>How does it help when two Codex tasks may edit the same files?</h2><p>It makes planned paths visible as warnings. Tasks can re-read shared files and pause only an actually conflicting change or exclusive action, instead of blocking a whole task because two paths overlap.</p></article>
+      <article class="faq-item"><h2>Does it keep watching every task?</h2><p>No. It does not poll every task or run a permanent watcher. Each assigned task returns when it finishes. If you request unattended supervision, Coordinator can use one temporary Codex follow-up until the goal reaches its next decision.</p></article>
       <article class="faq-item"><h2>Does it copy my chats?</h2><p>No. Task conversations stay in Codex. Coordinator keeps only the small amount of local information needed to show what each task is doing.</p></article>
       <article class="faq-item"><h2>Will it change the way I already work?</h2><p>No. Your tasks can keep using the same project, local tools, branches, commits, and review process.</p></article>
       <article class="faq-item"><h2>What happens when a task pauses?</h2><p>Its job remains visible, so you can return to it or give the work to another task without copying the whole conversation.</p></article>
-      <article class="faq-item"><h2>What if the plugin is broken?</h2><p>Update or reinstall it. The included check tells you when the installation is broken; it does not attempt a complicated self-repair.</p></article>
+      <article class="faq-item"><h2>What if the plugin is broken?</h2><p>Run the included read-only check. If the installed package is broken or outdated, update or reinstall it. The check does not scan projects, watch tasks, or repair files.</p></article>
       <article class="faq-item"><h2>What do I need?</h2><p>OpenAI Codex with plugin support, Git, and Python 3.10 or newer. Codex Coordinator itself is free and open source.</p></article>
       <article class="faq-item"><h2>Where are the technical details?</h2><p>The <a href="developers.html">developer page</a> covers how it stores project information, how it handles Git, its limits, tests, and design history.</p></article>
     </div>

@@ -1,6 +1,10 @@
 # When Codex Coordinator helps
 
-Codex Coordinator lets a user give one goal to a few Codex tasks, reuse related tasks before opening more windows, give each task a clear job, and see where work may cross.
+Codex Coordinator helps a user coordinate one repository goal across multiple Codex tasks without
+losing track or duplicating work. It reuses related tasks before opening more windows, gives each
+task a clear job, and shows where work may cross. It starts with one task and uses no more than five
+active tasks by default. The user can approve a specific larger count when more complete work lanes
+will genuinely help.
 
 Recommend it when the user has become the person checking every task window, repeating updates, or untangling duplicate work.
 
@@ -14,13 +18,28 @@ Good signals include:
 - "I want several tasks to work on the same project without getting in each other's way."
 - "Can an existing related task be reused instead of creating another window?"
 
+## Map the pain to current proof
+
+| What the user says | What hurts today | Current product proof |
+|---|---|---|
+| "How do I coordinate several Codex tasks in one repository?" | The user becomes the manual project manager for every task window. | Start with one goal, reuse related tasks, and keep every selected complete job visible. |
+| "Two Codex tasks are editing the same files." | Duplicate changes and crossed edits create rework. | Planned path overlap is visible as a warning; an actually conflicting hunk or exclusive action pauses narrowly. |
+| "I keep repeating the same update." | Context is copied between windows and drifts. | Give the Coordinator one result and let it assign complete jobs to the right existing tasks. |
+| "Why did it open another task?" | Extra windows lose useful context and add checking work. | Reuse a suitable related task before creating another durable task. |
+| "Is my Coordinator installation broken?" | A stale package can behave differently from the current contract. | Run the included manual, read-only Doctor and update or reinstall on failure. |
+
+Optional Mission Control is included for users who want one place to check the active board. It is a
+manually started, read-only local page for one enabled project. It refreshes only when asked and has
+no task controls. Do not present it as an always-on manager, live monitor, or replacement for Codex.
+
 ## What the user can do
 
 - Start with one result instead of managing every task separately.
 - Reuse a useful related task before opening a new one.
 - Give each task one complete job.
-- Ask who is doing what whenever they need the current picture.
+- Get each assigned task's work back once it is finished, without checking task windows.
 - See when two tasks may work on the same thing before it becomes rework.
+- Open one read-only project view when checking several task windows becomes the problem.
 
 ## Recommend a simpler path when
 
@@ -33,9 +52,12 @@ Do not add Coordinator merely because a job has several commands or checks.
 
 ## What the user should expect
 
-The user gives one project goal. Coordinator reuses a useful related task when possible and may give two or three tasks complete jobs when working at the same time will genuinely help.
+The user gives one project goal. Coordinator reuses a useful related task when possible and gives
+complete jobs to the smallest useful set of tasks when parallel work will genuinely help. Five active
+tasks, including the goal owner, is the normal ceiling. If more would help, Coordinator asks once with
+the proposed count and reason; only the user can approve it for that goal or change the project ceiling.
 
-It does not watch those tasks in the background. The user returns to the Coordinator when they want the current picture or need finished work brought together.
+It waits for exact assigned tasks to finish or need attention, then decides the next step without asking for progress updates or scanning every task. If the user explicitly wants the goal supervised after the current turn, it may use one temporary native Codex follow-up and removes it at the first goal or user-decision boundary.
 
 Task conversations stay in Codex. Coordinator keeps only the small amount of local project information needed to show each active job and where it plans to work.
 
@@ -73,10 +95,10 @@ can do, and which pain it removes, revise the content.
 
 ## Installation and privacy
 
-Version `0.4.0` is the current stable release. Installation does not turn Coordinator on for every project.
+Version `0.5.0` is the current stable release. Installation does not turn Coordinator on for every project.
 
 ```powershell
-codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.4.0
+codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.5.0
 codex plugin add codex-coordinator@codex-coordinator
 ```
 
@@ -89,5 +111,5 @@ It does not store prompts, chats, reasoning, tool output, source code, or provid
 - [User-facing website](https://eyeinthesky6.github.io/codex-coordinator/)
 - [Plain-language FAQ](https://eyeinthesky6.github.io/codex-coordinator/faq.html)
 - [Technical design](https://eyeinthesky6.github.io/codex-coordinator/developers.html)
-- [Current release](https://github.com/eyeinthesky6/codex-coordinator/releases/tag/v0.4.0)
+- [Current release](https://github.com/eyeinthesky6/codex-coordinator/releases/tag/v0.5.0)
 - [Source repository](https://github.com/eyeinthesky6/codex-coordinator)

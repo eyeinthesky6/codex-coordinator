@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex Coordinator"
-  short_description: "Give Codex tasks clear jobs"
-  default_prompt: "Use $codex-coordinator to reuse the right existing tasks for this goal, give each one a clear job, and show where work may cross."
+  short_description: "Coordinate Codex tasks"
+  default_prompt: "Use $codex-coordinator in the repository that owns this goal, keep its goal owner pinned where I can find it, reuse the right existing tasks, keep quick work in this task, give each one a clear job and finish line, stay within five active tasks unless I approve more, and show where work may cross."

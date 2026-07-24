@@ -1,5 +1,17 @@
 # Boundary-board simplification architectural review
 
+> Five-task capacity correction (2026-07-23): [the contract-36 review](2026-07-23_five-task-user-managed-ceiling_architectural_review.md) sets a normal ceiling of five active durable tasks including the Coordinator. One task remains the default; higher temporary or persistent ceilings require direct user approval.
+
+> Goal-owner navigation correction (2026-07-23): [the auto-pinning review](2026-07-23_goal-coordinator-auto-pinning_architectural_review.md) restores one native pin only after an explicitly appointed Coordinator binds its goal and claims `goal-coordination`. It never pins workers, enables a resident manager, or auto-unpins; terminal authority still ends with the goal and claim.
+
+> Goal-supervision correction (2026-07-23): [the goal-supervision review](2026-07-23_goal-supervision_architectural_review.md) restores one exact-task completion-or-attention wait and, only for an explicitly unattended goal, one temporary native thread heartbeat. It does not restore the resident Coordinator, project heartbeat, all-task scan, progress loop, copied results, or second ledger described below.
+
+> Failed-delivery follow-up (2026-07-23): [the inbox-return review](2026-07-23_inbox-return-boundary_architectural_review.md) restores only the useful delivery-fallback slice as a routing-only, exact-recipient pending notice. The v0.3 turn ledger, acknowledgements, central reconciliation, polling, heartbeat, and payload storage remain retired.
+
+> Current terminal-return correction (2026-07-23): [the assignment-receipt review](2026-07-23_terminal-return-idempotency_architectural_review.md) supersedes the on-demand-only return wording below. Each worker now sends one terminal `RESULT_READY` with a deterministic assignment ID after releasing its claim. This is event-driven completion return, not polling, heartbeat, reconciliation, or a result ledger.
+
+> Current task-creation correction (2026-07-23): [the boundary invariant audit](2026-07-23_boundary-invariant-bug-audit_architectural_review.md) supersedes earlier worker-count wording below. Three active durable tasks includes the goal Coordinator; only that Coordinator creates coordinated workers, one at a time, with an immediate native inventory and exact readback.
+
 > Current correction (2026-07-23): [the cooperative shared-checkout review](2026-07-23_cooperative-shared-checkout_architectural_review.md) keeps the small schema-2 board but supersedes hard path locks, durable `git-integration` ownership, and create-before-reuse behavior. Those mechanisms remain below as decision history and must not be read as the current operating contract.
 
 > **2026-07-22 lifecycle follow-up:** The schema-2 implementation correctly removed orchestration but left terminal claim release as guidance-only. The accepted bounded correction is documented in [the one-shot Stop guard review](2026-07-22_claim-lifecycle-stop-guard_architectural_review.md). It does not change the decision against an always-on/resident monitoring Coordinator, heartbeat, transcript inspection, or private Codex database access.

@@ -30,25 +30,32 @@ SPEC.loader.exec_module(state)
 THREADS = [f"{index:08x}-1111-4111-8111-{index:012x}" for index in range(1, 20)]
 
 
-def _project(directory: str, *, enabled: bool = True) -> Path:
+def _project(
+    directory: str, *, enabled: bool = True, task_ceiling: int | None = None
+) -> Path:
     root = Path(directory)
     marker = root / ".codex" / "coordination" / "project.yaml"
     marker.parent.mkdir(parents=True)
+    lines = [
+        "schema_version: 2",
+        f"coordination_enabled: {'true' if enabled else 'false'}",
+        "project_id: sample",
+    ]
+    if task_ceiling is not None:
+        lines.append(f"active_task_ceiling: {task_ceiling}")
+    lines.extend(
+        [
+            "canonical_paths:",
+            "  active: .codex/coordination/active",
+            "  archive: .codex/coordination/archive",
+            "access:",
+            "  cross_project_task_access: false",
+            "  cross_project_state_changes: false",
+            "",
+        ]
+    )
     marker.write_text(
-        "\n".join(
-            [
-                "schema_version: 2",
-                f"coordination_enabled: {'true' if enabled else 'false'}",
-                "project_id: sample",
-                "canonical_paths:",
-                "  active: .codex/coordination/active",
-                "  archive: .codex/coordination/archive",
-                "access:",
-                "  cross_project_task_access: false",
-                "  cross_project_state_changes: false",
-                "",
-            ]
-        ),
+        "\n".join(lines),
         encoding="utf-8",
     )
     return root
@@ -71,14 +78,222 @@ def _claim(root: Path, index: int, path: str, **overrides):
 
 
 class CoordinationStateTests(unittest.TestCase):
-    def test_empty_board_is_small_and_has_fixed_limits(self) -> None:
+    def test_empty_board_defaults_to_five_with_no_hard_limit(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             report = state.list_board(_project(directory))
         self.assertEqual(report["status"], "ok")
         self.assertEqual(report["activeCount"], 0)
-        self.assertEqual(report["defaultLimit"], 3)
-        self.assertEqual(report["hardLimit"], 12)
+        self.assertEqual(report["defaultLimit"], 5)
+        self.assertIsNone(report["hardLimit"])
         self.assertEqual(report["records"], [])
+
+    def test_assignment_identity_is_stable_for_one_active_goal_lane(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            _claim(root, 0, ".", actions=["goal-coordination"])
+            first = state.assignment_identity(
+                root,
+                coordinator_thread_id=THREADS[0],
+                lane_key="feature-tags",
+            )
+            repeated = state.assignment_identity(
+                root,
+                coordinator_thread_id=THREADS[0],
+                lane_key="feature-tags",
+            )
+            other_lane = state.assignment_identity(
+                root,
+                coordinator_thread_id=THREADS[0],
+                lane_key="owner-paths",
+            )
+
+        self.assertEqual(first, repeated)
+        self.assertRegex(first["assignmentId"], r"^ga-[0-9a-f]{32}$")
+        self.assertNotEqual(first["assignmentId"], other_lane["assignmentId"])
+
+    def test_assignment_identity_requires_the_exact_goal_coordinator(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            _claim(root, 0, ".", actions=["goal-coordination"])
+            with self.assertRaisesRegex(state.BoardError, "does not own"):
+                state.assignment_identity(
+                    root,
+                    coordinator_thread_id=THREADS[1],
+                    lane_key="feature-tags",
+                )
+            with self.assertRaisesRegex(state.BoardError, "lane-key"):
+                state.assignment_identity(
+                    root,
+                    coordinator_thread_id=THREADS[0],
+                    lane_key="Feature Tags",
+                )
+
+    def test_mutation_receipt_truth_table_never_retries_an_unknown_outcome(self) -> None:
+        assignment_id = "ga-0123456789abcdef0123456789abcdef"
+        cases = (
+            ("not-attempted", [], "safe-to-attempt"),
+            ("not-attempted", [assignment_id], "use-existing"),
+            ("ambiguous", [], "stop-unknown"),
+            ("ambiguous", [assignment_id], "use-existing"),
+            ("confirmed", [], "stop-missing-receipt"),
+            ("confirmed", [assignment_id], "use-existing"),
+            ("ambiguous", [assignment_id, assignment_id], "stop-duplicate"),
+        )
+        for outcome, observed, expected in cases:
+            with self.subTest(outcome=outcome, observed=observed):
+                report = state.reconcile_assignment_receipt(
+                    assignment_id=assignment_id,
+                    observed_assignment_ids=observed,
+                    outcome=outcome,
+                )
+                self.assertEqual(report["decision"], expected)
+
+    def test_pending_notice_is_routing_only_idempotent_and_recipient_scoped(self) -> None:
+        assignment_id = "ga-0123456789abcdef0123456789abcdef"
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            _claim(root, 0, ".", actions=["goal-coordination"])
+            created = state.create_pending_notice(
+                root,
+                assignment_id=assignment_id,
+                kind="GOAL_ASSIGNMENT",
+                sender_thread_id=THREADS[0],
+                recipient_thread_id=THREADS[1],
+            )
+            repeated = state.create_pending_notice(
+                root,
+                assignment_id=assignment_id,
+                kind="GOAL_ASSIGNMENT",
+                sender_thread_id=THREADS[0],
+                recipient_thread_id=THREADS[1],
+            )
+            recipient = state.list_pending_notices(
+                root, recipient_thread_id=THREADS[1]
+            )
+            unrelated = state.list_pending_notices(
+                root, recipient_thread_id=THREADS[2]
+            )
+            paths = list(
+                (
+                    root
+                    / ".codex"
+                    / "coordination"
+                    / "pending-notices"
+                    / THREADS[1]
+                ).glob("*.json")
+            )
+            record_size = paths[0].stat().st_size
+
+        self.assertEqual(created["status"], "created")
+        self.assertEqual(repeated["status"], "existing")
+        self.assertEqual(created["record"], repeated["record"])
+        self.assertEqual(recipient["pendingCount"], 1)
+        self.assertEqual(unrelated["pendingCount"], 0)
+        self.assertEqual(len(paths), 1)
+        self.assertLess(record_size, 1024)
+        record = created["record"]
+        self.assertEqual(set(record), state.PENDING_NOTICE_KEYS)
+        for forbidden in ("goal", "effect", "result", "prompt", "transcript", "toolOutput"):
+            self.assertNotIn(forbidden, record)
+
+    def test_pending_notice_routes_through_exact_active_goal_coordinator(self) -> None:
+        assignment_id = "ga-0123456789abcdef0123456789abcdef"
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            _claim(root, 0, ".", actions=["goal-coordination"])
+            with self.assertRaisesRegex(state.BoardError, "goal Coordinator"):
+                state.create_pending_notice(
+                    root,
+                    assignment_id=assignment_id,
+                    kind="GOAL_ASSIGNMENT",
+                    sender_thread_id=THREADS[2],
+                    recipient_thread_id=THREADS[1],
+                )
+            result = state.create_pending_notice(
+                root,
+                assignment_id=assignment_id,
+                kind="RESULT_READY",
+                sender_thread_id=THREADS[1],
+                recipient_thread_id=THREADS[0],
+            )
+        self.assertEqual(result["status"], "created")
+
+    def test_pending_notice_resolution_requires_endpoint_and_matching_evidence(self) -> None:
+        assignment_id = "ga-0123456789abcdef0123456789abcdef"
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            _claim(root, 0, ".", actions=["goal-coordination"])
+            state.create_pending_notice(
+                root,
+                assignment_id=assignment_id,
+                kind="GOAL_ASSIGNMENT",
+                sender_thread_id=THREADS[0],
+                recipient_thread_id=THREADS[1],
+            )
+            with self.assertRaisesRegex(state.BoardError, "sender or recipient"):
+                state.resolve_pending_notice(
+                    root,
+                    assignment_id=assignment_id,
+                    kind="GOAL_ASSIGNMENT",
+                    sender_thread_id=THREADS[0],
+                    recipient_thread_id=THREADS[1],
+                    actor_thread_id=THREADS[2],
+                    evidence="recipient-action",
+                )
+            with self.assertRaisesRegex(state.BoardError, "native-receipt"):
+                state.resolve_pending_notice(
+                    root,
+                    assignment_id=assignment_id,
+                    kind="GOAL_ASSIGNMENT",
+                    sender_thread_id=THREADS[0],
+                    recipient_thread_id=THREADS[1],
+                    actor_thread_id=THREADS[0],
+                    evidence="recipient-action",
+                )
+            resolved = state.resolve_pending_notice(
+                root,
+                assignment_id=assignment_id,
+                kind="GOAL_ASSIGNMENT",
+                sender_thread_id=THREADS[0],
+                recipient_thread_id=THREADS[1],
+                actor_thread_id=THREADS[1],
+                evidence="recipient-action",
+            )
+            remaining = state.list_pending_notices(
+                root, recipient_thread_id=THREADS[1]
+            )
+
+        self.assertEqual(resolved["status"], "resolved")
+        self.assertEqual(resolved["evidence"], "recipient-action")
+        self.assertEqual(remaining["pendingCount"], 0)
+
+    def test_malformed_pending_notice_fails_as_board_error(self) -> None:
+        assignment_id = "ga-0123456789abcdef0123456789abcdef"
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            _claim(root, 0, ".", actions=["goal-coordination"])
+            created = state.create_pending_notice(
+                root,
+                assignment_id=assignment_id,
+                kind="GOAL_ASSIGNMENT",
+                sender_thread_id=THREADS[0],
+                recipient_thread_id=THREADS[1],
+            )
+            target = (
+                root
+                / ".codex"
+                / "coordination"
+                / "pending-notices"
+                / THREADS[1]
+                / f"{created['record']['noticeId']}.json"
+            )
+            value = json.loads(target.read_text(encoding="utf-8"))
+            value["recipientThreadId"] = 7
+            target.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(state.BoardError, "recipient-thread-id"):
+                state.list_pending_notices(
+                    root, recipient_thread_id=THREADS[1]
+                )
 
     def test_disabled_project_reads_no_board(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -261,19 +476,97 @@ class CoordinationStateTests(unittest.TestCase):
             )
             self.assertEqual(state.list_board(root)["status"], "ok")
 
-    def test_default_and_hard_task_limits_require_user_override(self) -> None:
+    def test_default_ceiling_is_five_and_temporary_override_is_explicit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            for index in range(5):
+                _claim(root, index, f"area/{index}")
+            with self.assertRaisesRegex(state.BoardError, "ceiling of 5 reached"):
+                _claim(root, 5, "area/5")
+            approved = _claim(
+                root,
+                5,
+                "area/5",
+                user_approved_over_limit=True,
+            )
+            report = state.list_board(root)
+            self.assertEqual(report["activeCount"], 6)
+            self.assertEqual(report["defaultLimit"], 5)
+            self.assertIsNone(report["hardLimit"])
+            self.assertTrue(approved["record"]["limitOverride"])
+
+            updated = state.claim_boundary(
+                root,
+                thread_id=THREADS[0],
+                title="Updated existing task",
+                goal="Continue bounded area 0",
+                paths=["area/0"],
+                actions=[],
+                blocked_by=[],
+                status="active",
+                expected_revision=1,
+                user_approved_over_limit=False,
+            )
+            self.assertEqual(updated["status"], "updated")
+
+    def test_project_marker_can_set_a_higher_ceiling(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory, task_ceiling=8)
+            for index in range(8):
+                _claim(root, index, f"area/{index}")
+            with self.assertRaisesRegex(state.BoardError, "ceiling of 8 reached"):
+                _claim(root, 8, "area/8")
+            report = state.list_board(root)
+            self.assertEqual(report["activeCount"], 8)
+            self.assertEqual(report["defaultLimit"], 8)
+            self.assertIn("Active task ceiling: 8", (root / ".codex" / "coordination" / "CURRENT.md").read_text(encoding="utf-8"))
+
+    def test_invalid_or_duplicate_project_ceiling_is_rejected(self) -> None:
+        for lines in (
+            ["active_task_ceiling: 0"],
+            ["active_task_ceiling: 5", "active_task_ceiling: 6"],
+        ):
+            with self.subTest(lines=lines), tempfile.TemporaryDirectory() as directory:
+                root = _project(directory)
+                marker = root / ".codex" / "coordination" / "project.yaml"
+                marker.write_text(
+                    marker.read_text(encoding="utf-8").replace(
+                        "project_id: sample",
+                        "project_id: sample\n" + "\n".join(lines),
+                    ),
+                    encoding="utf-8",
+                )
+                with self.assertRaises(state.BoardError):
+                    state.list_board(root)
+
+    def test_revision_inputs_require_exact_integers(self) -> None:
+        for invalid in (False, 0.0):
+            with self.subTest(value=invalid), tempfile.TemporaryDirectory() as directory:
+                root = _project(directory)
+                with self.assertRaisesRegex(state.BoardError, "non-negative integer"):
+                    _claim(root, 0, "area/0", expected_revision=invalid)
+                self.assertEqual(state.list_board(root)["activeCount"], 0)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            _claim(root, 0, "area/0")
+            with self.assertRaisesRegex(state.BoardError, "positive integer"):
+                state.release_boundary(
+                    root,
+                    thread_id=THREADS[0],
+                    expected_revision=True,
+                    final_status="completed",
+                )
+            self.assertEqual(state.list_board(root)["activeCount"], 1)
+
+    def test_task_limit_override_requires_an_actual_boolean(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = _project(directory)
             for index in range(3):
                 _claim(root, index, f"area/{index}")
-            with self.assertRaisesRegex(state.BoardError, "direct user decision"):
-                _claim(root, 3, "area/3")
-            _claim(root, 3, "area/3", user_approved_over_limit=True)
-            for index in range(4, 12):
-                _claim(root, index, f"area/{index}", user_approved_over_limit=True)
-            with self.assertRaisesRegex(state.BoardError, "hard limit"):
-                _claim(root, 12, "area/12", user_approved_over_limit=True)
-            self.assertEqual(state.list_board(root)["activeCount"], 12)
+            with self.assertRaisesRegex(state.BoardError, "must be a boolean"):
+                _claim(root, 3, "area/3", user_approved_over_limit="false")
+            self.assertEqual(state.list_board(root)["activeCount"], 3)
 
     def test_claim_schema_rejects_transcripts_unknown_fields_and_large_records(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

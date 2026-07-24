@@ -1,7 +1,7 @@
 {
   "name": "codex-coordinator",
-  "version": "0.4.0",
-  "description": "Give each Codex task a clear job and boundaries that stop duplicate work.",
+  "version": "0.5.0",
+  "description": "Coordinate Codex tasks in one repository without duplicate work or crossed edits.",
   "author": {
     "name": "Six Ideas",
     "url": "https://github.com/eyeinthesky6"
@@ -14,13 +14,18 @@
     "coordination",
     "parallel-work",
     "multi-agent",
-    "repository"
+    "repository",
+    "task-coordination",
+    "parallel-coding",
+    "shared-checkout",
+    "codex-tasks",
+    "developer-productivity"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Coordinator",
-    "shortDescription": "Give Codex tasks clear jobs",
-    "longDescription": "Give Coordinator one goal. It reuses the right existing tasks before opening another, gives each task a clear job, and shows who is doing what. You get less duplicate work and fewer crossed edits, without an always-on manager or copied chats.",
+    "shortDescription": "Coordinate Codex tasks",
+    "longDescription": "Coordinate one repository goal across multiple Codex tasks without losing track of who is doing what. Coordinator starts with one task, reuses the right existing tasks, and allows up to five active tasks by default. If more would genuinely help, it asks before opening them; you can approve a larger count for that goal or change the project's normal ceiling. It keeps the goal owner pinned where you can find it, gives every longer task a clear result, and brings finished work or real blockers back to one place. You decide when to unpin it. You get less window-checking, duplicate work, and crossed edits, without an always-on manager or copied chats. Optional Mission Control gives you a manually refreshed, read-only local view of active tasks and conflicts. The included Doctor checks package compatibility manually and never repairs or watches projects.",
     "developerName": "Six Ideas",
     "category": "Productivity",
     "capabilities": [
@@ -35,9 +40,9 @@
     "composerIcon": "./assets/logo.png",
     "logo": "./assets/logo.png",
     "defaultPrompt": [
-      "Help my Codex tasks finish this goal with less duplicate work and fewer crossed edits",
-      "Show me who is working on what and flag work that may collide",
-      "Reuse the right existing tasks for this goal and keep each task focused"
+      "Coordinate this repository goal across the Codex tasks it needs",
+      "Show who is working on what in this repository",
+      "Open Mission Control for this project"
     ]
   }
 }

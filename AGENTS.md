@@ -69,7 +69,7 @@ Future changes must preserve these boundaries:
 - There is no durable Git owner. Tasks share the established branch, stage and commit only reviewed exact files, preserve foreign staged work, and avoid branch switching, broad staging, history rewrites, or destructive Git cleanup during parallel work.
 - Generated maps, lockfiles, schemas, shared indexes, formatter-wide output, and full gates have no durable task owner. Serialize only an actual writer command.
 - Do not add a resident Coordinator, persistent heartbeat, all-task reconciliation loop, automatic task-window creation, or mandatory pull-request workflow.
-- Any future observer is a separately installed, manually started, read-only product with no task authority.
+- The included optional Mission Control is manually started, read-only, single-project, and has no task authority. It must stay outside hooks and normal Coordinator execution, refresh only on request, and read only the schema-2 active board through the canonical helper.
 - Doctor, if retained, is a manual read-only compatibility check. Recovery is normal plugin update or reinstall, not in-place repair or rollback.
 - SessionStart must remain bounded and must not launch processes, install Python, scan archives, inspect private Codex databases, or start optional tools.
 

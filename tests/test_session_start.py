@@ -11,6 +11,8 @@ from pathlib import Path
 REPOSITORY = Path(__file__).resolve().parents[1]
 PLUGIN = REPOSITORY / "plugins" / "codex-coordinator"
 SCRIPT = PLUGIN / "scripts" / "codex_coordinator_session_start.py"
+SESSION = "11111111-2222-4333-8444-555555555555"
+OTHER_SESSION = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
 
 
 def _marker(*, enabled: str = "true", schema: str = "2") -> str:
@@ -80,6 +82,33 @@ class SessionStartTests(unittest.TestCase):
         self.assertNotIn("CURRENT.md", context)
         self.assertNotIn("Mission Control", context)
         self.assertLess(len(context), 700)
+
+    def test_enabled_marker_counts_only_exact_recipient_pending_notices(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._repository(directory, _marker())
+            pending = root / ".codex" / "coordination" / "pending-notices"
+            own = pending / SESSION
+            other = pending / OTHER_SESSION
+            own.mkdir(parents=True)
+            other.mkdir()
+            notice_name = "pn-" + ("1" * 32) + ".json"
+            own.joinpath(notice_name).write_text(
+                '{"private":"must not be read"}', encoding="utf-8"
+            )
+            other.joinpath("pn-" + ("2" * 32) + ".json").write_text(
+                '{"private":"other task"}', encoding="utf-8"
+            )
+            code, output = self._run(
+                root, {"cwd": str(root), "session_id": SESSION}
+            )
+            context = json.loads(output)["hookSpecificOutput"]["additionalContext"]
+
+        self.assertEqual(code, 0)
+        self.assertIn("pending_delivery_records=1", context)
+        self.assertIn("reads no record body", context)
+        self.assertNotIn("must not be read", context)
+        self.assertNotIn(OTHER_SESSION, context)
+        self.assertLess(len(context), 850)
 
     def test_legacy_or_ambiguous_enabled_marker_fails_closed(self) -> None:
         cases = {

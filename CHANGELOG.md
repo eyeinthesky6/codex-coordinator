@@ -2,7 +2,50 @@
 
 Notable changes to Codex Coordinator will be recorded here.
 
-## [Unreleased]
+## 0.5.0 - 2026-07-24
+
+### What this release lets you do
+
+- Give substantial Codex tasks real persisted goals, then return completed or blocked work to one
+  goal owner without constant window checks.
+- Use up to five active tasks by default and approve a temporary or project-wide increase when more
+  complete work lanes would genuinely help.
+- Open optional Mission Control for one enabled project when you want a manually refreshed,
+  read-only view of active tasks and conflicts.
+- Reject hand-written assignment identities before a task starts work; assignments must come from
+  the exact active goal owner and stable lane key.
+
+### Detailed changes
+
+- Added optional Mission Control as one manually started localhost page. It reuses the canonical
+  active-board helper, reads one explicitly named project, refreshes only on request, and has no task,
+  message, model, repair, schedule, transcript, archive, or write authority. The v0.3 collector,
+  automatic refresh, project scanning, launchers, settings, and control UI remain removed.
+- Hardened actionable task communication with an explicit `Lane-Key`, plain project and task
+  identities, active goal-Coordinator verification, and prompt-time Assignment-ID recomputation. A
+  syntax-valid fabricated ID now fails before native goal binding.
+
+- Renamed the user-facing protocol to neutral **inter-agent task communication** and retired the
+  stronger task-boundary wording. The guard rejects the old header so it cannot bypass the
+  current format.
+- Hardened inter-agent communication formatting after live ProfitPilot use exposed a `RELEASED` message carrying
+  schema/revision annotations, permission language, and unrelated hold status. The prompt guard now
+  verifies the enabled local project, plain task UUIDs, one boundary, and factual `Paused:`,
+  `Blocked:`, or `Resolved:` effects, then marks valid communication non-executable.
+- Made inter-task visibility pull-first and messages action-only. Routine start, progress, test-running,
+  estimate, FYI, summary, status, acknowledgement, broadcast, and Coordinator-relay messages are
+  forbidden; passive state stays in compact claims and is read only at natural work boundaries. The
+  failed-delivery record remains routing-only and is not expanded into a general inbox.
+- Restored goal-owner auto-pinning without restoring the old manager. Only an explicitly appointed Coordinator pins its exact native task after native goal binding and a successful `goal-coordination` claim. Workers and project enablement never pin tasks, pin failures do not block work, and only the user decides when to unpin.
+- Added goal-level supervision without restoring the resident Coordinator: after assignment, the goal owner waits on exact native task completion or attention events and decides whether to accept, follow up in the same task, reuse, integrate, ask the user, stop, or finish.
+- Added one bounded unattended fallback. Only when the user explicitly asks, the exact Coordinator task may use one temporary 15-minute native thread heartbeat; it checks only known assignments and deletes itself at the first completed, stopped, user-decision, or unverifiable-goal boundary. Project enablement still creates no automation.
+- Added a prompt-time repository guard for actionable `GOAL_ASSIGNMENT` and `RESULT_READY` communication. Each requires one deterministic `Assignment-ID` and one verifiable absolute local `Repository:` match; malformed or misplaced communication stops before agent action.
+- Added one terminal `RESULT_READY` return from each coordinated worker. It returns the assignment after the worker releases its claim when the Coordinator is between event waits, without progress chatter, copied results, or a second ledger.
+- Treat ambiguous native task send/create errors as unknown outcomes. A deterministic assignment ID plus one immediate native readback provides an at-most-once decision: reuse one exact receipt, stop on duplicates, and never blindly retry when no receipt is visible.
+- Added fault-injection integration tests for the native-host edge case where a task creation or terminal send is committed and the host then returns `No handler registered`.
+- Added a dormant failed-delivery fallback for the opposite case: after one native send and one exact readback show no receipt, the sender writes one idempotent routing-only pending delivery record. Natural SessionStart counts only the exact recipient's filenames; normal delivery writes nothing, resolution deletes the record, and there is no payload copy, acknowledgement, polling, heartbeat, scheduler, or inbox ledger.
+- Restored the thin task-creation control seam that simplification removed: only the exact goal Coordinator creates coordinated durable workers, each assignment is reused or created sequentially by deterministic ID, and each exact task and title is validated before another opens.
+- Replaced the old 3/12 cap with a five-task default project ceiling that includes the goal Coordinator. One task remains the default, the Coordinator stops before a sixth, and only the user may approve an exact temporary increase or change the normal project ceiling. Lowering it never interrupts existing work.
 
 ## 0.4.0 - 2026-07-23
 
@@ -24,7 +67,7 @@ Notable changes to Codex Coordinator will be recorded here.
 - Added reuse-before-create. An explicit goal Coordinator first reuses a suitable related local task in the same repository and checkout through one bounded assignment; a new local task is the fallback, with no acknowledgement or polling loop.
 - Replaced the durable Git owner with cooperative shared-branch rules: establish the branch before parallel work, stage and commit only reviewed exact files, preserve foreign staged work, and serialize only the actual Git or shared-generator command. Generated maps, schemas, lockfiles, and full gates have no durable owner.
 - Added a five-second, read-only Stop guard for the exact current task claim. It requests at most one housekeeping continuation when terminal ownership was not released, ignores transcripts and all other claims, handles linked worktrees, fails open, and uses Codex's stop-hook circuit breaker to prevent loops.
-- Restored an explicitly requested, goal-scoped Coordinator after the boundary-board simplification overcorrected: it may assign two or three complete durable verticals in the same primary checkout and current branch, remains available on demand, and never polls, heartbeats, or promises automatic fan-in.
+- Restored an explicitly requested, goal-scoped Coordinator after the boundary-board simplification overcorrected: it may divide work across two or three active durable tasks in total on the same primary checkout and current branch, remains available on demand, and never polls, heartbeats, or promises automatic fan-in.
 - Added the `goal-coordination` exclusive action. Coordinated workers share local untracked settings and offline runners and do not create or switch branches/worktrees after parallel work starts.
 - Recorded the residual platform boundary: Codex has no app-archive lifecycle hook, so an abrupt UI archive remains an exact on-demand stale-owner recovery case rather than a reason to restore background coordination.
 - Realigned the core around schema 2: a repository-scoped active-claim board owned directly by native Codex tasks, with no always-on/resident monitoring Coordinator, heartbeat, polling, full-turn reconciliation, transcript mirroring, automatic task creation, or mandatory pull-request workflow.
@@ -35,7 +78,7 @@ Notable changes to Codex Coordinator will be recorded here.
 - Added a dry-run-first `codex_coordinator_project.py project init` path for a fresh Git repository. It creates only the marker, empty board directories, and exact guidance/ignore blocks, and rejects ambiguous existing state.
 - Gave the discovery block a distinct `Codex task-boundary board` heading so lifecycle changes preserve unrelated Coordinator architecture guidance.
 - Removed the global project index and uninstall planner; lifecycle commands now operate only on one explicitly named Git repository.
-- Rewrote the capability contract, guidance, tests, and public docs around one-task-first execution, one bounded Coordinator assignment plus sparse peer notices, exact external-write consent, evidence-based stale recovery, direct-commit default, and optional PRs.
+- Rewrote the capability contract, guidance, tests, and public docs around one-task-first execution, one bounded Coordinator assignment plus sparse inter-agent task communication, exact external-write consent, evidence-based stale recovery, direct-commit default, and optional PRs.
 - Removed the 7,800-line legacy Mission Control runtime, duplicate source-checkout wrapper, lifecycle launcher, and browser smoke script from the base package. Its original implementation remains available in `v0.3.0` and Git history; any future observer must be a new, separate, board-only package justified by real usage.
 - Preserved the reasons and security lessons behind the superseded orchestration, Doctor, and Mission Control work in the boundary-board architectural review and Git history.
 - Kept the repository and all previously suspended projects disabled. The `v0.4.0` install does not enable any project automatically; `v0.3.0` remains preserved as the legacy orchestration release.
@@ -75,7 +118,7 @@ Notable changes to Codex Coordinator will be recorded here.
 - Removed worker identity/status handshakes: Coordinators now use the exact native creation result plus native task listing/reading, then record and dispatch the contract without asking workers to echo discovery facts.
 - Added one durable worker task per coherent work area, same-area task reuse, and a default ceiling of five non-terminal workers to reduce user-visible task sprawl.
 - Added terminal-task inventory and ownership-release checks so completed tasks stay closed, while independent review waits for one stable, read-only target.
-- Added explicit direct-user task overrides for conflict-free work plus a durable project-local inbox for notices and resume requests while the Coordinator is busy.
+- Added explicit direct-user task overrides for conflict-free work plus a durable project-local inbox for task messages and resume requests while the Coordinator is busy.
 - Made coordination document-first and pull-based: routine progress, findings, reviews, and completion stay in worker turns; cross-task messages are limited to assignments, exact control transitions, and urgent safety or ownership alerts.
 - Added mandatory end-of-turn reconciliation records: workers persist every task, promise, dependency, blocker, and follow-up from their task window; the Coordinator must verify and disposition every row before closing the goal or declaring the project idle.
 - Fixed cross-task delivery guidance so independent Codex task UUIDs use the app-native thread messenger rather than the collaboration subagent messenger, with an exact-ID retry and durable fallback.

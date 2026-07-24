@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 try:
-    from hypothesis import HealthCheck, settings, strategies as st
+    from hypothesis import HealthCheck, given, settings, strategies as st
     from hypothesis.stateful import RuleBasedStateMachine, invariant, precondition, rule
 except ModuleNotFoundError as error:  # Keep the dependency-free default suite usable.
     raise unittest.SkipTest(
@@ -40,6 +40,18 @@ TOKEN = st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789", min_size=1, max
 FINAL_STATUS = st.sampled_from(
     ("completed", "stopped", "superseded", "stale-owner-confirmed")
 )
+INVALID_REVISION = st.one_of(
+    st.none(),
+    st.booleans(),
+    st.floats(allow_nan=True, allow_infinity=True),
+    st.text(max_size=12),
+)
+INVALID_APPROVAL = st.one_of(
+    st.none(),
+    st.integers(),
+    st.floats(allow_nan=True, allow_infinity=True),
+    st.text(max_size=12),
+)
 
 
 def _project(directory: str) -> Path:
@@ -52,6 +64,7 @@ def _project(directory: str) -> Path:
                 "schema_version: 2",
                 "coordination_enabled: true",
                 "project_id: property-project",
+                "active_task_ceiling: 999",
                 "canonical_paths:",
                 "  active: .codex/coordination/active",
                 "  archive: .codex/coordination/archive",
@@ -347,6 +360,48 @@ TestClaimLifecycleProperties.settings = settings(
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )
+
+
+class BoundaryInputProperties(unittest.TestCase):
+    @settings(max_examples=50, deadline=None)
+    @given(value=INVALID_REVISION)
+    def test_claim_rejects_generated_non_integer_revisions(self, value: object) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            with self.assertRaises(state.BoardError):
+                state.claim_boundary(
+                    root,
+                    thread_id=THREADS[0],
+                    title="Generated input",
+                    goal="Reject an invalid revision type",
+                    paths=["src"],
+                    actions=[],
+                    blocked_by=[],
+                    status="active",
+                    expected_revision=value,
+                    user_approved_over_limit=False,
+                )
+            self.assertEqual(state.list_board(root)["activeCount"], 0)
+
+    @settings(max_examples=50, deadline=None)
+    @given(value=INVALID_APPROVAL)
+    def test_claim_rejects_generated_non_boolean_approval(self, value: object) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = _project(directory)
+            with self.assertRaises(state.BoardError):
+                state.claim_boundary(
+                    root,
+                    thread_id=THREADS[0],
+                    title="Generated input",
+                    goal="Reject an invalid approval type",
+                    paths=["src"],
+                    actions=[],
+                    blocked_by=[],
+                    status="active",
+                    expected_revision=0,
+                    user_approved_over_limit=value,
+                )
+            self.assertEqual(state.list_board(root)["activeCount"], 0)
 
 
 if __name__ == "__main__":

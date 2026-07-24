@@ -1,5 +1,9 @@
 # Legacy capability retention architectural review
 
+> **2026-07-23 pinning correction:** [The auto-pinning review](2026-07-23_goal-coordinator-auto-pinning_architectural_review.md) restores only the old navigation benefit. The explicitly appointed goal Coordinator pins its exact task after goal binding and claim success; the user controls unpinning. Permanent accepting authority, worker pinning, lifecycle management, reconciliation, and monitoring remain rejected.
+
+> **2026-07-23 terminal-return correction:** The current contract adds one deterministic assignment ID and one terminal `RESULT_READY` per assigned worker. It still rejects the legacy inbox, heartbeat, acknowledgement, reconciliation, transcript, and monitoring machinery. See [the assignment-receipt review](2026-07-23_terminal-return-idempotency_architectural_review.md).
+
 > **2026-07-23 correction:** This review's subagents-only conclusion overcorrected a native auto-resume failure. The current accepted contract supports an explicitly requested, goal-scoped Coordinator assigning complete durable verticals in one shared checkout. It still rejects automatic fan-in, polling, heartbeats, transcript mirroring, and a second task ledger. See the updated native-task return review and contract 26.
 
 - **Date:** 2026-07-22

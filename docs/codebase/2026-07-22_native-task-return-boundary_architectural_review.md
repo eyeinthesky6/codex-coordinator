@@ -1,5 +1,13 @@
 # Native-task return-boundary architectural review
 
+> Current capacity correction (2026-07-23): [the contract-36 review](2026-07-23_five-task-user-managed-ceiling_architectural_review.md) replaces the earlier two-or-three and later capless policies. Five active durable tasks includes the Coordinator; only the user may approve a higher temporary goal count or persistent project ceiling.
+
+> Goal-supervision correction (2026-07-23): [the goal-supervision review](2026-07-23_goal-supervision_architectural_review.md) supersedes the remaining manual-return assumption. The goal Coordinator now waits on exact native completion or attention events and makes the next decision. `RESULT_READY` remains a between-turn fallback; one temporary native thread heartbeat is allowed only for an explicitly unattended goal.
+
+> Terminal-return correction (2026-07-23): [the assignment-receipt review](2026-07-23_terminal-return-idempotency_architectural_review.md) supersedes this review's conclusion that the Coordinator can resume only when manually invoked. The current contract permits one terminal `RESULT_READY` from each assigned worker, with no polling or progress loop.
+
+> Current task-count and creation correction (2026-07-23): [the boundary invariant audit](2026-07-23_boundary-invariant-bug-audit_architectural_review.md) supersedes the earlier worker-count wording below. The current normal ceiling is two or three active durable tasks in total, including the goal Coordinator, with Coordinator-only sequential creation and exact native readback.
+
 - **Date:** 2026-07-22
 - **Corrected:** 2026-07-23
 - **Status:** The contract-25 conclusion is superseded by the accepted contract-26 direction

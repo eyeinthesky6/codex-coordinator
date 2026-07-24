@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Codex Coordinator — Run several Codex tasks without losing track</title>
-  <meta name="description" content="Reuse related Codex tasks, give each task a clear job, and see when two tasks may work on the same thing.">
+  <title>Codex Coordinator — Parallel Codex work in one checkout</title>
+  <meta name="description" content="Coordinate task threads and subagents in one checkout. See who owns what, avoid duplicate work and crossed edits, and keep one complex codebase moving together.">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
   <meta name="google-site-verification" content="NMvrZiG-hLYRIF4eme-25FTskwq9YfP_Yt5hhco7q2k">
   <meta name="theme-color" content="#f4f1e9">
@@ -13,13 +13,13 @@
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Codex Coordinator">
-  <meta property="og:title" content="Run several Codex tasks without losing track">
-  <meta property="og:description" content="Reuse related tasks, give each task a clear job, and catch duplicate work before it wastes time.">
+  <meta property="og:title" content="Parallel Codex work in one checkout">
+  <meta property="og:description" content="Coordinate task threads and subagents without checking every chat, duplicating work, or creating a worktree for every agent.">
   <meta property="og:url" content="https://eyeinthesky6.github.io/codex-coordinator/">
   <meta property="og:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Codex Coordinator">
-  <meta name="twitter:description" content="Give one goal to a few Codex tasks. See who is doing what without checking every window.">
+  <meta name="twitter:description" content="Coordinate Codex task threads and subagents in one checkout without losing track or duplicating work.">
   <meta name="twitter:image" content="https://eyeinthesky6.github.io/codex-coordinator/assets/logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -34,7 +34,7 @@
         "@id": "https://eyeinthesky6.github.io/codex-coordinator/#website",
         "url": "https://eyeinthesky6.github.io/codex-coordinator/",
         "name": "Codex Coordinator",
-        "description": "Run several Codex tasks without losing track of the work.",
+        "description": "Coordinate Codex task threads and subagents in one checkout without losing track or duplicating work.",
         "inLanguage": "en"
       },
       {
@@ -43,9 +43,9 @@
         "name": "Codex Coordinator",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": ["Windows", "macOS", "Linux"],
-        "softwareVersion": "0.4.0",
+        "softwareVersion": "0.5.0",
         "softwareRequirements": "OpenAI Codex with plugin support; Git; Python 3.10 or newer",
-        "description": "Reuses related Codex tasks, gives each task a clear job, and shows when two tasks may work on the same thing.",
+        "description": "Coordinates one repository goal across task threads and subagents in one checkout, keeps ownership visible, and shows where work may cross.",
         "url": "https://eyeinthesky6.github.io/codex-coordinator/",
         "codeRepository": "https://github.com/eyeinthesky6/codex-coordinator",
         "isAccessibleForFree": true,
@@ -102,18 +102,21 @@
       </figure>
     </section>
 
-    <section class="problem-band" aria-labelledby="problem-heading">
-      <div class="shell problem-layout">
-        <div>
-          <p class="eyebrow">The hidden cost</p>
-          <h2 id="problem-heading">More tasks should mean more work done—not more work for you.</h2>
-        </div>
-        <div class="problem-list">
-          <article><span>01</span><p>You keep opening every task window to see who is doing what.</p></article>
-          <article><span>02</span><p>You repeat the same update across several tasks.</p></article>
-          <article><span>03</span><p>Two tasks work on the same thing and create rework.</p></article>
-        </div>
+    <section class="section shell" id="pain" aria-labelledby="pain-heading">
+      <div class="section-heading">
+        <p class="eyebrow">In Codex users’ words</p>
+        <h2 id="pain-heading">One checkout. Multiple agents. Less time checking windows.</h2>
+        <p>More tasks should mean more work done—not more work for you. These common problems map to what Coordinator changes, with less time checking windows and no replacement for Codex.</p>
       </div>
+      <div class="pain-grid">
+        <article class="pain-card"><blockquote>“How do I remember what each agent or session is doing?”</blockquote><h3>Ask for the current picture.</h3><p>See each participating task’s job, files, dependencies, and status without reopening every chat or repeating the same update.</p></article>
+        <article class="pain-card"><blockquote>“It’s hard to keep track of which clone or worktree belongs to which task.”</blockquote><h3>Use one checkout for everyday work.</h3><p>Separate tasks can share your existing branch, dependencies, settings, and local tools.</p></article>
+        <article class="pain-card"><blockquote>“The main thread and another agent are doing nearly the same work.”</blockquote><h3>Give every job one owner.</h3><p>Coordinator reuses related tasks first, then keeps assignments and planned file areas visible.</p></article>
+        <article class="pain-card"><blockquote>“I know subagents exist, but I have to remember to ask for them every time.”</blockquote><h3>Make parallel help part of the instructions.</h3><p>Subagents are available on supported non-Ultra intelligence levels when requested directly or through project and skill instructions. Ultra adds proactive delegation.</p></article>
+        <article class="pain-card"><blockquote>“My code, tests, and docs are drifting across different chats.”</blockquote><h3>Split one result into complete lanes.</h3><p>Tasks work from the same current codebase, with each lane and its planned files visible.</p></article>
+        <article class="pain-card"><blockquote>“Did one agent just overwrite or undo work from another thread?”</blockquote><h3>Keep dangerous Git operations out.</h3><p>Tasks re-read shared files, pause on a real collision, and avoid reset, restore, stash, clean, force-push, and broad staging during parallel work.</p></article>
+      </div>
+      <p class="native-note"><strong>Built on native Codex capabilities.</strong> Codex already has task threads, thread reading, inter-thread messages, and subagents. Coordinator makes them easier to discover and use together. The goal owner is automatically pinned so it stays easy to find, and you decide when to unpin it.</p>
     </section>
 
     <section class="section shell" id="how" aria-labelledby="how-heading">
@@ -143,7 +146,7 @@
         <div class="demo-copy">
           <p class="eyebrow">See the workflow</p>
           <h2 id="demo-heading">From one goal to a few clear jobs.</h2>
-          <p>Three short views show the whole experience. No extra dashboard and no constant checking.</p>
+          <p>Three short views show the workflow. Open optional Mission Control only when you want one read-only overview.</p>
         </div>
         <div class="demo-viewer">
           <div class="demo-tabs" role="tablist" aria-label="Coordinator workflow">
@@ -174,8 +177,9 @@
           <h2 id="calm-heading">Keep the work clear without adding another system to manage.</h2>
         </div>
         <ul class="plain-checks">
-          <li><strong>No background watching.</strong> Check the current picture when you need it.</li>
+          <li><strong>No permanent watcher.</strong> The goal owner responds when work finishes or needs you. If you request unattended supervision, Coordinator can use one temporary Codex follow-up until the next decision.</li>
           <li><strong>No copied chat history.</strong> Codex remains the home for task conversations.</li>
+          <li><strong>No always-on dashboard.</strong> Mission Control starts only when you ask, reads one project, and refreshes only when you press the button.</li>
           <li><strong>No duplicate project setup.</strong> Tasks can share the local tools you already rely on.</li>
           <li><strong>No forced process.</strong> Keep the way of working that already suits your project.</li>
         </ul>
@@ -198,7 +202,7 @@
         <div class="install-steps">
           <div class="install-step">
             <span>1</span>
-            <div><h3>Install the plugin</h3><div class="command"><code id="install-command">codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.4.0
+            <div><h3>Install the plugin</h3><div class="command"><code id="install-command">codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.5.0
 codex plugin add codex-coordinator@codex-coordinator</code><button class="copy" type="button" data-copy="install-command">Copy</button></div></div>
           </div>
           <div class="install-step">

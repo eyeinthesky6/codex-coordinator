@@ -27,8 +27,10 @@ DISCOVERY_BLOCK = """## Codex task-boundary board
 
 - This repository uses the opt-in Codex task-boundary board in `.codex/coordination/project.yaml`.
 - Before substantial writes, load the installed `codex-coordinator` skill, list active claims from the primary worktree, and publish only this task's bounded claim.
-- Native Codex tasks remain the execution, messaging, and transcript authority; an explicitly requested goal Coordinator is on demand, with no heartbeat or mandatory pull-request workflow.
-- Reject cross-project notices and never store transcripts, reasoning, prompts, or tool output in Coordinator state."""
+- Native Codex tasks remain the goal, continuation, execution, messaging, and transcript authority; durable parallel tasks use native Goal mode, while short work stays in the current task or a parent-owned helper.
+- An explicitly requested goal Coordinator supervises exact assigned task events. Only a user-requested unattended goal may use one temporary native thread heartbeat; there is no repository heartbeat or mandatory pull-request workflow.
+- Five active durable tasks, including the Coordinator, is the default ceiling. Only a direct user instruction may approve a higher temporary goal count or change `active_task_ceiling`.
+- Reject cross-project inter-agent task communication and never store transcripts, reasoning, prompts, or tool output in Coordinator state."""
 
 LEGACY_DISCOVERY_BLOCKS = (
     """## Codex Coordinator
@@ -50,6 +52,7 @@ LEGACY_DISCOVERY_BLOCKS = (
 IGNORE_BLOCK = ".codex/coordination/*\n!.codex/coordination/project.yaml"
 QUARANTINE_NAME = "coordination.codex-coordinator-purge"
 MARKER_KEYS = ("schema_version", "coordination_enabled", "project_id")
+DEFAULT_ACTIVE_TASK_CEILING = 5
 TASK_PREFIX = re.compile(r"[A-Z][A-Z0-9-]{0,15}")
 MIGRATION_BACKUP_NAME = "project.schema-1.yaml"
 MAX_LEGACY_FILES = 10_000
@@ -101,6 +104,10 @@ class Project:
     @property
     def schema(self) -> int:
         return int(self.fields["schema_version"])
+
+    @property
+    def task_ceiling(self) -> int:
+        return int(self.fields["active_task_ceiling"])
 
 
 def _read_document(path: Path, *, required: bool = True) -> Document | None:
@@ -184,6 +191,8 @@ def _parse_marker(document: Document) -> dict[str, str]:
         raise LifecycleError("coordination_enabled must be true or false")
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", fields["project_id"]):
         raise LifecycleError("project_id is invalid")
+    ceiling = _marker_scalar(document, "active_task_ceiling")
+    fields["active_task_ceiling"] = str(_validate_task_ceiling(ceiling))
     return fields
 
 
@@ -200,6 +209,15 @@ def _marker_scalar(
             raise LifecycleError(f"schema-1 marker is missing {key}")
         return None
     return matches[0].strip()
+
+
+def _validate_task_ceiling(value: str | int | None) -> int:
+    if value is None:
+        return DEFAULT_ACTIVE_TASK_CEILING
+    text = str(value)
+    if not re.fullmatch(r"[1-9][0-9]{0,3}", text):
+        raise LifecycleError("active task ceiling must be an integer from 1 to 9999")
+    return int(text)
 
 
 def _validate_schema_one_migration(document: Document) -> None:
@@ -220,6 +238,7 @@ def _schema_two_marker(project: Project) -> str:
         "schema_version: 2",
         "coordination_enabled: false",
         f"project_id: {project.project_id}",
+        f"active_task_ceiling: {DEFAULT_ACTIVE_TASK_CEILING}",
     ]
     for key in ("project_name", "task_prefix"):
         value = _marker_scalar(project.marker, key)
@@ -270,6 +289,35 @@ def _replace_marker_enabled(document: Document, enabled: bool) -> str:
     )
     if count != 1:
         raise LifecycleError("marker enablement field is ambiguous")
+    return updated
+
+
+def _replace_task_ceiling(document: Document, ceiling: int) -> str:
+    line = f"active_task_ceiling: {ceiling}"
+    matches = re.findall(
+        r"(?m)^active_task_ceiling:[^\r\n#]+[ \t]*(?=\r?$)", document.text
+    )
+    if len(matches) > 1:
+        raise LifecycleError("marker active_task_ceiling field is ambiguous")
+    if len(matches) == 1:
+        updated, count = re.subn(
+            r"(?m)^active_task_ceiling:[^\r\n#]+[ \t]*(?=\r?$)",
+            line,
+            document.text,
+        )
+        if count != 1:
+            raise LifecycleError("marker active_task_ceiling field is ambiguous")
+        return updated
+
+    pattern = r"(?m)^(project_id:[^\r\n#]*?)[ \t]*(\r?\n)"
+    updated, count = re.subn(
+        pattern,
+        lambda match: match.group(1) + match.group(2) + line + match.group(2),
+        document.text,
+        count=1,
+    )
+    if count != 1:
+        raise LifecycleError("marker project_id field is ambiguous")
     return updated
 
 
@@ -506,7 +554,7 @@ def _initialization_root(root_value: str) -> tuple[Path, Path]:
 
 
 def _initial_marker(
-    *, project_id: str, project_name: str, task_prefix: str
+    *, project_id: str, project_name: str, task_prefix: str, task_ceiling: int
 ) -> str:
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", project_id):
         raise LifecycleError("--project-id must be a stable lowercase slug")
@@ -524,6 +572,7 @@ def _initial_marker(
             "schema_version: 2",
             "coordination_enabled: true",
             f"project_id: {project_id}",
+            f"active_task_ceiling: {_validate_task_ceiling(task_ceiling)}",
             f"project_name: {json.dumps(project_name, ensure_ascii=True)}",
             f"task_prefix: {task_prefix}",
             "canonical_paths:",
@@ -544,6 +593,11 @@ def _init_operation(args: argparse.Namespace) -> dict[str, object]:
         project_id=args.project_id or "",
         project_name=args.project_name or "",
         task_prefix=args.task_prefix or "",
+        task_ceiling=(
+            args.active_task_ceiling
+            if args.active_task_ceiling is not None
+            else DEFAULT_ACTIVE_TASK_CEILING
+        ),
     )
     agents_path = root / "AGENTS.md"
     ignore_path = root / ".gitignore"
@@ -745,13 +799,56 @@ def _native_actions(project: Project, *, activate: bool) -> list[dict[str, str]]
     return actions
 
 
+def _set_ceiling_operation(
+    project: Project, args: argparse.Namespace
+) -> dict[str, object]:
+    if project.schema != 2:
+        raise LifecycleError("active task ceiling can be changed only for schema 2")
+    if args.active_task_ceiling is None:
+        raise LifecycleError("set-ceiling requires --active-task-ceiling")
+    ceiling = _validate_task_ceiling(args.active_task_ceiling)
+    marker_text = _replace_task_ceiling(project.marker, ceiling)
+    actions: list[dict[str, object]] = []
+    changes: list[tuple[Document, str]] = []
+    if marker_text != project.marker.text:
+        actions.append(
+            {
+                "action": "set-active-task-ceiling",
+                "path": str(project.marker.path),
+                "from": project.task_ceiling,
+                "to": ceiling,
+            }
+        )
+        changes.append((project.marker, marker_text))
+    if args.apply:
+        _apply_documents(changes)
+    return {
+        "status": "applied" if args.apply else "planned",
+        "operation": "set-ceiling",
+        "projectId": project.project_id,
+        "projectRoot": str(project.root),
+        "previousCeiling": project.task_ceiling,
+        "activeTaskCeiling": ceiling,
+        "actions": actions,
+        "requiredNativeActions": [],
+        "activeClaimsChanged": 0,
+        "historyPreserved": True,
+    }
+
+
 def project_operation(args: argparse.Namespace) -> dict[str, object]:
     if args.action == "init":
         return _init_operation(args)
+    if args.action != "set-ceiling" and args.active_task_ceiling is not None:
+        raise LifecycleError(
+            "--active-task-ceiling is valid only for init or set-ceiling"
+        )
     purge = args.action == "purge"
     project = _load_project(args.project_root, allow_resumed_purge=purge)
     if args.action == "migrate":
         return _migration_operation(project, args)
+    if args.action == "set-ceiling":
+        return _set_ceiling_operation(project, args)
     agents_path = project.root / "AGENTS.md"
     ignore_path = project.root / ".gitignore"
     agents = _read_document(agents_path, required=False)
@@ -832,12 +929,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     project = subparsers.add_parser("project", help="plan or apply one project lifecycle operation")
     project.add_argument(
-        "action", choices=("init", "deactivate", "migrate", "reactivate", "purge")
+        "action",
+        choices=("init", "deactivate", "migrate", "reactivate", "set-ceiling", "purge"),
     )
     project.add_argument("--project-root", required=True)
     project.add_argument("--project-id", help="stable lowercase ID required for init")
     project.add_argument("--project-name", help="display name required for init")
     project.add_argument("--task-prefix", help="short uppercase prefix required for init")
+    project.add_argument(
+        "--active-task-ceiling",
+        type=int,
+        help="default active durable-task ceiling for init or set-ceiling",
+    )
     project.add_argument("--apply", action="store_true", help="apply the planned filesystem changes")
     project.add_argument(
         "--confirm-project-id",

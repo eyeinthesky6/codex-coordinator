@@ -14,25 +14,34 @@ from typing import Any
 EXPECTED_CAPABILITIES = {
     "corePurpose": "repository-task-boundary-visibility",
     "repositoryLifecycle": "explicit-opt-in",
-    "projectLifecycleTool": "dry-run-first-init-deactivate-migrate-reactivate-purge",
+    "projectLifecycleTool": "dry-run-first-init-deactivate-migrate-reactivate-set-ceiling-purge",
     "defaultExecution": "one-native-task",
     "nativeTaskAuthority": "execution-messaging-transcript",
     "claimOwnership": "per-task-json-record",
     "claimConflictCheck": "advisory-path-overlap-exclusive-action-only",
-    "activeTaskLimit": "three-default-twelve-hard-user-override",
-    "taskCreation": "reuse-first-then-local-two-or-three-verticals",
+    "activeTaskLimit": "five-default-user-approved-temporary-or-project-ceiling",
+    "taskCreation": "reuse-first-native-goal-verticals-only",
     "taskReuse": "related-local-task-before-create",
-    "goalCoordinator": "user-invoked-goal-scoped-on-demand",
+    "nativeGoalBinding": "required-for-coordinator-and-durable-workers",
+    "ambiguousNativeMutation": "assignment-id-single-readback-exact-recipient-pending-send-no-retry",
+    "failedDeliveryFallback": "goal-assignment-result-ready-routing-only-exact-recipient",
+    "taskCreationSafety": "goal-coordinator-only-idempotent-preflight-sequential-readback",
+    "completionReturn": "exact-task-event-wait-with-terminal-result-ready-fallback",
+    "goalCoordinator": "user-invoked-native-goal-scoped-supervisor",
+    "goalCoordinatorPinning": "pin-after-goal-claim-user-controlled-unpin-best-effort",
+    "goalSupervision": "complete-or-attention-event-decide-follow-up-or-finish",
     "goalCoordinationAction": "goal-coordination",
     "taskPlacement": "shared-primary-checkout-current-branch",
-    "dependentParallelism": "durable-verticals-or-parent-owned-subagents",
-    "messagePolicy": "coordinator-one-shot-assignment-and-sparse-peer-notices",
+    "dependentParallelism": "native-goal-verticals-or-parent-owned-subagents",
+    "messagePolicy": "pull-first-action-only-inter-agent-task-communication",
     "transcriptStorage": "none",
     "currentView": "generated-active-only-non-authoritative",
-    "automaticFanIn": "none",
-    "sessionStart": "marker-only-no-child-process",
+    "automaticFanIn": "temporary-native-thread-heartbeat-only-for-explicit-unattended-goal",
+    "sessionStart": "marker-plus-exact-recipient-pending-count-no-child-process",
+    "goalRepositoryGuard": "prompt-time-active-coordinator-lane-derived-id-and-local-repository-match",
     "stopGuard": "own-active-claim-one-shot-no-transcript",
     "doctor": "read-only-compatibility-reinstall",
+    "missionControl": "optional-manual-read-only-single-project-refresh",
     "externalWriteConsent": "exact-target-advance-notice",
     "staleClaimRecovery": "native-terminal-evidence",
     "stateTool": "scripts/coordination_state.py",
@@ -119,7 +128,11 @@ def _check_skill(skill_root: Path) -> None:
 def _check_hook(plugin_root: Path) -> None:
     hooks = _json_object(plugin_root / "hooks" / "hooks.json")
     try:
-        if set(hooks) != {"hooks"} or set(hooks["hooks"]) != {"SessionStart", "Stop"}:
+        if set(hooks) != {"hooks"} or set(hooks["hooks"]) != {
+            "SessionStart",
+            "UserPromptSubmit",
+            "Stop",
+        }:
             raise CheckError("hook registration contains unsupported events")
         entries = hooks["hooks"]["SessionStart"]
         if not isinstance(entries, list) or len(entries) != 1:
@@ -151,11 +164,44 @@ def _check_hook(plugin_root: Path) -> None:
     ) or command_hook.get("commandWindows") != (
         'python -I "${PLUGIN_ROOT}/scripts/codex_coordinator_session_start.py"'
     ):
-        raise CheckError("SessionStart must call the packaged marker-only hook directly")
+        raise CheckError("SessionStart must call the packaged bounded hook directly")
     timeout = command_hook.get("timeout")
     if not isinstance(timeout, int) or isinstance(timeout, bool) or not 1 <= timeout <= 5:
         raise CheckError("SessionStart timeout must be between one and five seconds")
     _check_python(plugin_root / expected)
+
+    try:
+        prompt_entries = hooks["hooks"]["UserPromptSubmit"]
+        if not isinstance(prompt_entries, list) or len(prompt_entries) != 1:
+            raise CheckError("UserPromptSubmit must contain exactly one registration")
+        prompt_entry = prompt_entries[0]
+        if not isinstance(prompt_entry, dict) or set(prompt_entry) != {"hooks"}:
+            raise CheckError("UserPromptSubmit registration must not contain a matcher")
+        if not isinstance(prompt_entry["hooks"], list) or len(prompt_entry["hooks"]) != 1:
+            raise CheckError("UserPromptSubmit must contain exactly one command")
+        prompt_hook = prompt_entry["hooks"][0]
+        if not isinstance(prompt_hook, dict):
+            raise CheckError("UserPromptSubmit command is incompatible")
+    except (KeyError, IndexError, TypeError) as error:
+        raise CheckError("UserPromptSubmit hook registration is incompatible") from error
+    prompt_fields = {"type", "command", "commandWindows", "timeout"}
+    if set(prompt_hook) != prompt_fields or prompt_hook.get("type") != "command":
+        raise CheckError("UserPromptSubmit command fields are incompatible")
+    prompt_script = "scripts/codex_coordinator_prompt_guard.py"
+    if prompt_hook.get("command") != (
+        'python3 -I "${PLUGIN_ROOT}/scripts/codex_coordinator_prompt_guard.py"'
+    ) or prompt_hook.get("commandWindows") != (
+        'python -I "${PLUGIN_ROOT}/scripts/codex_coordinator_prompt_guard.py"'
+    ):
+        raise CheckError("UserPromptSubmit must call the packaged repository guard directly")
+    prompt_timeout = prompt_hook.get("timeout")
+    if (
+        not isinstance(prompt_timeout, int)
+        or isinstance(prompt_timeout, bool)
+        or not 1 <= prompt_timeout <= 5
+    ):
+        raise CheckError("UserPromptSubmit timeout must be between one and five seconds")
+    _check_python(plugin_root / prompt_script)
 
     try:
         stop_entries = hooks["hooks"]["Stop"]
@@ -217,10 +263,10 @@ def check_package(plugin_root: Path) -> dict[str, Any]:
         capabilities = _json_object(
             root / "skills" / "codex-coordinator" / "capabilities.json"
         )
-        if capabilities.get("contractVersion") != 28:
-            raise CheckError("capability contract version must be 26")
+        if capabilities.get("contractVersion") != 39:
+            raise CheckError("capability contract version must be 39")
         if capabilities.get("capabilities") != EXPECTED_CAPABILITIES:
-            raise CheckError("capability contract fields do not match version 26")
+            raise CheckError("capability contract fields do not match version 39")
 
     attempt("capabilities", capabilities_check)
     attempt("skill", lambda: _check_skill(root / "skills" / "codex-coordinator"))

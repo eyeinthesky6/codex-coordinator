@@ -24,7 +24,10 @@ class MissionControlLifecycleRetirementTests(unittest.TestCase):
         )["capabilities"]
         for removed in ("missionControlLifecycle", "missionControlDoctor", "monitoring"):
             self.assertNotIn(removed, contract)
-        self.assertNotIn("missionControl", contract)
+        self.assertEqual(
+            contract["missionControl"],
+            "optional-manual-read-only-single-project-refresh",
+        )
 
 
 if __name__ == "__main__":

@@ -119,6 +119,7 @@ class ProjectLifecycleTests(unittest.TestCase):
             self.assertIn("schema_version: 2", marker)
             self.assertIn("coordination_enabled: true", marker)
             self.assertIn("project_id: sample", marker)
+            self.assertIn("active_task_ceiling: 5", marker)
             self.assertIn('project_name: "Sample Project"', marker)
             self.assertEqual(
                 list((root / ".codex" / "coordination" / "active").iterdir()), []
@@ -242,6 +243,56 @@ class ProjectLifecycleTests(unittest.TestCase):
             self.assertEqual(agents.count(lifecycle.DISCOVERY_BLOCK), 1)
             self.assertIn("coordination_enabled: true", (root / ".codex" / "coordination" / "project.yaml").read_text(encoding="utf-8"))
             self.assertTrue(receipt.is_file())
+
+    def test_project_ceiling_update_is_dry_run_first_and_preserves_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._repository(directory)
+            marker = root / ".codex" / "coordination" / "project.yaml"
+            receipt = root / ".codex" / "coordination" / "archive" / "receipt.json"
+            before = marker.read_bytes()
+            args = (
+                "project",
+                "set-ceiling",
+                "--project-root",
+                str(root),
+                "--active-task-ceiling",
+                "8",
+            )
+
+            code, plan = self._run(*args)
+            self.assertEqual(code, 0)
+            self.assertEqual(plan["status"], "planned")
+            self.assertEqual(plan["previousCeiling"], 5)
+            self.assertEqual(plan["activeTaskCeiling"], 8)
+            self.assertEqual(plan["activeClaimsChanged"], 0)
+            self.assertEqual(plan["requiredNativeActions"], [])
+            self.assertEqual(marker.read_bytes(), before)
+            self.assertTrue(receipt.is_file())
+
+            code, applied = self._run(*args, "--apply")
+            self.assertEqual(code, 0)
+            self.assertEqual(applied["status"], "applied")
+            self.assertIn("active_task_ceiling: 8", marker.read_text(encoding="utf-8"))
+            self.assertTrue(receipt.is_file())
+
+            code, repeated = self._run(*args)
+            self.assertEqual(code, 0)
+            self.assertEqual(repeated["actions"], [])
+
+    def test_project_ceiling_rejects_invalid_values(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._repository(directory)
+            for value in ("0", "10000"):
+                code, result = self._run(
+                    "project",
+                    "set-ceiling",
+                    "--project-root",
+                    str(root),
+                    "--active-task-ceiling",
+                    value,
+                )
+                self.assertEqual(code, 2)
+                self.assertIn("integer from 1 to 9999", result["error"])
 
     def test_legacy_schema_can_be_disabled_but_not_reactivated(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

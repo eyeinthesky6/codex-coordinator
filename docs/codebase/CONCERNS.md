@@ -3,8 +3,8 @@
 ## Current release gates
 
 - The repository is public. A future release candidate is not supported until it passes protected CI, is merged, tagged, published, and verified from a clean checkout of that exact tag.
-- Schema 2 is the stable `0.4.0` contract. Maintainer projects remain disabled until deliberately re-enabled; a published plugin never proves or changes a project's enablement state.
-- The base package contains no observer. Any future observer is a separate product decision and cannot be restored by copying the retired runtime forward.
+- Schema 2 remains stable in `0.5.0`. Maintainer projects remain disabled until deliberately re-enabled; a published plugin never proves or changes a project's enablement state.
+- The package includes only the bounded optional Mission Control page: manual start, one explicit project, localhost-only, read-only, and refresh-on-request. It must not grow back into the retired collector, background lifecycle, live monitor, or task-control runtime.
 - GitHub branch protection, required CI, secret scanning, push protection, private vulnerability reporting, and CodeQL are enabled. Provider controls must still be read back for each release.
 - Immutable future releases are not enabled; tags and GitHub Release state therefore remain part of the maintainer's release discipline.
 
@@ -31,7 +31,7 @@ These are release and provider conditions, not evidence of an application-code d
 - Public support reports may accidentally include private task content or local coordination state; issue forms and support docs must continue warning against that.
 - Schema-1 migration must remain dry-run-first, preserve old records, create no inferred claims, and leave projects disabled.
 - Active-claim limits and record-size bounds protect the hot path; raising them or scanning cold history would reintroduce the original slowdown.
-- A future observer could recreate private-Codex coupling or a second task authority unless it is separately packaged and limited to the public board.
+- Mission Control could recreate private-Codex coupling or a second task authority if it reads beyond the public board, gains controls, polls, or starts automatically. Keep those exclusions under contract tests.
 
 ## Evidence
 

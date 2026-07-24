@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Emit a bounded task-board hint for an explicitly enabled repository."""
+"""Emit a bounded board hint and exact-recipient failed-delivery count."""
 
 from __future__ import annotations
 
@@ -12,7 +12,13 @@ from typing import Any
 
 MARKER_LIMIT = 16_384
 MARKER_SCHEMA_VERSION = "2"
+MAX_PENDING_DIRECTORY_ENTRIES = 64
+MAX_PENDING_NOTICES = 32
 PROJECT_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
+THREAD_ID = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+)
+NOTICE_ID = re.compile(r"pn-[0-9a-f]{32}")
 
 
 def _is_linklike(path: Path) -> bool:
@@ -71,6 +77,35 @@ def _find_marker(cwd: Path) -> Path | None:
                 raise ValueError("marker_link_unsupported")
             return marker
     return None
+
+
+def _pending_notice_count(coordination_root: Path, session_id: Any) -> int:
+    """Count only this task's notice filenames without reading their contents."""
+
+    if not isinstance(session_id, str) or THREAD_ID.fullmatch(session_id) is None:
+        return 0
+    pending_root = coordination_root / "pending-notices"
+    if not pending_root.exists():
+        return 0
+    if _is_linklike(pending_root) or not pending_root.is_dir():
+        raise ValueError("pending_notice_root_invalid")
+    recipient_root = pending_root / session_id
+    if not recipient_root.exists():
+        return 0
+    if _is_linklike(recipient_root) or not recipient_root.is_dir():
+        raise ValueError("pending_notice_recipient_invalid")
+
+    count = 0
+    for entry_count, path in enumerate(recipient_root.iterdir(), start=1):
+        if entry_count > MAX_PENDING_DIRECTORY_ENTRIES:
+            raise ValueError("pending_notice_directory_unbounded")
+        if path.name.endswith(".json") and NOTICE_ID.fullmatch(path.stem):
+            if _is_linklike(path) or not path.is_file():
+                raise ValueError("pending_notice_file_invalid")
+            count += 1
+            if count > MAX_PENDING_NOTICES:
+                raise ValueError("pending_notice_count_unbounded")
+    return count
 
 
 def _invalid(project_id: str, warning: str) -> None:
@@ -135,16 +170,25 @@ def main() -> None:
             _invalid(enabled_project, "project_id_missing_or_invalid")
             return
 
-        _emit(
-            "\n".join(
-                [
-                    "Codex task-boundary board is enabled for this repository.",
-                    f"project_id={enabled_project}",
-                    "Before substantial writes, load the installed codex-coordinator skill and list the bounded active claims from the primary worktree.",
-                    "This hook grants no ownership, creates no task, launches no process, scans no history, and stores no transcript.",
-                ]
-            )
+        context = [
+            "Codex task-boundary board is enabled for this repository.",
+            f"project_id={enabled_project}",
+            "Before substantial writes, load the installed codex-coordinator skill and list the bounded active claims from the primary worktree.",
+        ]
+        pending_count = _pending_notice_count(
+            marker_path.parent, payload.get("session_id")
         )
+        if pending_count:
+            context.extend(
+                (
+                    f"pending_delivery_records={pending_count}",
+                    "A native assignment or terminal return previously had no visible receipt. List only this task's pending delivery records before unrelated coordinated work; this hook does not execute or acknowledge them.",
+                )
+            )
+        context.append(
+            "This hook grants no ownership, creates no task, launches no process, scans no history, reads no record body, and stores no transcript."
+        )
+        _emit("\n".join(context))
     except Exception:
         if marker_seen:
             try:

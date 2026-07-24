@@ -142,6 +142,40 @@ class DoctorTests(unittest.TestCase):
                 self.assertEqual(report["status"], "broken")
                 self.assertEqual(report["recommendedAction"], "update_or_reinstall")
 
+    def test_prompt_guard_hook_contract_drift_is_rejected(self) -> None:
+        def missing(root: Path) -> None:
+            path = root / "hooks" / "hooks.json"
+            value = json.loads(path.read_text(encoding="utf-8"))
+            del value["hooks"]["UserPromptSubmit"]
+            path.write_text(json.dumps(value), encoding="utf-8")
+
+        def matched(root: Path) -> None:
+            path = root / "hooks" / "hooks.json"
+            value = json.loads(path.read_text(encoding="utf-8"))
+            value["hooks"]["UserPromptSubmit"][0]["matcher"] = "*"
+            path.write_text(json.dumps(value), encoding="utf-8")
+
+        def wrong_command(root: Path) -> None:
+            path = root / "hooks" / "hooks.json"
+            value = json.loads(path.read_text(encoding="utf-8"))
+            value["hooks"]["UserPromptSubmit"][0]["hooks"][0][
+                "command"
+            ] = "python3 other.py"
+            path.write_text(json.dumps(value), encoding="utf-8")
+
+        for name, mutate in {
+            "missing": missing,
+            "matched": matched,
+            "wrong command": wrong_command,
+        }.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                root = self._copy_plugin(directory)
+                mutate(root)
+                code, report = self._run(root, "--check")
+                self.assertEqual(code, 1)
+                self.assertEqual(report["status"], "broken")
+                self.assertEqual(report["recommendedAction"], "update_or_reinstall")
+
     def test_compact_report_omits_paths_and_detailed_findings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = self._copy_plugin(directory)

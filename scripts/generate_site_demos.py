@@ -85,7 +85,7 @@ def base(title: str, active: str = "Coordinator") -> tuple[Image.Image, ImageDra
     image.paste(logo, (20, 72), logo)
     draw.text((64, 77), "Codex Coordinator", font=F16B, fill=PAPER)
     draw.text((20, 128), "YOUR TASKS", font=F12, fill="#7890AE")
-    items = ["Coordinator", "Task A · App", "Task B · Docs", "Task C · Check"]
+    items = ["Coordinator", "Task A · App", "Task B · Docs"]
     for index, item in enumerate(items):
         y = 157 + index * 54
         if item.startswith(active):
@@ -95,7 +95,7 @@ def base(title: str, active: str = "Coordinator") -> tuple[Image.Image, ImageDra
 
     draw.line((230, 52, 230, 600), fill=LINE, width=1)
     draw.text((260, 73), title, font=F22B, fill=PAPER)
-    draw.text((260, 106), "The lead Codex task keeps the work together", font=F14, fill=MUTED)
+    draw.text((260, 106), "One goal; each Codex task gets a clear job", font=F14, fill=MUTED)
     draw.line((260, 136, 930, 136), fill=LINE, width=1)
     return image, draw
 
@@ -136,15 +136,14 @@ def demo_ask() -> None:
         image, draw = base("1 · Ask for the outcome")
         bubble(draw, 160, "You", "Get this release ready. Fix the app, update the docs, and check everything before we ship.", user=True, height=116)
         if step >= 1:
-            bubble(draw, 298, "Coordinator", "I’ll run this from one place. I’m splitting the work into three focused Codex tasks.", height=104)
+            bubble(draw, 298, "Coordinator", "I’ll reuse the right tasks and give each one a complete job without opening more windows than needed.", height=104)
         chips = [
             ("Task A", "Fix the app", "Starting", CYAN),
             ("Task B", "Update the docs", "Starting", PURPLE),
-            ("Task C", "Check the work", "Starting", YELLOW),
         ]
         for index, chip in enumerate(chips):
             if step >= index + 2:
-                task_chip(draw, 260 + index * 217, 432, *chip)
+                task_chip(draw, 340 + index * 240, 432, *chip)
         frames.append(image)
     save_gif("01-ask-and-split.gif", frames, [900, 1150, 700, 700, 1500, 2200])
 
@@ -161,19 +160,18 @@ def worker_panel(draw: ImageDraw.ImageDraw, x: int, y: int, title: str, job: str
 
 def demo_work() -> None:
     states = [
-        ("Working", "Opening the app and running its checks.", "Queued", "Waiting for its turn.", "Queued", "Waiting for the finished work."),
-        ("Working", "Fixing the release issue and checking the change.", "Working", "Making the setup guide easier to follow.", "Queued", "Waiting for the finished work."),
-        ("Done", "Fix complete. The focused app checks pass.", "Working", "Updating the README and website instructions.", "Working", "Reviewing the app and docs together."),
-        ("Done", "Fix complete. The focused app checks pass.", "Done", "README and website now match the release.", "Working", "Running the final independent check."),
-        ("Done", "Fix complete. The focused app checks pass.", "Done", "README and website now match the release.", "Done", "No blocking issue found. Ready to report."),
+        ("Working", "Opening the app and running its checks.", "Queued", "Waiting for its complete job."),
+        ("Working", "Fixing the release issue and checking the change.", "Working", "Making the setup guide easier to follow."),
+        ("Done", "Fix complete. The focused app checks pass.", "Working", "Updating the README and website instructions."),
+        ("Done", "Fix complete. The focused app checks pass.", "Done", "README and website now match the release."),
+        ("Done", "Fix complete. The focused app checks pass.", "Done", "README and website now match the release."),
     ]
     frames: list[Image.Image] = []
     for state in states:
         image, draw = base("2 · Focused tasks do the work")
         draw.text((260, 158), "Coordinator keeps each task on a different part", font=F18B, fill=PAPER)
-        worker_panel(draw, 260, 202, "Task A", "Fix the app", state[0], state[1], GREEN if state[0] == "Done" else CYAN)
-        worker_panel(draw, 480, 202, "Task B", "Update docs", state[2], state[3], GREEN if state[2] == "Done" else PURPLE)
-        worker_panel(draw, 700, 202, "Task C", "Check it", state[4], state[5], GREEN if state[4] == "Done" else YELLOW)
+        worker_panel(draw, 335, 202, "Task A", "Fix the app", state[0], state[1], GREEN if state[0] == "Done" else CYAN)
+        worker_panel(draw, 625, 202, "Task B", "Update docs", state[2], state[3], GREEN if state[2] == "Done" else PURPLE)
         draw.text((260, 535), "You do not have to open each task or carry updates between them.", font=F14B, fill=CYAN)
         frames.append(image)
     save_gif("02-tasks-at-work.gif", frames, [1300, 1300, 1400, 1400, 2600])
@@ -190,7 +188,7 @@ def demo_result() -> None:
     updates = [
         ("Task A is finished",),
         ("Task A is finished", "Task B is finished"),
-        ("Task A is finished", "Task B is finished", "Task C checked the combined work"),
+        ("Task A is finished", "Task B is finished", "The current picture is ready to review"),
     ]
     for step in range(5):
         image, draw = base("3 · Get one checked answer")
@@ -201,10 +199,10 @@ def demo_result() -> None:
         else:
             rounded(draw, (260, 158, 920, 508), PANEL, "#3D6B77", 14)
             draw.text((284, 181), "COORDINATOR · FINAL UPDATE", font=F12, fill=CYAN)
-            draw.text((284, 216), "Release-ready work is complete", font=F28B, fill=PAPER)
+            draw.text((284, 216), "The coordinated work is complete", font=F28B, fill=PAPER)
             checklist(draw, 278, "The app fix is complete and its checks pass")
             checklist(draw, 322, "The README and website match the release")
-            checklist(draw, 366, "The combined work received an independent check")
+            checklist(draw, 366, "The current result is ready for your review")
             draw.line((284, 414, 896, 414), fill=LINE, width=1)
             draw.text((284, 438), "You have one result to review—not three chats to combine.", font=F16B, fill=CYAN)
             if step == 4:

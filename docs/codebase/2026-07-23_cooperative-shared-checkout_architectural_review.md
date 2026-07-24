@@ -1,5 +1,17 @@
 # Cooperative shared-checkout architectural review
 
+> Five-task capacity correction (2026-07-23): [the contract-36 review](2026-07-23_five-task-user-managed-ceiling_architectural_review.md) supersedes the capless task-count note below. Five active durable tasks includes the Coordinator; a higher temporary or persistent ceiling requires direct user approval.
+
+> Goal-supervision correction (2026-07-23): [the goal-supervision review](2026-07-23_goal-supervision_architectural_review.md) adds exact-task event waiting and a bounded decision loop to the goal Coordinator. Only an explicitly unattended goal may use one temporary native thread heartbeat; shared-checkout, reuse-first, sparse-state, and no-progress-polling boundaries remain.
+
+> Task-capacity correction (2026-07-23): [the owner-chosen task-capacity review](2026-07-23_owner-chosen-task-capacity_architectural_review.md) supersedes fixed normal and hard task-count limits. One task remains the default, but the owner may choose the count or the acting agent may choose the smallest useful set. Identity, reuse, sequential creation, and collision safeguards remain.
+
+> Terminal-return correction (2026-07-23): [the assignment-receipt review](2026-07-23_terminal-return-idempotency_architectural_review.md) adds one completion-only `RESULT_READY` and deterministic assignment identity. It does not restore the rejected progress, acknowledgement, heartbeat, or reconciliation loops described below.
+>
+> Failed-delivery correction (2026-07-23): [the inbox-return review](2026-07-23_inbox-return-boundary_architectural_review.md) adds only an exact-recipient routing record after a native send and one readback show no receipt. Natural SessionStart counts that task's filenames only; no monitor or command queue was restored.
+
+> Current task-creation correction (2026-07-23): [the boundary invariant audit](2026-07-23_boundary-invariant-bug-audit_architectural_review.md) keeps reuse-first and the cooperative checkout, but restores the thin v0.3 creation seam: the exact goal Coordinator is the sole coordinated durable-task creator, three active tasks includes that Coordinator, and every sequential creation gets an immediate native capacity check and exact readback. Earlier worker-count wording below is decision history, not the current operating contract.
+
 Status: accepted correction for the schema-2 implementation
 Date: 2026-07-23
 

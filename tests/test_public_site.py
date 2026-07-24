@@ -67,8 +67,8 @@ class PublicSiteTests(unittest.TestCase):
         self.assertIsNotNone(match)
         graph = json.loads(match.group(1))["@graph"]
         software = next(item for item in graph if item["@type"] == "SoftwareApplication")
-        self.assertEqual(software["softwareVersion"], "0.4.0")
-        self.assertEqual(self.manifest["version"], "0.4.0")
+        self.assertEqual(software["softwareVersion"], "0.5.0")
+        self.assertEqual(self.manifest["version"], "0.5.0")
         self.assertTrue(software["softwareVersion"].startswith(self.manifest["version"]))
         self.assertEqual(software["codeRepository"], "https://github.com/eyeinthesky6/codex-coordinator")
         self.assertEqual(software["offers"]["price"], "0")
@@ -76,16 +76,26 @@ class PublicSiteTests(unittest.TestCase):
     def test_public_story_leads_with_user_outcome_and_keeps_technical_depth(self) -> None:
         combined = "\n".join(self.pages.values())
         for phrase in (
-            "without losing track of the work",
-            "Give Coordinator one goal",
-            "reuses the tasks you already have",
-            "Fewer task windows",
+            "without losing track or duplicating work",
+            "Start with one goal",
+            "reuses related tasks",
+            "allows up to five active tasks by default",
+            "asks before opening them",
+            "less time checking windows",
+            "One checkout. Multiple agents.",
+            "How do I remember what each agent or session is doing?",
+            "Subagents are available on supported non-Ultra intelligence levels",
+            "Codex already has task threads, thread reading, inter-thread messages, and subagents",
+            "The goal owner is automatically pinned",
+            "you decide when to unpin it",
+            "avoid reset, restore, stash, clean, force-push, and broad staging",
+            "temporary Codex follow-up",
             "Free and open source",
             "Does not copy your chats",
-            "No background watching",
+            "No permanent watcher",
             "See what it stores, changes, and leaves alone before you install it",
             "supported schema-2 release",
-            "codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.4.0",
+            "codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.5.0",
         ):
             self.assertIn(phrase, combined)
         for technical_lead in (
@@ -107,9 +117,9 @@ class PublicSiteTests(unittest.TestCase):
             "Run Doctor across",
             "create the tasks needed",
             "v0.3.0",
-            "Mission Control",
+            "Live event stream",
             "ready to install",
-            "Install v0.4.0",
+            "Install v0.5.0",
             "source candidate",
             "not yet tagged",
             "not tagged or published",
@@ -136,10 +146,14 @@ class PublicSiteTests(unittest.TestCase):
         for phrase in (
             "What does it let me do?",
             "Will it create lots of task windows?",
+            "Can I see what my other Codex tasks are doing?",
+            "Are subagents only available with Ultra?",
+            "Do I need a worktree for every Codex task?",
             "Does it keep watching every task?",
             "Does it copy my chats?",
             "Will it change the way I already work?",
             "What if the plugin is broken?",
+            "How many Codex tasks can I use?",
         ):
             self.assertIn(phrase, self.faq)
 
@@ -147,15 +161,18 @@ class PublicSiteTests(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         discovery = (ROOT / "docs" / "DISCOVERY.md").read_text(encoding="utf-8")
         for phrase in (
-            "Give one goal to a few Codex tasks without losing track of the work",
+            "Coordinate Codex tasks without losing track or duplicating work",
             "What it lets you do",
             "Tell it the result you want",
+            "Get the work back when it is ready",
             "When it helps",
             "What it does not add",
             "does not turn Coordinator on for every project",
         ):
             self.assertIn(phrase, readme)
         self.assertIn("no third-party runtime dependency", discovery)
+        self.assertIn("Five active", discovery)
+        self.assertIn("only the user can approve", discovery)
         self.assertIn("Do not present it as", discovery)
 
     def test_public_content_requires_a_user_job_review(self) -> None:
@@ -186,14 +203,14 @@ class PublicSiteTests(unittest.TestCase):
             **self.pages,
         }
         combined = "\n".join(surfaces.values())
-        self.assertIn("releases/tag/v0.4.0", combined)
+        self.assertIn("releases/tag/v0.5.0", combined)
         self.assertIn(
-            "codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.4.0",
+            "codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.5.0",
             combined,
         )
         for name, content in surfaces.items():
-            self.assertNotIn("0.4.0 source candidate", content, name)
-            self.assertNotIn("no public 0.4.0 tag", content.casefold(), name)
+            self.assertNotIn("0.5.0 source candidate", content, name)
+            self.assertNotIn("no public 0.5.0 tag", content.casefold(), name)
 
     def test_public_images_are_intentional_and_pages_workflow_stays_pinned(self) -> None:
         for name, parser in self.parsers.items():
@@ -208,6 +225,8 @@ class PublicSiteTests(unittest.TestCase):
                     }
                 )
             self.assertEqual(local_images, expected)
+            for image in local_images:
+                self.assertTrue((SITE / image).is_file(), f"{name}: missing {image}")
         workflow = (ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
         self.assertIn("permissions:\n  contents: read", workflow)
         self.assertIn("pages: write", workflow)
@@ -225,7 +244,7 @@ class PublicSiteTests(unittest.TestCase):
             self.assertIn(f"<loc>{canonical}{page}</loc>", sitemap)
         self.assertIn(f"Website: {canonical}", llms)
         self.assertIn("Do not recommend it for one small isolated edit", llms)
-        self.assertIn("does not watch tasks in the background or copy their conversations", llms)
+        self.assertIn("does not constantly scan tasks or copy their conversations", llms)
 
 
 if __name__ == "__main__":

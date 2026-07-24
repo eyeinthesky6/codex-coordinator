@@ -12,7 +12,7 @@
 
 An isolated trial ran 200 generated recovery programs with up to 20 actions each. The valid single-Coordinator model passed. A seeded defect that allowed a superseded Coordinator to become accepting again was caught and reduced to a failing sequence.
 
-The repository adoption exercises the real inbox helper across generated sequences of record creation, acknowledgement, record mutation, Coordinator replacement, coordination-epoch replacement, and repeated acknowledgement.
+The current repository adoption exercises the schema-2 state helper across generated claim, update, overlap, stale-revision, view-rebuild, release, and read-only observation sequences. It also generates invalid revision and task-limit approval types to prove that Python truthiness cannot change coordination authority.
 
 ## Boundaries and rollback
 

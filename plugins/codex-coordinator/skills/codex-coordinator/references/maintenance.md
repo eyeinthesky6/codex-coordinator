@@ -21,6 +21,7 @@ Do not leave manual and marketplace-managed copies active together. Removing a v
 ## Schema migration
 
 - A behavior-only package update changes no project files.
+- A project ceiling change is an explicit, dry-run-first marker update. It preserves active claims and history and never stops existing tasks.
 - A schema migration is a separate user-authorised project action.
 - Preserve project ID, active ownership evidence, legacy state, native tasks, transcripts, and working files.
 - Never guess live schema-2 claims from schema-1 history. Require a safe boundary and exact native task evidence.
@@ -36,4 +37,4 @@ Keep these separate:
 
 Every filesystem operation is dry-run-first. Never scan a whole drive, delete native Codex tasks or transcripts, change Git branches or worktrees, or remove unrelated automation, configuration, application, or environment files.
 
-The schema-2 lifecycle helper creates, pins, polls, or stops no Coordinator task and owns no heartbeat, observer lifecycle, or Doctor schedule. An explicitly user-invoked goal Coordinator is an ordinary native task, not a lifecycle-managed runtime.
+The schema-2 lifecycle helper creates, pins, polls, or stops no Coordinator task and owns no heartbeat, observer lifecycle, or Doctor schedule. An explicitly user-invoked goal Coordinator is an ordinary native task, not a lifecycle-managed runtime. That exact task sets its best-effort native pin after taking the goal and never clears the user's pin automatically.
