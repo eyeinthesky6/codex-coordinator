@@ -1,6 +1,6 @@
 <h1 align="center">Codex Coordinator</h1>
 
-<p align="center"><strong>Coordinate Codex tasks without losing track or duplicating work.</strong></p>
+<p align="center"><strong>Make your Codex agents talk to each other — without letting them step on each other.</strong></p>
 
 <p align="center">
   <a href="https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/eyeinthesky6/codex-coordinator/actions/workflows/ci.yml/badge.svg"></a>
@@ -8,16 +8,23 @@
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-17231f"></a>
 </p>
 
-When one repository genuinely benefits from multiple Codex tasks, Codex Coordinator lets you reuse
-related tasks, give each one a clear job, and see where work may cross.
+**Stop being the message bus between your AI agents.** Give Coordinator one repository goal and let
+separate Codex tasks pass the findings, handoffs, dependencies, and blockers that actually matter
+through native Codex messaging.
 
-You spend less time checking every window, repeating the same updates, and untangling duplicate
-changes. Codex still does the work; Coordinator keeps the jobs clear.
+Coordinator gives each task a clear job, keeps planned work visible, and brings completed work back
+to one goal owner. You spend less time copying updates between windows, checking who is doing what,
+and untangling duplicate changes.
+
+Codex still does the work — and provides the task and messaging primitives. Coordinator gives that
+multi-agent work boundaries, ownership, and one shared outcome.
 
 **[Website](https://eyeinthesky6.github.io/codex-coordinator/)** · **[Quick start](#quick-start)** · **[FAQ](https://eyeinthesky6.github.io/codex-coordinator/faq.html)** · **[Ask a question](https://github.com/eyeinthesky6/codex-coordinator/discussions/categories/q-a)**
 
 ## What it lets you do
 
+- Let participating Codex tasks talk to each other when a real handoff, dependency, collision, or result needs another task to act.
+- Stop copying findings and status between task windows yourself.
 - Give one project goal to as many as five active Codex tasks by default, including the goal owner.
 - Approve a specific temporary increase, or change the project's normal ceiling, when more complete work lanes will genuinely help.
 - Reuse a related task that already knows the work instead of opening another window.
@@ -34,8 +41,9 @@ Codex still does the work. Git still keeps the history. You still decide what ge
 ## How it works
 
 1. **Tell it the result you want.** Start with one project goal, not separate instructions for every task.
-2. **Keep the goal owner in reach.** The appointed Coordinator pins itself, reuses a useful related task first, and opens another only when the work truly benefits from it.
-3. **Get the work back when it is ready.** Each assigned task returns once when it finishes, so the Coordinator can bring the result together without constant checks.
+2. **Give each agent a lane.** Coordinator reuses useful related tasks first, opens new durable tasks only when the work benefits from them, and gives each one a clear boundary.
+3. **Let the tasks communicate when it matters.** Native Codex messages carry bounded assignments, results, dependencies, and collision notices instead of making you relay them manually.
+4. **Get one result back.** Completed work and real blockers return to the goal owner so it can integrate, follow up, or ask you for the next decision.
 
 | Ask | Work | Review |
 |---|---|---|
@@ -43,6 +51,7 @@ Codex still does the work. Git still keeps the history. You still decide what ge
 
 ## Common situations
 
+- **You keep copying findings from one Codex task into another.** Let the tasks use bounded native messages for the handoffs that actually require another task to act.
 - **A change spans code, tests, and documentation.** Give each task one complete result instead of
   repeating the whole project brief in several windows.
 - **Two tasks share one checkout.** Make planned paths visible and catch work that may cross before
@@ -58,7 +67,7 @@ Codex still does the work. Git still keeps the history. You still decide what ge
 
 ## When it helps
 
-Use Codex Coordinator when one project genuinely benefits from multiple Codex tasks at the same time and you would otherwise spend time checking windows or untangling duplicate work. It starts with one task and allows up to five active tasks by default. If a sixth would materially help, it asks before opening more; you can approve a larger count for that goal or change the project ceiling.
+Use Codex Coordinator when one project genuinely benefits from multiple Codex tasks and you would otherwise become the human router between them — copying updates, checking windows, or untangling duplicate work. It starts with one task and allows up to five active tasks by default. If a sixth would materially help, it asks before opening more; you can approve a larger count for that goal or change the project ceiling.
 
 Keep your workflow simpler when:
 
@@ -96,6 +105,7 @@ You can also find it in the [ChatGPT Plugins directory](https://chatgpt.com/plug
 ## What it does not add
 
 - No permanent background manager or constant status checks. An unattended goal may use one temporary native Codex follow-up that removes itself when the goal reaches a decision boundary.
+- No agent chatter for its own sake. Inter-task messages stay sparse and are used only when another task needs to act on an assignment, result, dependency, collision, or release.
 - No automatic pin cleanup. Coordinator pins only the appointed goal owner; workers stay unpinned, and you decide when to unpin the owner.
 - No new task window for a quick command, lookup, review, or small edit.
 - No progress-message or acknowledgement loops; assigned tasks return once at completion.
