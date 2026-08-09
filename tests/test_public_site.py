@@ -76,24 +76,24 @@ class PublicSiteTests(unittest.TestCase):
     def test_public_story_leads_with_user_outcome_and_keeps_technical_depth(self) -> None:
         combined = "\n".join(self.pages.values())
         for phrase in (
-            "without losing track or duplicating work",
-            "Start with one goal",
-            "reuses related tasks",
-            "allows up to five active tasks by default",
-            "asks before opening them",
-            "less time checking windows",
-            "One checkout. Multiple agents.",
-            "How do I remember what each agent or session is doing?",
+            "Make your Codex agents talk to each other",
+            "Stop being the message bus between your AI agents",
+            "Your agents should talk to each other — not through you",
+            "No copy-paste relays",
+            "clear ownership boundaries",
+            "native inter-task messages",
+            "Let the agents hand off directly",
+            "One goal. Agents that can talk. Clear lanes.",
+            "Do the agents constantly message each other?",
+            "Codex provides native inter-task messaging",
+            "Coordinator decides when they matter",
             "Subagents are available on supported non-Ultra intelligence levels",
-            "Codex already has task threads, thread reading, inter-thread messages, and subagents",
-            "The goal owner is automatically pinned",
-            "you decide when to unpin it",
             "avoid reset, restore, stash, clean, force-push, and broad staging",
             "temporary Codex follow-up",
             "Free and open source",
             "Does not copy your chats",
             "No permanent watcher",
-            "See what it stores, changes, and leaves alone before you install it",
+            "No message noise",
             "supported schema-2 release",
             "codex plugin marketplace add eyeinthesky6/codex-coordinator --ref v0.5.0",
         ):
@@ -144,9 +144,11 @@ class PublicSiteTests(unittest.TestCase):
 
     def test_faq_answers_boundaries(self) -> None:
         for phrase in (
-            "What does it let me do?",
+            "Can my Codex agents talk to each other?",
+            "What does Coordinator add if Codex already has messaging?",
             "Will it create lots of task windows?",
             "Can I see what my other Codex tasks are doing?",
+            "Do the agents constantly message each other?",
             "Are subagents only available with Ultra?",
             "Do I need a worktree for every Codex task?",
             "Does it keep watching every task?",
@@ -161,10 +163,12 @@ class PublicSiteTests(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         discovery = (ROOT / "docs" / "DISCOVERY.md").read_text(encoding="utf-8")
         for phrase in (
-            "Coordinate Codex tasks without losing track or duplicating work",
+            "Make your Codex agents talk to each other",
+            "Stop being the message bus between your AI agents",
             "What it lets you do",
-            "Tell it the result you want",
-            "Get the work back when it is ready",
+            "Give each agent a lane",
+            "Let the tasks communicate when it matters",
+            "Get one result back",
             "When it helps",
             "What it does not add",
             "does not turn Coordinator on for every project",
